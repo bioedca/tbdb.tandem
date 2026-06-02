@@ -1,0 +1,62 @@
+# Continuous deployment to GitHub Pages (PLAN §11.3, §11.4). Every push to `main`
+# rebuilds and publishes. `main` is protected behind `ci` (S1.8), so every deploy
+# is from a green commit. Source = GitHub Actions (not the legacy branch Pages).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+# GITHUB_TOKEN scopes for a Pages deployment; id-token signs the OIDC handshake
+# that actions/deploy-pages performs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy in flight at a time so overlapping pushes don't race; queue rather
+# than cancel so an in-progress publish completes.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install (reproducible)
+        run: npm ci
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # GITHUB_ACTIONS is set on the runner → vite base = /tandem-tbox-explorer/.
+      # The committed public/data/*.json + tree files ship with the build.
+      - name: Build
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

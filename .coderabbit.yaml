@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit review config (PLAN §11.1) — review code only. Markdown docs and
+# generated/committed artifacts are scoped out so reviews stay signal-rich.
+language: en-US
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - '!**/*.md'             # all Markdown (README, CHANGELOG, gitignored driver docs)
+    - '!public/data/**'      # committed build artifacts — generated, not code
+    - '!package-lock.json'   # generated lockfile
+chat:
+  auto_reply: true

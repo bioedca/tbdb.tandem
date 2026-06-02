@@ -1,0 +1,76 @@
+# Continuous integration (PLAN §11.3). Runs on every pull request and on pushes
+# to non-`main` branches (pushes to `main` deploy via deploy.yml instead). Two
+# parallel jobs — `data` (Python pipeline) and `web` (Svelte/Vite frontend).
+# `ci` becomes the required status check for merging to `main` at S1.8.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # --- Python data pipeline: build gates on fixtures + committed-artifact integrity
+  data:
+    name: data (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: data-pipeline/requirements.txt
+
+      - name: Install pipeline dependencies
+        run: pip install -r data-pipeline/requirements.txt
+
+      # Gates 1–10 + golden on the committed fixture (test_build.py) and integrity
+      # over the committed public/data/*.json (test_artifacts.py) — PLAN §10.1.
+      # The 92 MB source CSV is not needed: fixtures + committed artifacts only.
+      - name: Run pytest
+        run: pytest data-pipeline
+
+  # --- Svelte/Vite frontend: typecheck → unit/component tests → production build
+  web:
+    name: web (check · test · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install (reproducible)
+        run: npm ci
+
+      # svelte-check is the load-bearing typecheck: bare `tsc --noEmit` does NOT
+      # type-check Svelte component props (empirically proven across S1.1/S1.4/
+      # S1.5/S1.6 — a bad prop slips past tsc but svelte-check catches it). Run
+      # both so component-prop regressions can't pass CI.
+      - name: Type-check components (svelte-check)
+        run: npm run check
+
+      - name: Type-check TypeScript (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Unit + component tests (vitest)
+        run: npm run test
+
+      # GITHUB_ACTIONS is set on the runner, so vite builds at the Pages base
+      # path (/tandem-tbox-explorer/) — this validates the production bundle.
+      - name: Production build
+        run: npm run build
+
+      # Playwright e2e + visual regression (PLAN §11.3, §10.4–10.5) land at S3.4,
+      # once playwright.config.ts and the five-route suite exist. Until then the
+      # `web` job stops at the build (the report-upload-on-failure step lands with
+      # the Playwright step at S3.4).
