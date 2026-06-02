@@ -1,7 +1,17 @@
-<section>
-  <h1 class="text-2xl font-semibold tracking-tight">Browse</h1>
-  <p class="mt-2 text-slate-600">
-    A full-screen faceted table of all 470 tandem loci — sort, multi-facet filter, free-text
-    search, and CSV export. <span class="italic">Placeholder — built in S1.4.</span>
-  </p>
+<script lang="ts">
+  // Browse — the full-screen faceted table + CSV export (PLAN §7.2). All filtering
+  // lives in the shared cross-filter store (§7.3) via FacetTable.
+  import FacetTable from '../lib/components/FacetTable.svelte'
+</script>
+
+<section class="space-y-5">
+  <header>
+    <h1 class="text-h1 text-ink">Browse</h1>
+    <p class="mt-1 text-small text-muted">
+      All 470 tandem T-box loci — sort any column, stack facet filters, search, and export the
+      current selection as CSV. Click a row for its locus detail.
+    </p>
+  </header>
+
+  <FacetTable height="72vh" />
 </section>
