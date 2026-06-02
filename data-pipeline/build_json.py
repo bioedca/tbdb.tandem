@@ -9,12 +9,15 @@ provenance -- get those right here, once (PLAN section 5).
 
 This file is built up across Phase 0 in document order:
 
-* **S0.3 (this step)** -- member resolution + coordinate projection (PLAN
-  section 5.1): reproduce the 470 loci as exactly 949 canonical members held in
-  memory. The ``--out`` directory is accepted but not yet written to.
-* S0.4 -- per-member field assembly + the two-tier function classifier ->
-  ``loci.json`` + ``members.json`` (PLAN section 5.2, 5.3).
-* S0.5 -- ``summary.json`` + ``identity.json``.
+* S0.3 -- member resolution + coordinate projection (PLAN section 5.1):
+  reproduce the 470 loci as exactly 949 canonical members held in memory.
+* **S0.4 (this step)** -- per-member field assembly + the two-tier function
+  classifier -> ``loci.json`` + ``members.json`` (PLAN section 5.2, 5.3). Writes
+  the two backbone JSON to ``--out``; ``mean_pairwise_identity`` is emitted as a
+  ``null`` placeholder backfilled at S0.5 (where the Biopython pairwise identity
+  is computed). ``summary.json`` / ``identity.json`` / the tree FASTAs still
+  land in later steps.
+* S0.5 -- ``summary.json`` + ``identity.json`` (+ backfill the loci.json mean).
 * S0.6 -- the Stem-I length-gate + ``tree_input.fasta`` + the fallback FASTA.
 
 ------------------------------------------------------------------------------
@@ -57,10 +60,14 @@ already baked into the 470 loci (PLAN section 14); the resolution here operates
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import sys
 from pathlib import Path
 
 import pandas as pd
+
+from wuss import wuss_to_dotbracket
 
 # --- Locked constants (PLAN section 5.1, 5.3) -------------------------------
 
@@ -89,17 +96,76 @@ _RESOLUTION_COLS = [
     "amino_acid_top",  # per-member specifier (PLAN section 3.1) -- golden spot-check
 ]
 
+#: Additional Master columns S0.4 reads to assemble the full per-member field set
+#: (PLAN section 5.2). Loaded as the union with ``_RESOLUTION_COLS``. ``codon_start``
+#: lives in the resolution set already; the remaining feature-offset columns are
+#: projected onto genome coordinates via :func:`project` (PLAN section 5.1).
+_FIELD_COLS = [
+    "FASTA_sequence",            # gap-free leader (DNA) -> fasta_sequence; gate #5
+    "Sequence",                  # gapped Stem-I aligned RNA -> aligned_sequence
+    "Structure",                 # Stem-I WUSS -> structure (convert; PLAN section 3.1)
+    "whole_antiterm_structure",  # already dot-bracket -> pass through (PLAN section 3.1)
+    "term_structure",            # already dot-bracket -> pass through (nullable)
+    "s1_start", "s1_end",        # Stem-I span (window offsets)
+    "s1_loop_start", "s1_loop_end",
+    "antiterm_start", "antiterm_end",
+    "term_start", "term_end",
+    "codon_end",                 # codon_start is in _RESOLUTION_COLS
+    "discrim_start", "discrim_end",
+    "refine_codon_top",          # specifier codon (PLAN section 3.1, never raw `codon`)
+    "type",                      # Transcriptional / Translational chip (PLAN section 2.2)
+    "trna_family_top",           # tRNA family
+    "deltadelta_g",              # element-comparison bar (PLAN section 9 (1))
+    "terminator_energy",         # element-comparison bar
+    "downstream_protein",        # two-tier func classifier text tier (PLAN section 5.3)
+    "downstream_protein_id",
+    "downstream_protein_EC",     # two-tier func classifier EC tier
+    "protein_desc",              # downstream.desc (display)
+]
+
+#: All Master columns the build reads, resolution + fields, de-duplicated in order.
+_MASTER_COLS = list(dict.fromkeys(_RESOLUTION_COLS + _FIELD_COLS))
+
+#: Feature-offset column pairs projected to genome coordinates + kept as window
+#: offsets in ``members.json`` (PLAN section 5.2 "feature coords (window + genome)").
+#: Keyed by the name the JSON uses; values are the (start, end) Master columns.
+_FEATURE_SPANS = {
+    "tbox": ("Tbox_start", "Tbox_end"),
+    "s1": ("s1_start", "s1_end"),
+    "s1_loop": ("s1_loop_start", "s1_loop_end"),
+    "codon": ("codon_start", "codon_end"),
+    "antiterm": ("antiterm_start", "antiterm_end"),
+    "term": ("term_start", "term_end"),
+    "discrim": ("discrim_start", "discrim_end"),
+}
+
+#: Integer feature-offset columns coerced once in :func:`_build_pool` so projection
+#: and the window payload read nullable ints (``pd.NA`` for codon-less partials).
+_COORD_COLS = [
+    "s1_start", "s1_end", "s1_loop_start", "s1_loop_end",
+    "antiterm_start", "antiterm_end", "term_start", "term_end",
+    "codon_start", "codon_end", "discrim_start", "discrim_end",
+]
+
 
 # --- Coordinate projection (PLAN section 5.1) -------------------------------
 
-def project(offset: float, locus_start: int, strand: str) -> int:
+def project(offset: object, locus_start: int, strand: str) -> int | None:
     """Project a 1-based leader ``offset`` onto genome coordinates (PLAN 5.1).
 
     On the ``+`` strand the leader runs 5'->3' with increasing genome
     coordinate, so ``locus_start + offset - 1``; on ``-`` it runs the other way,
     ``locus_start - offset + 1``. ``offset`` and ``locus_start`` are taken from
     one Master row.
+
+    A missing ``offset`` (``None`` / ``NaN`` / ``pd.NA``) returns ``None`` -- the
+    codon-less-partial case for the ``codon`` / ``s1`` / ``antiterm`` / ``term`` /
+    ``discrim`` spans projected in field assembly (S0.4). Resolution's ``core5`` /
+    ``core3`` always pass present ``Tbox_start`` / ``Tbox_end`` offsets, so the
+    guard never fires on that path.
     """
+    if pd.isna(offset):
+        return None
     offset = int(offset)
     if strand == "+":
         return locus_start + offset - 1
@@ -117,7 +183,7 @@ def load_sources(master_path: Path, tandem_path: Path) -> tuple[pd.DataFrame, pd
     the corrupt/partial values (e.g. ``codon_start == -1``) coerce predictably.
     """
     tandem = pd.read_csv(tandem_path, sep="\t", dtype=str)
-    master = pd.read_csv(master_path, usecols=_RESOLUTION_COLS, dtype=str)
+    master = pd.read_csv(master_path, usecols=_MASTER_COLS, dtype=str)
     master = master[~master["phylum"].isin(CONTAMINANT_PHYLA)].copy()
     return tandem, master
 
@@ -140,6 +206,10 @@ def _build_pool(tandem: pd.DataFrame, master: pd.DataFrame) -> pd.DataFrame:
     pool["Tbox_end"] = pd.to_numeric(pool["Tbox_end"], errors="coerce").astype("Int64")
     pool["E_value"] = pd.to_numeric(pool["E_value"], errors="coerce")
     pool["codon_start_num"] = pd.to_numeric(pool["codon_start"], errors="coerce")
+    # Feature-offset columns -> nullable Int64 so field assembly (S0.4) reads
+    # genuine ints (pd.NA for codon-less partials), which project() maps to None.
+    for col in _COORD_COLS:
+        pool[col] = pd.to_numeric(pool[col], errors="coerce").astype("Int64")
     pool["strand_row"] = _strand_of(pool["locus_start"], pool["locus_end"])
     plus = pool["strand_row"] == "+"
     pool["core5"] = (pool["locus_start"] + pool["Tbox_start"] - 1).where(
@@ -245,6 +315,7 @@ def resolve_members(tandem: pd.DataFrame, master: pd.DataFrame) -> list[dict]:
             members.append(
                 {
                     "member_id": f"{tandem_id}.m{ordinal}",
+                    "tandem_id": tandem_id,
                     "ordinal": ordinal,
                     "row_index": idx,
                     "unique_name": row["unique_name"] if _has_unique_name(row["unique_name"]) else None,
@@ -269,6 +340,260 @@ def resolve_members(tandem: pd.DataFrame, master: pd.DataFrame) -> list[dict]:
         )
 
     return loci
+
+
+# --- Two-tier function classifier (PLAN section 5.3) ------------------------
+
+# Tier 1 -- EC number prefixes (matched on the leading dotted fields).
+_EC_AARS = re.compile(r"^6\.1\.1\.")        # aminoacyl-tRNA ligases -> aaRS
+_EC_BIOSYN = re.compile(r"^(?:2|4)\.")      # transferases / lyases  -> biosynthesis
+_EC_OXRED = re.compile(r"^1\.")             # oxidoreductases        -> oxidoreductase
+
+# Tier 2 -- ordered regex over `downstream_protein` text (case-insensitive).
+# `--?tRNA (ligase|synthetase)` in PLAN section 5.3 is the "...--tRNA ligase"
+# naming; searching for the tRNA+role phrase anywhere matches it.
+_RE_AARS = re.compile(r"tRNA\s+(?:ligase|synthetase)", re.IGNORECASE)
+_RE_TRANS = re.compile(r"transporter|permease|abc|atp-binding", re.IGNORECASE)
+_RE_BIOSYN = re.compile(
+    r"aminotransferase|dehydratase|synthase|anthranilate|chorismate|"
+    r"isopropylmalate|homoserine",
+    re.IGNORECASE,
+)
+_RE_HYPO = re.compile(r"hypothetical", re.IGNORECASE)
+
+
+def classify_func(ec: str | None, protein: str | None) -> tuple[str, str]:
+    """Two-tier ``(func_class, func_source)`` classifier (PLAN section 5.3).
+
+    Tier 1 keys off the EC number (``func_source == 'EC'``). An EC that is present
+    but matches no known prefix falls through to tier 2 rather than being lost.
+    Tier 2 is an ordered regex over ``downstream_protein`` (``func_source ==
+    'text'`` -- the UI marks these with an asterisk). With neither signal the class
+    is ``unknown`` / ``none``.
+    """
+    if ec:
+        e = ec.strip()
+        if _EC_AARS.match(e):
+            return ("aaRS", "EC")
+        if _EC_BIOSYN.match(e):
+            return ("biosynthesis", "EC")
+        if _EC_OXRED.match(e):
+            return ("oxidoreductase", "EC")
+    if protein:
+        if _RE_AARS.search(protein):
+            return ("aaRS", "text")
+        if _RE_TRANS.search(protein):
+            return ("transporter", "text")
+        if _RE_BIOSYN.search(protein):
+            return ("biosynthesis", "text")
+        if _RE_HYPO.search(protein):
+            return ("unknown", "text")
+    return ("unknown", "none")
+
+
+# --- Field assembly -> loci.json + members.json (PLAN section 5.2) -----------
+
+def _s(value: object) -> str | None:
+    """A trimmed string, or ``None`` for a missing/blank cell."""
+    if pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _i(value: object) -> int | None:
+    """A nullable int from a coerced Int64 / numeric cell."""
+    return None if pd.isna(value) else int(value)
+
+
+def _f(value: object, ndigits: int = 2) -> float | None:
+    """A rounded float, or ``None``. Display-precision energies (PLAN section 9)."""
+    if pd.isna(value):
+        return None
+    try:
+        return round(float(value), ndigits)
+    except (TypeError, ValueError):
+        return None
+
+
+def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) -> dict:
+    """Build one ``members.json`` object from its resolved Master row (PLAN 5.2).
+
+    ``member`` carries the resolution-stage keys (``member_id`` / ``ordinal`` /
+    ``tandem_id``); ``row`` is ``pool.loc[row_index]`` with the feature offsets
+    already coerced to nullable ints.
+    """
+    locus_start = int(row["locus_start"])
+    locus_end = int(row["locus_end"])
+
+    uname = _s(row["unique_name"])
+    tbdb_url = f"https://tbdb.io/tboxes/{uname}.html" if uname else None
+    # NCBI fallback (PLAN section 9): the leader's genome span, from<=to.
+    lo, hi = (locus_start, locus_end) if locus_start <= locus_end else (locus_end, locus_start)
+    ncbi_url = (
+        f"https://www.ncbi.nlm.nih.gov/nuccore/{accession}"
+        f"?report=genbank&from={lo}&to={hi}"
+    )
+
+    # Feature coords: window offsets (leader-relative) + genome projection. A
+    # missing offset (codon-less partials) yields [None, None] / projects to None.
+    window: dict[str, list[int | None]] = {}
+    genome: dict[str, list[int | None]] = {}
+    for name, (c0, c1) in _FEATURE_SPANS.items():
+        window[name] = [_i(row[c0]), _i(row[c1])]
+        genome[name] = [project(row[c0], locus_start, strand), project(row[c1], locus_start, strand)]
+
+    ec = _s(row["downstream_protein_EC"])
+    protein = _s(row["downstream_protein"])
+    func_class, func_source = classify_func(ec, protein)
+
+    return {
+        "member_id": member["member_id"],
+        "tandem_id": member["tandem_id"],
+        "ordinal": member["ordinal"],
+        "unique_name": uname,
+        "tbdb_url": tbdb_url,
+        "ncbi_url": ncbi_url,
+        "specifier": {"aa": _s(row["amino_acid_top"]), "codon": _s(row["refine_codon_top"])},
+        "coords": {
+            "leader": [locus_start, locus_end],
+            "window": window,
+            "genome": genome,
+        },
+        # Gap-free leader (DNA); len == |locus_end - locus_start| + 1 (gate #5).
+        "fasta_sequence": _s(row["FASTA_sequence"]),
+        # Gapped Stem-I aligned RNA + converted Stem-I structure, kept together;
+        # NOT genome-indexable (PLAN section 5.2). structure converts WUSS only.
+        "aligned_sequence": _s(row["Sequence"]),
+        "structure": wuss_to_dotbracket(str(row["Structure"])),
+        # Already dot-bracket -> pass through, never converted (PLAN section 3.1).
+        "whole_antiterm_structure": _s(row["whole_antiterm_structure"]),
+        "term_structure": _s(row["term_structure"]),
+        "deltadelta_g": _f(row["deltadelta_g"]),
+        "terminator_energy": _f(row["terminator_energy"]),
+        "type": _s(row["type"]),
+        "completeness": _s(row["Completeness"]),
+        "trna": _s(row["trna_family_top"]),
+        "downstream": {
+            "protein": protein,
+            "id": _s(row["downstream_protein_id"]),
+            "ec": ec,
+            "desc": _s(row["protein_desc"]),
+            "func_class": func_class,
+            "func_source": func_source,
+        },
+    }
+
+
+def _locus_func_class(tandem_row: pd.Series, member_objs: list[dict]) -> tuple[str, str]:
+    """Locus-level ``(func_class, func_source)`` (PLAN section 9 (3) -- loci by class).
+
+    The tandem regulates one operon recorded as ``downstream_gene`` /
+    ``downstream_id``. Classify the member whose ``downstream_protein_id`` matches
+    that id (so the EC tier still applies); if no member matches, text-classify the
+    tandem ``downstream_gene`` directly (no EC available at locus level).
+    """
+    target = _s(tandem_row["downstream_id"])
+    if target is not None:
+        for obj in member_objs:
+            if obj["downstream"]["id"] == target:
+                return obj["downstream"]["func_class"], obj["downstream"]["func_source"]
+    return classify_func(None, _s(tandem_row["downstream_gene"]))
+
+
+def assemble(
+    loci: list[dict], pool: pd.DataFrame, tandem: pd.DataFrame
+) -> tuple[list[dict], dict[str, dict]]:
+    """Assemble the ``loci.json`` locus list and the ``members.json`` map (PLAN 5.2).
+
+    Returns ``(locus_objs, members_map)``. ``members_map`` is keyed by
+    ``member_id``; ``locus_objs`` denormalizes ``member_ids`` (and a ``null``
+    ``mean_pairwise_identity`` placeholder backfilled at S0.5).
+    """
+    tmap = {r["tandem_id"]: r for _, r in tandem.iterrows()}
+    members_map: dict[str, dict] = {}
+    locus_objs: list[dict] = []
+
+    for locus in loci:
+        tandem_id = locus["tandem_id"]
+        accession = locus["accession"]
+        strand = locus["strand"]
+        trow = tmap[tandem_id]
+
+        member_objs: list[dict] = []
+        for member in locus["members"]:
+            row = pool.loc[member["row_index"]]
+            obj = _assemble_member(row, member, accession, strand)
+            members_map[obj["member_id"]] = obj
+            member_objs.append(obj)
+
+        locus_type = (
+            "Translational"
+            if any(o["type"] == "Translational" for o in member_objs)
+            else "Transcriptional"
+        )
+        func_class, func_source = _locus_func_class(trow, member_objs)
+
+        locus_objs.append(
+            {
+                "tandem_id": tandem_id,
+                "accession": accession,
+                "strand": strand,
+                "organism": _s(trow["organism"]),
+                "phylum": _s(trow["phylum"]),
+                "tax_id": _s(trow["TaxId"]),
+                "n_cores": locus["n_cores"],
+                "n_complete_cores": _i(pd.to_numeric(trow["n_complete_cores"], errors="coerce")),
+                "core_span": _i(pd.to_numeric(trow["core_span"], errors="coerce")),
+                "specifier_aa": _s(trow["specifier_aa"]),
+                "same_specifier": str(trow["same_specifier"]).strip().lower() == "true",
+                "confidence": _s(trow["confidence"]),
+                "flags": _s(trow["flags"]),
+                "type": locus_type,
+                "func_class": func_class,
+                "func_source": func_source,
+                "downstream_gene": _s(trow["downstream_gene"]),
+                "downstream_id": _s(trow["downstream_id"]),
+                "member_ids": [o["member_id"] for o in member_objs],
+                # Backfilled at S0.5 alongside identity.json (PLAN section 5.2).
+                "mean_pairwise_identity": None,
+            }
+        )
+
+    return locus_objs, members_map
+
+
+def build_facets(locus_objs: list[dict]) -> dict[str, list[str]]:
+    """Facet vocabularies for the table/filter store (PLAN section 5.2, 7.3).
+
+    ``specifier`` is ordered by locus frequency (descending) -- the §9 (2) bar
+    order; the rest are sorted. Null phylum (the 3 unassigned loci) and any null
+    facet value are omitted from the vocab but remain filterable as ``null``.
+    """
+    def freq_desc(key: str) -> list[str]:
+        counts: dict[str, int] = {}
+        for o in locus_objs:
+            v = o[key]
+            if v is not None:
+                counts[v] = counts.get(v, 0) + 1
+        return [v for v, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+    def sorted_distinct(key: str) -> list[str]:
+        return sorted({o[key] for o in locus_objs if o[key] is not None})
+
+    return {
+        "specifier": freq_desc("specifier_aa"),
+        "phylum": sorted_distinct("phylum"),
+        "type": sorted_distinct("type"),
+        "confidence": sorted_distinct("confidence"),
+        "func_class": sorted_distinct("func_class"),
+    }
+
+
+def _write_json(path: Path, obj: object) -> None:
+    """Write compact deterministic JSON (no spaces, stable key order)."""
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(obj, fh, separators=(",", ":"), ensure_ascii=True)
 
 
 # --- CLI smoke (S0.3) -------------------------------------------------------
@@ -317,7 +642,17 @@ def main(argv: list[str] | None = None) -> int:
         locus["member_names_count"] = int(ntok)
 
     _smoke(loci)
-    # NOTE: JSON emission to --out lands in S0.4/S0.5/S0.6; S0.3 is in-memory only.
+
+    # S0.4: assemble + write the two backbone JSON. The pool is rebuilt (cheap,
+    # ~952 rows) so resolve_members keeps its S0.3 signature; indices align.
+    pool = _build_pool(tandem, master)
+    locus_objs, members_map = assemble(loci, pool, tandem)
+    facets = build_facets(locus_objs)
+    args.out.mkdir(parents=True, exist_ok=True)
+    _write_json(args.out / "loci.json", {"loci": locus_objs, "facets": facets})
+    _write_json(args.out / "members.json", members_map)
+    print(f"wrote loci.json ({len(locus_objs)}) + members.json ({len(members_map)}) -> {args.out}")
+    # NOTE: summary.json / identity.json (S0.5) + tree FASTAs (S0.6) still to come.
     return 0
 
 
