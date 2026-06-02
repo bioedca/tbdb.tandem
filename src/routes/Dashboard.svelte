@@ -4,6 +4,7 @@
   // panels land in Phase 2 (S2.x) on the same store.
   import KpiStrip from '../lib/components/KpiStrip.svelte'
   import SpecificityChart from '../lib/components/SpecificityChart.svelte'
+  import SpecPhylumHeatmap from '../lib/components/SpecPhylumHeatmap.svelte'
   import FacetTable from '../lib/components/FacetTable.svelte'
 </script>
 
@@ -19,6 +20,8 @@
   <KpiStrip />
 
   <SpecificityChart />
+
+  <SpecPhylumHeatmap />
 
   <FacetTable height="56vh" />
 </section>
