@@ -81,6 +81,21 @@ export const PHYLUM_COLORS: Record<string, string> = {
 /** Fallback for unassigned/null phylum (the 3 unassigned loci). */
 export const PHYLUM_DEFAULT_COLOR = '#d6d3d1' // stone-300
 
+/**
+ * Phylum COUNT ramp (§8.2) — the continuous companion to `PHYLUM_COLORS`, for the
+ * specifier×phylum heatmap's count cells (S2.4). A deliberately quiet, low-
+ * saturation slate ramp: it is CHROME (a magnitude scale), so it never collides
+ * with the saturated 20-AA specifier palette (§8.2 chrome⟂data) and is distinct
+ * from the brand teal. It tops out at slate-400 so the dark in-cell count text
+ * stays AA-readable on the most-saturated cell. Expressed as a Plotly colorscale.
+ */
+export const PHYLUM_COUNT_RAMP: [number, string][] = [
+  [0, '#f8fafc'], // slate-50  — lowest counts
+  [0.25, '#e2e8f0'], // slate-200
+  [0.6, '#cbd5e1'], // slate-300
+  [1, '#94a3b8'], // slate-400 — capped maximum (ink text ≈ 7:1 contrast)
+]
+
 const AA_SET = new Set(Object.keys(SPECIFIER_COLORS))
 
 /** Uppercase + trim a raw specifier token. */
