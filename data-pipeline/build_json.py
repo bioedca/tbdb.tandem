@@ -621,6 +621,31 @@ def _smoke(loci: list[dict]) -> None:
         )
 
 
+def _assert_golden_ordinal(loci: list[dict]) -> None:
+    """Pin the load-bearing minus-strand ordinal direction (PLAN section 5.1 step 3).
+
+    The member ``ordinal`` is transcript-5'->3' (biological): on the minus strand
+    the transcript 5' end sits at the LARGER genome coordinate, so it is ordinal 1.
+    The golden T0342 (``CP045927``, minus strand) must therefore resolve
+    ``m1=TRP`` (core5=1984287) then ``m2=VAL`` (core5=1984088). Gate #8 (PLAN 5.4)
+    only checks the *set* ``{VAL, TRP}``, which would mask a silent flip of the
+    minus-strand reversal in :func:`resolve_members`; this asserts the *order*, so
+    the build fails loudly before emitting ``members.json`` on a drifted ordinal.
+    (Adjudicated from the S0.3 verification workflow ``verify-s03-member-resolution``;
+    convention confirmed biological-5' by the spec owner.)
+    """
+    g = next((locus for locus in loci if locus["tandem_id"] == "T0342"), None)
+    if g is None:
+        return  # fixture/subset builds lacking the golden locus skip the pin
+    order = [m["aa"] for m in g["members"]]
+    if order != ["TRP", "VAL"]:
+        raise ValueError(
+            "T0342 ordinal pin failed: expected transcript-5' order ['TRP', 'VAL'], "
+            f"got {order} -- the minus-strand ordinal reversal may have drifted "
+            "(PLAN section 5.1 step 3)"
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Build TandemView static JSON from the TBDB sources (PLAN section 5).",
@@ -642,6 +667,7 @@ def main(argv: list[str] | None = None) -> int:
         locus["member_names_count"] = int(ntok)
 
     _smoke(loci)
+    _assert_golden_ordinal(loci)  # fail loudly if the minus-strand ordinal drifts
 
     # S0.4: assemble + write the two backbone JSON. The pool is rebuilt (cheap,
     # ~952 rows) so resolve_members keeps its S0.3 signature; indices align.
