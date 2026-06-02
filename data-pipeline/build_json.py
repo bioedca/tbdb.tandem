@@ -957,6 +957,13 @@ def _codon_backcheck(members_map: dict[str, dict]) -> dict:
             skipped += 1
             continue
         lo, hi = (cs, ce) if cs <= ce else (ce, cs)
+        # Guard non-positive / out-of-range windows the same way the sibling
+        # slicers do (_native_stemI_span, _antiterm_core): ~90 members carry a
+        # corrupt codon window of (-1, -1), which must skip cleanly rather than
+        # index from the end of the leader.
+        if lo <= 0 or hi > len(seq):
+            skipped += 1
+            continue
         codon = seq[lo - 1:hi].upper()
         if len(codon) != 3 or any(b not in "ACGT" for b in codon):
             skipped += 1

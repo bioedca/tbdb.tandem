@@ -164,12 +164,16 @@ def test_gate10_tree_input_matches_partition(members):
     main_ids, fallback_ids = bj.partition_for_tree(members)
     assert len(main_ids) == N_MAIN_TIPS
     assert len(fallback_ids) == N_FALLBACK
-    headers = [h for h, _ in bj._read_fasta(DATA / "tree_input.fasta")]
+    records = bj._read_fasta(DATA / "tree_input.fasta")
+    headers = [h for h, _ in records]
     # Every header is the gated member's unique_name, in order (gate #10).
     assert headers == [members[mid]["unique_name"] for mid in main_ids]
     # Every header is a known unique_name.
     known = {m["unique_name"] for m in members.values() if m["unique_name"]}
     assert set(headers) <= known
+    # Each record's SEQUENCE body is the member's full leader (catches a stale
+    # committed FASTA whose headers still line up but whose bodies drifted).
+    assert [s for _, s in records] == [members[mid]["fasta_sequence"] for mid in main_ids]
     # Every main-tree record meets the native Stem-I length gate.
     for mid in main_ids:
         span = bj._native_stemI_span(members[mid])
@@ -179,6 +183,20 @@ def test_gate10_tree_input_matches_partition(members):
 def test_fallback_fasta_count(members):
     records = bj._read_fasta(DATA / "antiterm_fallback.fasta")
     assert len(records) == N_FALLBACK
+
+
+def test_fallback_fasta_content_matches_members(members):
+    # Re-derive the fallback FASTA from members.json exactly as write_tree_fastas
+    # does (header = unique_name or member_id, body = antiterminator-core slice) and
+    # assert the committed file matches record-for-record. This gives _antiterm_core
+    # real coverage over all 102 fallback members and catches a stale fallback FASTA.
+    _main_ids, fallback_ids = bj.partition_for_tree(members)
+    expected = []
+    for mid in fallback_ids:
+        core = bj._antiterm_core(members[mid])
+        assert core, f"{mid} fallback member has no antiterminator core"
+        expected.append((members[mid]["unique_name"] or mid, core))
+    assert bj._read_fasta(DATA / "antiterm_fallback.fasta") == expected
 
 
 def test_tree_input_record_count(members):

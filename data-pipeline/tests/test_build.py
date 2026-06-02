@@ -123,16 +123,23 @@ def test_gate3_url_resolution(built):
 
 def test_ncbi_fallback_branch(built):
     # No real member is missing unique_name, so exercise the fallback explicitly:
-    # blank a real pool row's unique_name -> tbdb_url None, ncbi_url present (gate #3).
+    # blank a real *minus-strand* pool row's unique_name (locus_start > locus_end)
+    # so the ncbi_url from<=to normalization is genuinely exercised (gate #3).
     pool = built["pool"]
-    row = pool.loc[pool.index[0]].copy()
+    minus = pool[pool["locus_start"] > pool["locus_end"]]
+    assert not minus.empty
+    row = minus.iloc[0].copy()
+    acc = row["accession_name"]
+    ls, le = int(row["locus_start"]), int(row["locus_end"])
     row["unique_name"] = pd.NA
     obj = bj._assemble_member(row, {"member_id": "X.m1", "tandem_id": "X", "ordinal": 1},
-                              "CP045927", "-")
+                              acc, "-")
     assert obj["unique_name"] is None
     assert obj["tbdb_url"] is None
-    assert obj["ncbi_url"].startswith(
-        "https://www.ncbi.nlm.nih.gov/nuccore/CP045927?report=genbank&from="
+    lo, hi = min(ls, le), max(ls, le)
+    assert lo < hi  # genuine minus-strand row -> the from<=to swap actually happened
+    assert obj["ncbi_url"] == (
+        f"https://www.ncbi.nlm.nih.gov/nuccore/{acc}?report=genbank&from={lo}&to={hi}"
     )
 
 
@@ -266,6 +273,32 @@ def test_partition_main_vs_fallback():
     assert fallback_ids == ["B", "C", "D"]
 
 
+def test_antiterm_core_slices_window():
+    # The antiterminator-core slice the MAFFT fallback tree builds on (PLAN section 6).
+    m = {"fasta_sequence": "AAAACCCCGGGGTTTT", "coords": {"window": {"antiterm": [5, 8]}}}
+    assert bj._antiterm_core(m) == "CCCC"                   # 1-based [5,8] inclusive
+    m2 = {"fasta_sequence": "AAAACCCCGGGGTTTT", "coords": {"window": {"antiterm": [8, 5]}}}
+    assert bj._antiterm_core(m2) == "CCCC"                  # bounds are order-free
+    base = {"fasta_sequence": "ACGT"}
+    assert bj._antiterm_core({**base, "coords": {"window": {"antiterm": [3, 99]}}}) is None   # hi > len
+    assert bj._antiterm_core({**base, "coords": {"window": {"antiterm": [0, 2]}}}) is None     # non-positive
+    assert bj._antiterm_core({**base, "coords": {"window": {"antiterm": [None, None]}}}) is None
+
+
+def test_locus_func_class_keeps_ec_tier_when_member_matches():
+    # PLAN section 5.3: classify the member whose downstream_protein_id == the tandem
+    # downstream_id (so the EC tier still applies at locus level); else text-classify
+    # the tandem downstream_gene.
+    member_objs = [
+        {"downstream": {"id": "prot|X", "func_class": "aaRS", "func_source": "EC"}},
+        {"downstream": {"id": "prot|Y", "func_class": "unknown", "func_source": "none"}},
+    ]
+    matched = pd.Series({"downstream_id": "prot|X", "downstream_gene": "isoleucine--tRNA ligase"})
+    assert bj._locus_func_class(matched, member_objs) == ("aaRS", "EC")
+    unmatched = pd.Series({"downstream_id": "prot|Z", "downstream_gene": "ABC transporter permease"})
+    assert bj._locus_func_class(unmatched, member_objs) == ("transporter", "text")
+
+
 # --- Coordinate projection (PLAN section 5.1) -------------------------------
 
 def test_project_plus_strand():
@@ -382,3 +415,27 @@ def test_verify_tree_fasta_raises_on_tampered_fasta(built, tmp_path):
     bad.write_text(">NOT_A_REAL_NAME\nACGT\n", encoding="utf-8")
     with pytest.raises(ValueError, match="gate#10"):
         bj.verify_tree_fasta(tmp_path, built["members_map"])
+
+
+def test_validate_gates_raises_on_empty_fasta(built):
+    locus_objs, members_map, pairs = _corrupt(built)
+    members_map["T0001.m1"]["fasta_sequence"] = ""       # gate #4 (empty) fires
+    with pytest.raises(ValueError, match="gate#4"):
+        bj.validate_gates(locus_objs, members_map, pairs)
+
+
+def test_validate_gates_raises_on_bad_leader_length(built):
+    locus_objs, members_map, pairs = _corrupt(built)
+    members_map["T0001.m1"]["fasta_sequence"] += "A"     # one base too long -> gate #5
+    with pytest.raises(ValueError, match="gate#5"):
+        bj.validate_gates(locus_objs, members_map, pairs)
+
+
+def test_validate_gates_raises_on_golden_order_flip(built):
+    # The gate #8 block INSIDE validate_gates (independent of _assert_golden_ordinal)
+    # must catch a flipped minus-strand golden order.
+    locus_objs, members_map, pairs = _corrupt(built)
+    golden = next(lo for lo in locus_objs if lo["accession"] == "CP045927")
+    golden["member_ids"] = list(reversed(golden["member_ids"]))   # [VAL, TRP]
+    with pytest.raises(ValueError, match="gate#8"):
+        bj.validate_gates(locus_objs, members_map, pairs)
