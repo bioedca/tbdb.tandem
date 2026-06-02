@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-02
+
 ### Added
 - **Data pipeline** (`data-pipeline/build_json.py`) — deterministic offline build turning the read-only TBDB sources into the committed static artifacts: **470 loci · 949 canonical members · 488 intra-locus identity pairs**. Member resolution with the 60-bp core collapse, transcript-5′ ordinals, per-column WUSS→dot-bracket structure conversion, the two-tier (EC → regex) `func_class` classifier, the Stem-I length-gate, and `tree_input.fasta` emission. Locked behind 10 validation gates + golden tests.
 - **Sequence-derived similarity tree** — built on the lab cluster (full-leader `cmalign` → RF00230 → Stem-I column slice → FastTree, midpoint-rooted for layout only): `tree.nwk`, `tree_fallback.nwk`, `tree_tips.json`, `tree_locus_map.json` (**847 main-tree tips / 102 fallback**). An exploratory similarity map, not an ancestral-state reconstruction.
@@ -17,3 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Specificity views** — locus-level specifier-AA bar chart + a symmetric element-pair matrix (preserving the ILE×LEU branched-chain cluster) with click cross-filtering, and a bare per-locus detail page with tbdb.io / NCBI deep-links.
 - **Tests** — the Python build-gate + artifact-integrity suite (`pytest`) and the Phase-1 frontend unit + component suite (Vitest + Testing Library).
 - **CI/CD** — GitHub Actions CI (`data` + `web` jobs) and a Pages deploy workflow, with Dependabot and CodeRabbit configuration.
+
+[Unreleased]: https://github.com/bioedca/tandem-tbox-explorer/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/bioedca/tandem-tbox-explorer/releases/tag/v0.1.0
