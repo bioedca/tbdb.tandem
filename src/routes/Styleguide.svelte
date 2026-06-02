@@ -20,8 +20,29 @@
   import Spinner from '../lib/components/Spinner.svelte'
   import TbdbLink from '../lib/components/TbdbLink.svelte'
   import NoPolarityBanner from '../lib/components/NoPolarityBanner.svelte'
+  import ArchitectureDiagram from '../lib/components/ArchitectureDiagram.svelte'
+  import ElementComparison from '../lib/components/ElementComparison.svelte'
+  import { store } from '../lib/stores/filters.svelte'
 
   const proof = assertChromeDataDisjoint()
+
+  // Architecture / comparison showcase (S2.1). Reads real loci from the store and
+  // lazily pulls identity.json so the panel's %-identity populates. Covers a pair,
+  // a triple, a mixed two-tone locus, and a collapse-recovered shared-leader locus.
+  $effect(() => {
+    void store.ensureIdentity()
+  })
+  // pair · triple · mixed shared-leader · mixed ILE;LEU · nested overlap (+ normal
+  // spacer) · mixed partial overlap · loop-only member (s1 absent, s1_loop present).
+  const ARCH_SHOWCASE = ['T0001', 'T0062', 'T0342', 'T0003', 'T0079', 'T0210', 'T0395']
+  const archCases = $derived(
+    ARCH_SHOWCASE.map((id) => ({
+      id,
+      locus: store.loci.find((l) => l.tandem_id === id) ?? null,
+      members: store.membersByLocus.get(id) ?? [],
+      pairs: store.identityByLocus?.get(id) ?? [],
+    })).filter((c) => c.locus && c.members.length > 0),
+  )
 
   const typeRamp = [
     { cls: 'text-display', label: 'display' },
@@ -195,6 +216,38 @@
       </div>
 
       <NoPolarityBanner />
+    </div>
+  </Card>
+
+  <Card
+    title="Tandem architecture + element comparison"
+    subtitle="§9① signature view (S2.1) — to-scale, biological 5′→3′; element tinted by its own specifier"
+  >
+    <div class="space-y-8">
+      {#each archCases as c (c.id)}
+        {@const l = c.locus!}
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center gap-2 text-small">
+            <span class="font-mono font-medium text-ink">{c.id}</span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="size-3 rounded-sm ring-1 ring-ink/10" style:background={swatchBackground(l.specifier_aa)} aria-hidden="true"></span>
+              <span class="font-mono text-ink">{l.specifier_aa ?? '?'}</span>
+            </span>
+            <span class="text-muted">· {l.same_specifier ? 'same' : 'mixed'} · {l.strand} strand · {l.n_cores} cores · {l.type}</span>
+          </div>
+          <ArchitectureDiagram
+            members={c.members}
+            strand={l.strand}
+            funcClass={l.func_class}
+            funcSource={l.func_source}
+            downstreamGene={l.downstream_gene}
+          />
+          <ElementComparison members={c.members} pairs={c.pairs} />
+        </div>
+      {/each}
+      {#if archCases.length === 0}
+        <Spinner label="Loading loci…" />
+      {/if}
     </div>
   </Card>
 </div>
