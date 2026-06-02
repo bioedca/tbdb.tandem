@@ -1,0 +1,108 @@
+// Component: FacetTable (PLAN §10.3, §7.1, §7.3). Tabulator needs real layout, so
+// it's mocked: the component owns the store-driven filter UI (search, facet
+// disclosures, chips, count, CSV) and feeds Tabulator `store.selected` — the mock
+// records construction, `replaceData`, and `download` so those wires are asserted
+// without jsdom layout flakiness. Real Tabulator rendering is covered by the S3.4
+// Playwright e2e.
+import { flushSync } from 'svelte'
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { vi } from 'vitest'
+
+const tab = vi.hoisted(() => {
+  const calls: { construct: Record<string, unknown>[]; replaceData: { tandem_id: string }[][]; download: string[][]; destroy: number } = {
+    construct: [],
+    replaceData: [],
+    download: [],
+    destroy: 0,
+  }
+  class MockTab {
+    handlers: Record<string, (...a: unknown[]) => void> = {}
+    constructor(_el: HTMLElement, opts: Record<string, unknown>) {
+      calls.construct.push(opts)
+    }
+    on(evt: string, cb: (...a: unknown[]) => void) {
+      this.handlers[evt] = cb
+      if (evt === 'tableBuilt') cb() // the mock is "built" immediately
+    }
+    replaceData(rows: { tandem_id: string }[]) {
+      calls.replaceData.push(rows)
+      return Promise.resolve()
+    }
+    download(fmt: string, name: string) {
+      calls.download.push([fmt, name])
+    }
+    destroy() {
+      calls.destroy++
+    }
+  }
+  return { calls, MockTab }
+})
+
+vi.mock('tabulator-tables', () => ({ TabulatorFull: tab.MockTab }))
+
+import FacetTable from '../../src/lib/components/FacetTable.svelte'
+import { store } from '../../src/lib/stores/filters.svelte'
+import { resetStore, seedStore } from '../helpers'
+
+beforeEach(() => {
+  seedStore()
+  tab.calls.construct.length = 0
+  tab.calls.replaceData.length = 0
+  tab.calls.download.length = 0
+  tab.calls.destroy = 0
+})
+
+afterEach(resetStore)
+
+describe('FacetTable', () => {
+  test('constructs Tabulator keyed by tandem_id with the initial selection', async () => {
+    render(FacetTable)
+    await waitFor(() => expect(tab.calls.construct).toHaveLength(1))
+    expect(tab.calls.construct[0].index).toBe('tandem_id')
+    expect((tab.calls.construct[0].data as { tandem_id: string }[]).map((l) => l.tandem_id)).toEqual([
+      'T0001', 'T0002', 'T0003', 'T0004', 'T0005', 'T0006',
+    ])
+  })
+
+  test('renders the store-driven filter UI', () => {
+    const { container } = render(FacetTable)
+    expect(screen.getByPlaceholderText('Search loci…')).toBeInTheDocument()
+    expect(screen.getByText('Specifier')).toBeInTheDocument()
+    expect(screen.getByText('Phylum')).toBeInTheDocument()
+    expect(screen.getByText('Function class')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument()
+    const count = container.querySelector('p')
+    expect(count?.textContent?.replace(/\s+/g, ' ').trim()).toMatch(/Showing 6 of 6 loci/)
+  })
+
+  test('typing in the search box updates the shared store', () => {
+    render(FacetTable)
+    fireEvent.input(screen.getByPlaceholderText('Search loci…'), { target: { value: 'bacillus' } })
+    expect(store.filter.search).toBe('bacillus')
+  })
+
+  test('a facet checkbox toggles the shared store', () => {
+    render(FacetTable)
+    const label = screen.getByText('TRP').closest('label')!
+    const checkbox = label.querySelector('input[type="checkbox"]')!
+    fireEvent.change(checkbox)
+    expect(store.isActive('specifier', 'TRP')).toBe(true)
+  })
+
+  test('re-feeds Tabulator with the cross-filtered selection', async () => {
+    render(FacetTable)
+    await waitFor(() => expect(tab.calls.replaceData.length).toBeGreaterThanOrEqual(1))
+    const before = tab.calls.replaceData.length
+    store.toggleFacet('specifier', 'TRP')
+    flushSync()
+    expect(tab.calls.replaceData.length).toBeGreaterThan(before)
+    expect(tab.calls.replaceData.at(-1)!.map((l) => l.tandem_id)).toEqual(['T0001', 'T0005'])
+  })
+
+  test('Export CSV triggers a Tabulator csv download', () => {
+    render(FacetTable)
+    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+    expect(tab.calls.download).toContainEqual(['csv', 'tandemview-loci.csv'])
+  })
+})
