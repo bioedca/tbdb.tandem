@@ -20,7 +20,7 @@
   })
 </script>
 
-<div class="flex min-h-screen flex-col bg-surface-subtle text-body">
+<div class="tv-app flex min-h-screen flex-col bg-surface-subtle text-body">
   <!-- Dark chrome header (PLAN §8.2). The two-bar wordmark evokes two stacked
        T-box elements (§8.1); the teal accent is the brand affordance color. -->
   <header class="bg-chrome text-chrome-fg">
