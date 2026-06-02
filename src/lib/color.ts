@@ -192,6 +192,12 @@ export function rgbDistance(a: string, b: string): number {
   return Math.hypot(x.r - y.r, x.g - y.g, x.b - y.b)
 }
 
+/** `#rrggbb` + alpha → an `rgba(r, g, b, a)` string (e.g. selection dimming). */
+export function withAlpha(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 // ── Chrome ⟂ data disjointness proof (§8.2 invariant; S1.2 exit criterion) ──────
 
 /**

@@ -3,6 +3,7 @@
   // faceted table over the one shared filter state; the four cross-filtered viz
   // panels land in Phase 2 (S2.x) on the same store.
   import KpiStrip from '../lib/components/KpiStrip.svelte'
+  import SpecificityChart from '../lib/components/SpecificityChart.svelte'
   import FacetTable from '../lib/components/FacetTable.svelte'
 </script>
 
@@ -16,6 +17,8 @@
   </header>
 
   <KpiStrip />
+
+  <SpecificityChart />
 
   <FacetTable height="56vh" />
 </section>
