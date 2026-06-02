@@ -10,7 +10,22 @@ import { store } from '../../src/lib/stores/filters.svelte'
 import { makeLocus, makeMember } from '../fixtures'
 import { resetStore } from '../helpers'
 
+// RnaStructure (S2.3) loads fornac by injecting a classic <script> (lib/fornac.ts).
+// jsdom doesn't execute injected scripts, so the loader promise just stays pending
+// and the component shows its "Loading…" state with the VARNA deep-link — no mock
+// needed, and nothing throws. Real fornac mounting is covered by the S3.4 e2e.
+
 const M2_NCBI = 'https://www.ncbi.nlm.nih.gov/nuccore/CP9?report=genbank&from=2&to=3'
+
+/** Deep-link assertions target the Element-comparison table specifically — its
+ *  per-element tbdb/NCBI links are this suite's subject. Scoping past the whole
+ *  container keeps the counts independent of the RnaStructure VARNA deep-link
+ *  (S2.3), which shows the ACTIVE element's link too. */
+function comparisonHrefs(container: HTMLElement): (string | null)[] {
+  const table = container.querySelector('table')
+  if (!table) return []
+  return [...table.querySelectorAll('a')].map((a) => a.getAttribute('href'))
+}
 
 beforeEach(() => {
   // m1 has a unique_name (→ tbdb link); m2 has none (→ NCBI-only fallback).
@@ -44,24 +59,24 @@ describe('LocusDetail', () => {
 
   test('element with a unique_name shows its tbdb.io deep-link', () => {
     const { container } = render(LocusDetail, { props: { params: { id: 'TX' } } })
-    const hrefs = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'))
+    const hrefs = comparisonHrefs(container)
     expect(hrefs).toContain('https://tbdb.io/tboxes/GYROCCC.html')
-    // exactly one tbdb.io link — m2 has no unique_name.
+    // exactly one tbdb.io link in the comparison — m2 has no unique_name.
     expect(hrefs.filter((h) => h?.includes('tbdb.io'))).toHaveLength(1)
   })
 
   test('every element shows the NCBI coordinate fallback link', () => {
     const { container } = render(LocusDetail, { props: { params: { id: 'TX' } } })
-    const hrefs = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'))
+    const hrefs = comparisonHrefs(container)
     expect(hrefs).toContain(M2_NCBI) // the no-unique_name element's resilient path
     expect(hrefs.filter((h) => h?.includes('ncbi.nlm.nih.gov'))).toHaveLength(2)
   })
 
   test('a dual-link element renders BOTH tbdb.io and its NCBI fallback', () => {
     const { container } = render(LocusDetail, { props: { params: { id: 'TX' } } })
-    const deepLinks = [...container.querySelectorAll('a')]
-      .map((a) => a.getAttribute('href'))
-      .filter((h) => h?.includes('tbdb.io') || h?.includes('ncbi.nlm.nih.gov'))
+    const deepLinks = comparisonHrefs(container).filter(
+      (h) => h?.includes('tbdb.io') || h?.includes('ncbi.nlm.nih.gov'),
+    )
     // m1 → tbdb + NCBI (2), m2 → NCBI only (1) = 3 element deep-links total.
     expect(deepLinks).toHaveLength(3)
   })

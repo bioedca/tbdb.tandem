@@ -15,6 +15,7 @@
   import ArchitectureDiagram from '../lib/components/ArchitectureDiagram.svelte'
   import ElementComparison from '../lib/components/ElementComparison.svelte'
   import MemberSequence from '../lib/components/MemberSequence.svelte'
+  import RnaStructure from '../lib/components/RnaStructure.svelte'
 
   let { params }: { params?: { id?: string } } = $props()
   const id = $derived(params?.id ?? '')
@@ -156,7 +157,14 @@
         <MemberSequence {members} />
       </Card>
 
-      <p class="text-caption text-muted">In-app RNA secondary structure arrives next (S2.3).</p>
+      <!-- ④ In-app RNA secondary structure (PLAN §9 detail flow, §7.1, §13) — best-
+           effort fornac render per element, with the guaranteed tbdb.io VARNA deep-link. -->
+      <Card
+        title="RNA secondary structure"
+        subtitle="In-app (best-effort) · whole-leader antiterminator fold · tbdb.io VARNA is the definitive view"
+      >
+        <RnaStructure {members} />
+      </Card>
     {/if}
   {/if}
 </section>

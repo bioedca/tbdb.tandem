@@ -95,6 +95,26 @@
   }
 }
 
+/* ── fornac interop guard (PLAN §7.1, §13) ──────────────────────────────────────
+   The legacy fornac RNA viewer (loaded as a classic <script> on /locus for in-app
+   secondary structure) self-injects, via its webpack style-loader, a bare-tag,
+   UNLAYERED stylesheet the moment it runs — including
+   `svg { display:block; width:100%; min-width:100%; min-height:100% }`. Because
+   Tailwind v4 emits its utilities inside `@layer utilities`, that UNLAYERED rule
+   outranks `size-6` / `w-full` regardless of specificity, so it would blow our
+   icon SVGs up to full container width once a user opens a detail page (Plotly
+   SVGs carry inline width/height and are already immune). `revert-layer` rolls
+   each property back to the layered (Tailwind) value — restoring every app SVG's
+   own width — while ignoring fornac's unlayered override; this `.tv-app svg` rule
+   (specificity 0,1,1) outranks fornac's bare `svg` (0,0,1). fornac's own graph SVG
+   re-takes its full host box via the higher-specificity scoped rule in
+   RnaStructure.svelte. ── */
+.tv-app svg {
+  width: revert-layer;
+  min-width: revert-layer;
+  min-height: revert-layer;
+}
+
 /* ── Motion (§8.4): honor prefers-reduced-motion — neutralize transitions/animation ── */
 @media (prefers-reduced-motion: reduce) {
   *,
