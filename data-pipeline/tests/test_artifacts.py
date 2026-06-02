@@ -233,3 +233,60 @@ def test_loci_facets_specifier_frequency_order(loci):
     # facets.specifier is frequency-descending, == the summary bar order.
     spec = loci["facets"]["specifier"]
     assert spec[:5] == ["TRP", "THR", "MET", "LEU", "HIS"]
+
+
+# --- SB.4 tree artifacts (committed; Pages-served) --------------------------
+
+@pytest.fixture(scope="module")
+def tree_tips():
+    return json.loads((DATA / "tree_tips.json").read_text())
+
+
+@pytest.fixture(scope="module")
+def tree_locus_map():
+    return json.loads((DATA / "tree_locus_map.json").read_text())
+
+
+def test_tree_artifacts_present():
+    for name in ("tree.nwk", "tree_fallback.nwk", "tree_tips.json", "tree_locus_map.json"):
+        assert (DATA / name).exists(), f"missing tree artifact: {name}"
+
+
+def test_tree_tips_cover_all_members(tree_tips, members):
+    # One tip per canonical member, keyed by unique_name; tree distribution matches
+    # the S0.6 length-gate (PLAN section 6, gate #10). 0 absent on the real data.
+    from collections import Counter
+    assert len(tree_tips) == N_MEMBERS
+    assert set(tree_tips) <= {m["unique_name"] for m in members.values()}
+    dist = Counter(t["tree"] for t in tree_tips.values())
+    assert dist["main"] == N_MAIN_TIPS
+    assert dist["fallback"] == N_FALLBACK
+    assert dist.get("absent", 0) == 0
+
+
+def test_tree_nwk_tip_sets_match_partition(members):
+    # The committed Newicks' tip sets must equal the length-gate partition (gate #10),
+    # re-derived from members.json with the build's own partition_for_tree.
+    import build_tree_artifacts as bta
+    main_ids, fallback_ids = bj.partition_for_tree(members)
+    main_tips = bta.parse_newick_tips((DATA / "tree.nwk").read_text())
+    fb_tips = bta.parse_newick_tips((DATA / "tree_fallback.nwk").read_text())
+    assert main_tips == {members[mid]["unique_name"] for mid in main_ids}
+    assert fb_tips == {members[mid]["unique_name"] or mid for mid in fallback_ids}
+    assert len(main_tips) == N_MAIN_TIPS and len(fb_tips) == N_FALLBACK
+
+
+def test_tree_locus_map(tree_locus_map, tree_tips):
+    assert len(tree_locus_map) == N_LOCI
+    # Every member that lives in a tree is mapped exactly once under its locus.
+    assert sum(len(v) for v in tree_locus_map.values()) == N_MAIN_TIPS + N_FALLBACK
+    for tid, unames in tree_locus_map.items():
+        for u in unames:
+            assert u in tree_tips and tree_tips[u]["tandem_id"] == tid
+
+
+def test_tree_golden(tree_tips, tree_locus_map):
+    g, a = tree_tips["GYROCCC"], tree_tips["AWVAOC5"]
+    assert (g["tree"], g["specifier"], g["tandem_id"], g["ordinal"]) == ("main", "TRP", "T0342", 1)
+    assert (a["tree"], a["specifier"], a["tandem_id"], a["ordinal"]) == ("main", "VAL", "T0342", 2)
+    assert tree_locus_map["T0342"] == ["GYROCCC", "AWVAOC5"]
