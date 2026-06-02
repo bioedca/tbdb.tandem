@@ -14,13 +14,20 @@ This file is built up across Phase 0 in document order:
 * S0.4 -- per-member field assembly + the two-tier function classifier ->
   ``loci.json`` + ``members.json`` (PLAN section 5.2, 5.3). ``loci.json`` emits
   ``mean_pairwise_identity`` as a ``null`` placeholder, backfilled at S0.5.
-* **S0.5 (this step)** -- ``summary.json`` + ``identity.json`` (PLAN section 5.2,
-  3.1, 9 (2)). Computes the intra-locus pairwise %-identity (488 = Sum
-  C(n_cores, 2) = 461*1 + 9*3) with a Biopython global alignment (gaps count
-  against -> flags recent vs ancient duplication), writes the flat 488-pair
-  ``identity.json``, backfills each locus's ``mean_pairwise_identity`` in
-  ``loci.json``, and writes the KPI/distribution ``summary.json`` (~2 KB).
-* S0.6 -- the Stem-I length-gate + ``tree_input.fasta`` + the fallback FASTA.
+* S0.5 -- ``summary.json`` + ``identity.json`` (PLAN section 5.2, 3.1, 9 (2)).
+  Computes the intra-locus pairwise %-identity (488 = Sum C(n_cores, 2) =
+  461*1 + 9*3) with a Biopython global alignment (gaps count against -> flags
+  recent vs ancient duplication), writes the flat 488-pair ``identity.json``,
+  backfills each locus's ``mean_pairwise_identity`` in ``loci.json``, and writes
+  the KPI/distribution ``summary.json`` (~2 KB).
+* **S0.6 (this step)** -- the Stem-I length-gate (PLAN section 6) + the two
+  tree-build FASTAs. ``tree_input.fasta`` holds one record per *gated* canonical
+  member -- header = ``unique_name``, contents = the full per-element leader
+  (``fasta_sequence``) -- for the main full-leader cmalign->Stem-I tree.
+  ``antiterm_fallback.fasta`` holds the antiterminator-core slice of every
+  Stem-I-less / sub-threshold member, for the separate lower-rigor MAFFT fallback
+  tree. The main-tree tip count is emitted + printed (legitimately < 949; gate
+  #10). The companion column slicer is ``slice_stemI_columns.py``.
 
 ------------------------------------------------------------------------------
 Member resolution (PLAN section 5.1), the critical algorithm
@@ -82,6 +89,18 @@ CONTAMINANT_PHYLA = frozenset({"Arthropoda", "Ascomycota", "Nematoda", "Streptop
 #: Two cores closer than this many bp on the genomic 5' coordinate are the same
 #: physical core (collapse window, PLAN section 5.1).
 COLLAPSE_BP = 60
+
+#: Minimum native Stem-I span (bp) for a member to join the *main* Stem-I tree
+#: (PLAN section 6, the "~50-60 bp length-gate"). A member qualifies iff it has a
+#: valid Stem-I (``s1_start > 0 AND s1_end > 0``) AND its native span
+#: ``|s1_end - s1_start| + 1 >= STEMI_MIN_SPAN``; everything else (Stem-I-less or a
+#: degenerate sub-threshold fragment, which would cause long-branch artifacts)
+#: routes to the antiterminator-core fallback tree. On the real sources this gate
+#: routes exactly 71 sub-threshold fragments -- matching PLAN section 6's "~71
+#: degenerate fragments" -- plus 31 Stem-I-less members, leaving 847 main-tree
+#: tips (emitted + printed by the build; recorded by gate #10). The exact tip
+#: count is whatever the build emits and must never be assumed (CLAUDE.md section 2).
+STEMI_MIN_SPAN = 50
 
 #: Master columns S0.3 needs for resolution + coordinate projection. S0.4 extends
 #: this set when it assembles the full per-member field list (PLAN section 5.2).
@@ -758,6 +777,142 @@ def _write_json(path: Path, obj: object) -> None:
         json.dump(obj, fh, separators=(",", ":"), ensure_ascii=True)
 
 
+# --- Tree-build FASTAs: Stem-I length-gate (PLAN section 6, 5.2) -------------
+
+def _native_stemI_span(member: dict) -> int | None:
+    """Native Stem-I span (bp) of a member, or ``None`` if it has no valid Stem-I.
+
+    Validity is PLAN section 6's ``s1_start > 0 AND s1_end > 0`` over the
+    leader-relative Stem-I window offsets (``members.json`` ``coords.window.s1``).
+    The native span is ``|s1_end - s1_start| + 1`` -- the element's own Stem-I
+    length in leader nucleotides, *not* an alignment-column count -- so it is the
+    quantity gate #10 (PLAN section 5.4) checks against :data:`STEMI_MIN_SPAN`. On
+    the real sources 31 members carry ``s1_end == 0`` (no called Stem-I) and return
+    ``None`` here.
+    """
+    a, b = member["coords"]["window"]["s1"]
+    if a is None or b is None or a <= 0 or b <= 0:
+        return None
+    return abs(b - a) + 1
+
+
+def partition_for_tree(members_map: dict[str, dict]) -> tuple[list[str], list[str]]:
+    """Split members into the main Stem-I tree vs the antiterminator fallback.
+
+    A member joins the **main** tree iff it has a valid Stem-I whose native span
+    is ``>= STEMI_MIN_SPAN`` (PLAN section 6); all others -- Stem-I-less or
+    sub-threshold degenerate fragments -- go to the **fallback**. Returns
+    ``(main_ids, fallback_ids)`` preserving ``members_map`` (resolution) order, so
+    the emitted FASTA record order is deterministic. This is the single definition
+    of the gate, reused by the artifact-integrity test (gate #10) at S0.7.
+    """
+    main_ids: list[str] = []
+    fallback_ids: list[str] = []
+    for member_id, member in members_map.items():
+        span = _native_stemI_span(member)
+        if span is not None and span >= STEMI_MIN_SPAN:
+            main_ids.append(member_id)
+        else:
+            fallback_ids.append(member_id)
+    return main_ids, fallback_ids
+
+
+def _antiterm_core(member: dict) -> str | None:
+    """The antiterminator-core nucleotides of a member, or ``None`` if unavailable.
+
+    Slices the gap-free leader (``fasta_sequence``) at the leader-relative
+    antiterminator window (``coords.window.antiterm``). This is the comparable,
+    near-universally-present region used to build the lower-rigor MAFFT fallback
+    tree for elements that have no usable Stem-I (PLAN section 6: "the
+    antiterminator-core MAFFT alignment is the labelled lower-rigor fallback
+    aligner"). On the real sources every one of the 102 fallback members has a
+    valid antiterminator window in range, so none are dropped.
+    """
+    a, b = member["coords"]["window"]["antiterm"]
+    seq = member["fasta_sequence"] or ""
+    if a is None or b is None or a <= 0 or b <= 0:
+        return None
+    lo, hi = (a, b) if a <= b else (b, a)
+    if hi > len(seq):
+        return None
+    return seq[lo - 1:hi]
+
+
+def _write_fasta(path: Path, records: list[tuple[str, str]]) -> None:
+    """Write FASTA records ``(header, sequence)`` in order, one sequence per line."""
+    with path.open("w", encoding="utf-8") as fh:
+        for header, seq in records:
+            fh.write(f">{header}\n{seq}\n")
+
+
+def write_tree_fastas(members_map: dict[str, dict], out_dir: Path) -> tuple[int, int]:
+    """Emit ``tree_input.fasta`` (main) + ``antiterm_fallback.fasta`` (PLAN 5.2, 6).
+
+    The main FASTA carries the full per-element leader of every gated member,
+    headed by its ``unique_name`` (gate #10 requires every header be a known
+    ``unique_name`` -- raised here if one is missing). The fallback FASTA carries
+    the antiterminator-core slice of every other member. Returns
+    ``(main_tip_count, fallback_count)``; the main tip count is the value gate #10
+    pins and is recorded in PROGRESS.md.
+    """
+    main_ids, fallback_ids = partition_for_tree(members_map)
+
+    main_records: list[tuple[str, str]] = []
+    for member_id in main_ids:
+        member = members_map[member_id]
+        uname = member["unique_name"]
+        leader = member["fasta_sequence"]
+        if not uname:
+            raise ValueError(
+                f"{member_id}: main-tree member has no unique_name; gate #10 "
+                "requires every tree_input.fasta header to be a known unique_name"
+            )
+        # Guard the sequence symmetrically with the header: a blank leader would
+        # otherwise be written as the literal "None", silently corrupting the
+        # cmalign input. (Cannot trigger on real data -- gate #4 holds -- but keeps
+        # the gate-#10 contract self-enforcing.)
+        if not leader:
+            raise ValueError(
+                f"{member_id}: main-tree member has an empty fasta_sequence; "
+                "tree_input.fasta records carry the full per-element leader "
+                "(PLAN section 5.2, gates #4/#10)"
+            )
+        main_records.append((uname, leader))
+    _write_fasta(out_dir / "tree_input.fasta", main_records)
+
+    fallback_records: list[tuple[str, str]] = []
+    dropped: list[str] = []
+    for member_id in fallback_ids:
+        member = members_map[member_id]
+        core = _antiterm_core(member)
+        if core:
+            fallback_records.append((member["unique_name"] or member_id, core))
+        else:
+            dropped.append(member_id)
+    _write_fasta(out_dir / "antiterm_fallback.fasta", fallback_records)
+
+    print(
+        f"tree_input.fasta:        {len(main_records)} main-tree tips "
+        f"(valid Stem-I, native span >= {STEMI_MIN_SPAN} bp)"
+    )
+    print(
+        f"antiterm_fallback.fasta: {len(fallback_records)} fallback records "
+        f"({len(fallback_ids)} routed to fallback"
+        + (f"; {len(dropped)} lacked an antiterminator core: {dropped}" if dropped else "")
+        + ")"
+    )
+    # Every canonical member must land in the main tree, the fallback tree, or the
+    # printed `dropped` set (the "flagged-absent" tips Track B records in
+    # tree_tips.json, PLAN section 5.2). This asserts the total accounting so a
+    # member can never silently fall out of both FASTAs unnoticed. On the real
+    # sources `dropped` is empty (all 102 fallback members have an antiterminator).
+    assert len(main_records) + len(fallback_records) + len(dropped) == len(members_map), (
+        f"tree FASTA accounting lost members: {len(main_records)} main + "
+        f"{len(fallback_records)} fallback + {len(dropped)} dropped != {len(members_map)}"
+    )
+    return len(main_records), len(fallback_records)
+
+
 # --- CLI smoke (S0.3) -------------------------------------------------------
 
 def _smoke(loci: list[dict]) -> None:
@@ -854,7 +1009,10 @@ def main(argv: list[str] | None = None) -> int:
         f"wrote loci.json ({len(locus_objs)}) + members.json ({len(members_map)}) "
         f"+ identity.json ({len(pairs)}) + summary.json -> {args.out}"
     )
-    # NOTE: tree_input.fasta + the fallback FASTA (S0.6) still to come.
+
+    # S0.6: the Stem-I length-gate + the two tree-build FASTAs (PLAN section 6, 5.2).
+    # The main-tree tip count is emitted here and is legitimately < 949 by design.
+    write_tree_fastas(members_map, args.out)
     return 0
 
 
