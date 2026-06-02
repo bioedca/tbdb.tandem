@@ -1,7 +1,7 @@
 # Data-build pipeline dependencies (PLAN §5.5, §11.5).
 # Exact pins for reproducible local + CI installs. Python 3.12+.
-pandas==3.0.0          # tabular load/transform of the two TBDB sources
-biopython==1.85        # pairwise %-identity for identity.json (PLAN §5.2)
+pandas==3.0.3          # tabular load/transform of the two TBDB sources
+biopython==1.87        # pairwise %-identity for identity.json (PLAN §5.2)
 
 # Test runner. CI's `data` job runs `pytest` after installing this file
 # (PLAN §10.1, §11.3), so it is pinned here for a deterministic suite.
