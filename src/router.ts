@@ -1,3 +1,6 @@
+import type { Component } from 'svelte'
+import type { WrappedComponent } from 'svelte-spa-router'
+import { wrap } from 'svelte-spa-router/wrap'
 import Dashboard from './routes/Dashboard.svelte'
 import Browse from './routes/Browse.svelte'
 import LocusDetail from './routes/LocusDetail.svelte'
@@ -6,10 +9,19 @@ import About from './routes/About.svelte'
 
 // Hash-based routing (PLAN §7.2) so GitHub Pages deep links resolve with no
 // 404 rewrite. Keys are the in-app paths after the '#'.
-export const routes = {
+export const routes: Record<string, Component<any, any> | WrappedComponent> = {
   '/': Dashboard,
   '/browse': Browse,
   '/locus/:id': LocusDetail,
   '/tree': Tree,
   '/about': About,
+}
+
+// `/styleguide` is a DEV-ONLY review surface for the design system (PLAN §8.5).
+// Guarded by import.meta.env.DEV so the route — and its dynamic import — are
+// dead-code-eliminated from the production build.
+if (import.meta.env.DEV) {
+  routes['/styleguide'] = wrap({
+    asyncComponent: () => import('./routes/Styleguide.svelte'),
+  })
 }
