@@ -187,7 +187,11 @@ export class TandemStore {
     }
   }
 
-  /** Lazily load `identity.json` and group it by locus (PLAN §7.3). */
+  /** Lazily load `identity.json` and group it by locus (PLAN §7.3). A failed load
+   *  degrades gracefully: the detail page's comparison panel simply omits the
+   *  supplementary pairwise-%-identity rows (identity is not load-bearing for the
+   *  page), and the guard is cleared so a later detail visit can retry — never an
+   *  unhandled rejection. */
   ensureIdentity(): Promise<Map<string, IdentityFile>> {
     if (!this.#identityPromise) {
       this.#identityPromise = loadIdentity()
@@ -195,6 +199,10 @@ export class TandemStore {
         .then((map) => {
           this.identityByLocus = map
           return map
+        })
+        .catch(() => {
+          this.#identityPromise = null
+          return new Map<string, IdentityFile>()
         })
     }
     return this.#identityPromise

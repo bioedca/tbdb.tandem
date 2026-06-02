@@ -1,18 +1,20 @@
 <script lang="ts">
-  // Per-locus detail (PLAN §7.2 /locus/:id). At S1.5 this is the BARE-but-real
-  // page: the locus's key fields + every element's tbdb.io / NCBI deep-link
-  // (PLAN §9 tbdb integration). The full tandem-architecture diagram, element
-  // comparison, and in-app RNA land at S2.1/S2.2 — all from the same in-memory
-  // members Map (§7.3), with NO per-locus network call. URLs are read straight
-  // from members.json, where the build already resolved tbdb (or the NCBI
-  // coordinate fallback when a unique_name is missing).
+  // Per-locus detail (PLAN §7.2 /locus/:id). S2.2 wires the full detail flow
+  // (PLAN §9): tandem-architecture diagram → element comparison → feature-
+  // highlighted member sequences — all from the same in-memory members Map (§7.3)
+  // with NO per-locus network call, plus the lazily-loaded intra-locus identity
+  // (§7.3) for the comparison's pairwise %-identity. In-app RNA arrives at S2.3.
+  // Member URLs are read straight from members.json, where the build already
+  // resolved tbdb (or the NCBI coordinate fallback when a unique_name is missing).
   import { link } from 'svelte-spa-router'
   import { store } from '../lib/stores/filters.svelte'
-  import { aaColor, swatchBackground } from '../lib/color'
+  import { swatchBackground } from '../lib/color'
   import Card from '../lib/components/Card.svelte'
   import Badge from '../lib/components/Badge.svelte'
   import Spinner from '../lib/components/Spinner.svelte'
-  import TbdbLink from '../lib/components/TbdbLink.svelte'
+  import ArchitectureDiagram from '../lib/components/ArchitectureDiagram.svelte'
+  import ElementComparison from '../lib/components/ElementComparison.svelte'
+  import MemberSequence from '../lib/components/MemberSequence.svelte'
 
   let { params }: { params?: { id?: string } } = $props()
   const id = $derived(params?.id ?? '')
@@ -21,12 +23,13 @@
   const members = $derived(store.membersByLocus.get(id) ?? [])
   const membersLoading = $derived(store.membersStatus !== 'ready')
 
-  /** Ordinal → biological position label (PLAN §5.1 transcript-5′ → 3′). */
-  function ordinalLabel(ordinal: number, n: number): string {
-    if (ordinal === 1) return "5′ (1)"
-    if (ordinal === n) return "3′ (" + ordinal + ")"
-    return "mid (" + ordinal + ")"
-  }
+  // Lazily pull identity.json once (idempotent; §7.3 "identity.json lazy on detail
+  // pages"), then read this locus's pairwise %-identity rows for the comparison.
+  $effect(() => {
+    void id // re-attempt per locus so a prior failed load retries on locus→locus nav
+    void store.ensureIdentity()
+  })
+  const pairs = $derived(store.identityByLocus?.get(id) ?? [])
 
   function fmt(value: number | null | undefined, suffix = ''): string {
     return value === null || value === undefined ? '—' : value + suffix
@@ -114,51 +117,46 @@
       </dl>
     </Card>
 
-    <!-- Elements: per-member fields + tbdb / NCBI deep-links (§9) -->
-    <Card title="Elements ({locus.n_cores})" subtitle="Biological 5′ → 3′ order">
-      {#if membersLoading}
+    <!-- Detail flow (PLAN §9): architecture → comparison → highlighted sequences.
+         Every view reads the in-memory members Map — no per-locus network call. -->
+    {#if membersLoading}
+      <Card title="Elements ({locus.n_cores})">
         <Spinner label="Loading elements…" />
-      {:else if members.length === 0}
+      </Card>
+    {:else if members.length === 0}
+      <Card title="Elements ({locus.n_cores})">
         <p class="text-small text-muted">No element data for this locus.</p>
-      {:else}
-        <ul class="space-y-3">
-          {#each members as m (m.member_id)}
-            <li class="rounded-md border border-hairline bg-surface-subtle p-3">
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <span class="font-mono text-caption font-medium text-muted">{ordinalLabel(m.ordinal, members.length)}</span>
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="size-3 rounded-sm ring-1 ring-ink/10" style:background={aaColor(m.specifier.aa)} aria-hidden="true"></span>
-                  <span class="font-mono font-medium text-ink">{m.specifier.aa ?? '?'}</span>
-                  {#if m.specifier.codon}<span class="font-mono text-caption text-muted">{m.specifier.codon}</span>{/if}
-                </span>
-                {#if m.trna}<span class="font-mono text-caption text-muted">tRNA {m.trna}</span>{/if}
-                {#if m.completeness}<span class="text-caption text-muted">{m.completeness}</span>{/if}
-                <span class="font-mono text-caption text-muted">ΔΔG {fmt(m.deltadelta_g)}</span>
-                <span class="ml-auto flex items-center gap-3 text-small">
-                  {#if m.tbdb_url}
-                    <TbdbLink href={m.tbdb_url} title="tbdb.io entry for {m.unique_name}">
-                      tbdb.io{#if m.unique_name}<span class="text-muted"> / {m.unique_name}</span>{/if}
-                    </TbdbLink>
-                  {/if}
-                  <TbdbLink href={m.ncbi_url} title="NCBI Nucleotide (coordinate fallback)">NCBI</TbdbLink>
-                </span>
-              </div>
-              {#if m.downstream.protein}
-                <p class="mt-1.5 text-caption text-muted">
-                  Downstream: {m.downstream.protein}
-                  {#if m.downstream.func_source === 'text'}
-                    <Badge variant="inferred" />
-                  {/if}
-                </p>
-              {/if}
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </Card>
+      </Card>
+    {:else}
+      <!-- ① Tandem architecture (PLAN §9①, the signature view) -->
+      <Card
+        title="Tandem architecture"
+        subtitle="To-scale, biological 5′ → 3′ — each element tinted by its own specifier"
+      >
+        <ArchitectureDiagram
+          {members}
+          strand={locus.strand}
+          funcClass={locus.func_class}
+          funcSource={locus.func_source}
+          downstreamGene={locus.downstream_gene}
+        />
+      </Card>
 
-    <p class="text-caption text-muted">
-      Tandem architecture, element comparison, and in-app RNA structure arrive in Phase 2.
-    </p>
+      <!-- ② Element comparison (PLAN §9①) — per-element metrics, deep links, and the
+           intra-locus pairwise %-identity (identity.json, lazily loaded above). -->
+      <Card
+        title="Element comparison"
+        subtitle="Specifier · tRNA · ΔΔG · terminator energy · pairwise identity · deep links"
+      >
+        <ElementComparison {members} {pairs} />
+      </Card>
+
+      <!-- ③ Feature-highlighted member sequences (PLAN §9 detail flow) -->
+      <Card title="Member sequences" subtitle="Per-element leader (gap-free) — feature spans highlighted">
+        <MemberSequence {members} />
+      </Card>
+
+      <p class="text-caption text-muted">In-app RNA secondary structure arrives next (S2.3).</p>
+    {/if}
   {/if}
 </section>
