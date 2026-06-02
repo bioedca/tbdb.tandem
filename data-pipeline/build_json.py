@@ -11,13 +11,15 @@ This file is built up across Phase 0 in document order:
 
 * S0.3 -- member resolution + coordinate projection (PLAN section 5.1):
   reproduce the 470 loci as exactly 949 canonical members held in memory.
-* **S0.4 (this step)** -- per-member field assembly + the two-tier function
-  classifier -> ``loci.json`` + ``members.json`` (PLAN section 5.2, 5.3). Writes
-  the two backbone JSON to ``--out``; ``mean_pairwise_identity`` is emitted as a
-  ``null`` placeholder backfilled at S0.5 (where the Biopython pairwise identity
-  is computed). ``summary.json`` / ``identity.json`` / the tree FASTAs still
-  land in later steps.
-* S0.5 -- ``summary.json`` + ``identity.json`` (+ backfill the loci.json mean).
+* S0.4 -- per-member field assembly + the two-tier function classifier ->
+  ``loci.json`` + ``members.json`` (PLAN section 5.2, 5.3). ``loci.json`` emits
+  ``mean_pairwise_identity`` as a ``null`` placeholder, backfilled at S0.5.
+* **S0.5 (this step)** -- ``summary.json`` + ``identity.json`` (PLAN section 5.2,
+  3.1, 9 (2)). Computes the intra-locus pairwise %-identity (488 = Sum
+  C(n_cores, 2) = 461*1 + 9*3) with a Biopython global alignment (gaps count
+  against -> flags recent vs ancient duplication), writes the flat 488-pair
+  ``identity.json``, backfills each locus's ``mean_pairwise_identity`` in
+  ``loci.json``, and writes the KPI/distribution ``summary.json`` (~2 KB).
 * S0.6 -- the Stem-I length-gate + ``tree_input.fasta`` + the fallback FASTA.
 
 ------------------------------------------------------------------------------
@@ -63,9 +65,11 @@ import argparse
 import json
 import re
 import sys
+from itertools import combinations
 from pathlib import Path
 
 import pandas as pd
+from Bio.Align import PairwiseAligner
 
 from wuss import wuss_to_dotbracket
 
@@ -590,6 +594,164 @@ def build_facets(locus_objs: list[dict]) -> dict[str, list[str]]:
     }
 
 
+# --- Pairwise identity -> identity.json + loci mean backfill (PLAN 5.2) ------
+
+#: Pairwise global-alignment scoring for the intra-locus %-identity (PLAN 5.2:
+#: "Biopython global align, gaps count against -> recent vs ancient duplication").
+#: A standard nucleotide Needleman-Wunsch: reward identity, penalise mismatch and
+#: (affine) gaps. The spec fixes the *method* (global align, gaps count against),
+#: not the exact weights -- these are a deterministic, conventional choice. Identity
+#: is read off the resulting alignment as ``identities / alignment-length``, so
+#: every gap column (terminal or internal) counts against, independent of the score.
+_ALN_MATCH = 2.0
+_ALN_MISMATCH = -1.0
+_ALN_OPEN_GAP = -5.0
+_ALN_EXTEND_GAP = -0.5
+
+
+def _new_aligner() -> PairwiseAligner:
+    """A deterministic global nucleotide aligner (PLAN section 5.2)."""
+    aligner = PairwiseAligner()
+    aligner.mode = "global"
+    aligner.match_score = _ALN_MATCH
+    aligner.mismatch_score = _ALN_MISMATCH
+    aligner.open_gap_score = _ALN_OPEN_GAP
+    aligner.extend_gap_score = _ALN_EXTEND_GAP
+    return aligner
+
+
+def _pairwise_identity(aligner: PairwiseAligner, seq_a: str, seq_b: str) -> float:
+    """Percent identity of the best global alignment, gaps counting against.
+
+    ``identity = 100 * identities / (identities + mismatches + gaps)`` -- the
+    alignment length is the denominator, so every gap column counts against
+    (PLAN section 5.2). Sequences are upper-cased so any soft-masked base aligns
+    by identity; the result is rounded to 1 dp. ``aligner.align(a, b)[0]`` is the
+    first co-optimal alignment and is deterministic.
+    """
+    a = (seq_a or "").upper()
+    b = (seq_b or "").upper()
+    counts = aligner.align(a, b)[0].counts()
+    length = counts.identities + counts.mismatches + counts.gaps
+    if length == 0:
+        return 0.0
+    return round(100.0 * counts.identities / length, 1)
+
+
+def compute_identity(
+    locus_objs: list[dict], members_map: dict[str, dict]
+) -> tuple[list[dict], dict[str, float]]:
+    """Intra-locus pairwise %-identity (PLAN section 5.2): the 488 unordered pairs.
+
+    Returns ``(pairs, means)``. ``pairs`` is a flat list of
+    ``{"a", "b", "identity"}`` over each locus's members in ordinal (transcript-5')
+    order, so it holds exactly ``Sum C(n_cores, 2) == 488`` entries (461*1 + 9*3)
+    and the loaded ``identity.json`` has ``len == 488`` (gate #9). ``means`` maps
+    each ``tandem_id`` to the mean of its pair identities (backfilled into
+    ``loci.json``); for a 2-core locus that mean equals its single pair value.
+    """
+    aligner = _new_aligner()
+    pairs: list[dict] = []
+    means: dict[str, float] = {}
+    for locus in locus_objs:
+        mids = locus["member_ids"]  # ordinal (transcript-5'->3') order
+        locus_pids: list[float] = []
+        for a, b in combinations(mids, 2):
+            pid = _pairwise_identity(
+                aligner,
+                members_map[a]["fasta_sequence"],
+                members_map[b]["fasta_sequence"],
+            )
+            pairs.append({"a": a, "b": b, "identity": pid})
+            locus_pids.append(pid)
+        means[locus["tandem_id"]] = round(sum(locus_pids) / len(locus_pids), 1)
+    return pairs, means
+
+
+# --- summary.json (PLAN section 5.2, 3.1, 9 (2)) ----------------------------
+
+def _median(values: list[float]) -> float | None:
+    """Median of a numeric list (``None`` if empty), rounded to 2 dp."""
+    if not values:
+        return None
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    med = s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2
+    return round(med, 2)
+
+
+def _count_dist(objs: list[dict], key: str) -> list[dict]:
+    """A frequency-descending ``[{"value", "count"}]`` distribution over ``key``.
+
+    Null values are omitted (e.g. the 3 unassigned-phylum loci). Ties break
+    alphabetically -- matching the §9 (2) specifier bar order (TRP, THR, MET, ...).
+    """
+    counts: dict[str, int] = {}
+    for o in objs:
+        v = o[key]
+        if v is not None:
+            counts[v] = counts.get(v, 0) + 1
+    return [
+        {"value": v, "count": c}
+        for v, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+
+
+def build_summary(
+    locus_objs: list[dict], members_map: dict[str, dict], pairs: list[dict]
+) -> dict:
+    """KPI + distribution payload for the dashboard (PLAN section 5.2, ~2 KB).
+
+    Boots with ``loci.json`` for the KPI strip; the distributions feed the §9
+    specificity bar (locus-level specifier), the operon split (func_class +
+    func_source EC/text), and the phylum / type / n_cores context. The headline
+    counts reconcile with the PLAN section 3.1 facts: 470 / 949 / 488; 461 pairs /
+    9 triples; 394 high / 76 low confidence; 428 same / 42 mixed specifier; 16
+    non-Firmicutes.
+    """
+    n_loci = len(locus_objs)
+    same = sum(1 for o in locus_objs if o["same_specifier"])
+    conf = {"high": 0, "low": 0}
+    for o in locus_objs:
+        c = o["confidence"]
+        if c in conf:
+            conf[c] += 1
+    ddg = [m["deltadelta_g"] for m in members_map.values() if m["deltadelta_g"] is not None]
+    pid = [p["identity"] for p in pairs]
+
+    return {
+        "counts": {
+            "loci": n_loci,
+            "members": len(members_map),
+            "intra_locus_pairs": len(pairs),
+            "pairs": sum(1 for o in locus_objs if o["n_cores"] == 2),
+            "triples": sum(1 for o in locus_objs if o["n_cores"] == 3),
+            "non_firmicutes": sum(1 for o in locus_objs if o["phylum"] != "Firmicutes"),
+        },
+        "confidence": conf,
+        "specifier_agreement": {"same": same, "mixed": n_loci - same},
+        "distributions": {
+            "specifier": _count_dist(locus_objs, "specifier_aa"),
+            "phylum": _count_dist(locus_objs, "phylum"),
+            "type": _count_dist(locus_objs, "type"),
+            "func_class": _count_dist(locus_objs, "func_class"),
+            "func_source": _count_dist(locus_objs, "func_source"),
+            "n_cores": [
+                {"value": v, "count": sum(1 for o in locus_objs if o["n_cores"] == v)}
+                for v in sorted({o["n_cores"] for o in locus_objs})
+            ],
+        },
+        "numeric": {
+            "deltadelta_g": {"n_filled": len(ddg), "median": _median(ddg)},
+            "pairwise_identity": {
+                "median": _median(pid),
+                "mean": round(sum(pid) / len(pid), 1) if pid else None,
+            },
+        },
+    }
+
+
 def _write_json(path: Path, obj: object) -> None:
     """Write compact deterministic JSON (no spaces, stable key order)."""
     with path.open("w", encoding="utf-8") as fh:
@@ -669,16 +831,30 @@ def main(argv: list[str] | None = None) -> int:
     _smoke(loci)
     _assert_golden_ordinal(loci)  # fail loudly if the minus-strand ordinal drifts
 
-    # S0.4: assemble + write the two backbone JSON. The pool is rebuilt (cheap,
-    # ~952 rows) so resolve_members keeps its S0.3 signature; indices align.
+    # S0.4: assemble the two backbone payloads. The pool is rebuilt (cheap, ~952
+    # rows) so resolve_members keeps its S0.3 signature; indices align.
     pool = _build_pool(tandem, master)
     locus_objs, members_map = assemble(loci, pool, tandem)
     facets = build_facets(locus_objs)
+
+    # S0.5: the 488 intra-locus pairwise identities + the summary KPI/distribution
+    # payload. Identity is computed before loci.json is written so each locus's
+    # mean_pairwise_identity placeholder is filled in place (PLAN section 5.2).
+    pairs, means = compute_identity(locus_objs, members_map)
+    for locus in locus_objs:
+        locus["mean_pairwise_identity"] = means[locus["tandem_id"]]
+    summary = build_summary(locus_objs, members_map, pairs)
+
     args.out.mkdir(parents=True, exist_ok=True)
     _write_json(args.out / "loci.json", {"loci": locus_objs, "facets": facets})
     _write_json(args.out / "members.json", members_map)
-    print(f"wrote loci.json ({len(locus_objs)}) + members.json ({len(members_map)}) -> {args.out}")
-    # NOTE: summary.json / identity.json (S0.5) + tree FASTAs (S0.6) still to come.
+    _write_json(args.out / "identity.json", pairs)
+    _write_json(args.out / "summary.json", summary)
+    print(
+        f"wrote loci.json ({len(locus_objs)}) + members.json ({len(members_map)}) "
+        f"+ identity.json ({len(pairs)}) + summary.json -> {args.out}"
+    )
+    # NOTE: tree_input.fasta + the fallback FASTA (S0.6) still to come.
     return 0
 
 
