@@ -2,10 +2,17 @@
 # build_tree.sbatch -- TandemView similarity-tree build (PLAN section 6, 6.1; Track B).
 #
 # Runs on the lab cluster (`two` login node, ProxyJump via zero.biochem.northwestern.edu)
-# via SLURM `sbatch` on partition `compute` (= node `zero`, 128c, CPU-only, idle). The
-# job is small, CPU-only, and offline -- the toolchain + RF00230 CM are installed once on
-# the login node at SB.2, so the compute node needs no network. Submission is gated on a
-# one-shot go-ahead after a resource probe (PLAN section 6.1; STEPS SB.3; CLAUDE.md section 5).
+# via SLURM `sbatch`. The job is small, CPU-only, and offline -- the toolchain + RF00230
+# CM are installed once on the login node at SB.2, so the run node needs no network.
+# Submission is gated on a one-shot go-ahead after a resource probe (PLAN section 6.1;
+# STEPS SB.3; CLAUDE.md section 5).
+#
+# DEVIATION from PLAN section 6.1's locked `--partition=compute` (= node `zero`),
+# user-approved 2026-06-02 after a live probe: SLURM step-launch on `zero` fails
+# ("Communication connection failure" -- architecturally off-limits, see the SSH memory),
+# and the alternate gpu node `one` is DOWN. The only runnable node today is the `gpu`-
+# partition login node `two`; this job is CPU-only and requests NO --gres, so it co-tenants
+# politely (probe: no cryoSPARC, 32 idle cores, 177 GB free; needs 8c/16G).
 #
 # HARD CONSTRAINT (PLAN section 6): this is an exploratory *similarity map*, not an
 # ancestral-state instrument. The midpoint root is stored for STABLE LAYOUT ONLY; the app
@@ -20,7 +27,8 @@
 #   tree_elements.nwk, tree_elements.midpoint.nwk, tree_fallback.nwk, tree_%j.log
 #
 #SBATCH --job-name=tandemview-tree
-#SBATCH --partition=compute          # = node `zero` (128c, CPU-only, idle) — ideal for this CPU job
+#SBATCH --partition=gpu              # node `two` (see DEVIATION note above); CPU-only, NO --gres
+#SBATCH --nodelist=two               # `compute`/`zero` step-launch broken; `one` DOWN (2026-06-02)
 #SBATCH --cpus-per-task=8 --mem=16G --time=01:00:00
 #SBATCH --output=tree_%j.log
 set -euo pipefail
