@@ -1,0 +1,6 @@
+<!-- Neutral placeholder mark. The final wordmark / two-bar motif lands with the design system (S1.2, PLAN §8.1). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="TandemView">
+  <rect width="32" height="32" rx="7" fill="#1e293b" />
+  <rect x="8" y="10" width="16" height="4" rx="2" fill="#e2e8f0" />
+  <rect x="8" y="18" width="16" height="4" rx="2" fill="#94a3b8" />
+</svg>
