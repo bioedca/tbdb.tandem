@@ -1,0 +1,29 @@
+# node / vite
+node_modules/
+dist/
+.vite/
+*.local
+
+# python build env
+__pycache__/
+*.pyc
+.venv/
+data-pipeline/.pytest_cache/
+
+# large source CSV is read from ../tboxdb-master/ — never copy it in
+*.csv.bak
+
+# frontend test / build output
+playwright-report/
+test-results/
+coverage/
+*.tsbuildinfo
+
+# OS
+.DS_Store
+
+# local-only driver docs (navigation aids — never committed; see CLAUDE.md)
+PLAN.md
+STEPS.md
+CLAUDE.md
+PROGRESS.md
