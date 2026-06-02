@@ -73,12 +73,15 @@ import json
 import re
 import sys
 from itertools import combinations
+from math import comb
 from pathlib import Path
 
 import pandas as pd
 from Bio.Align import PairwiseAligner
+from Bio.Data.IUPACData import protein_letters_1to3
+from Bio.Seq import Seq
 
-from wuss import wuss_to_dotbracket
+from wuss import is_balanced, wuss_to_dotbracket
 
 # --- Locked constants (PLAN section 5.1, 5.3) -------------------------------
 
@@ -913,6 +916,199 @@ def write_tree_fastas(members_map: dict[str, dict], out_dir: Path) -> tuple[int,
     return len(main_records), len(fallback_records)
 
 
+# --- Validation gates (PLAN section 5.4) ------------------------------------
+
+def _read_fasta(path: Path) -> list[tuple[str, str]]:
+    """Parse a FASTA file into ordered ``(header, sequence)`` records."""
+    records: list[tuple[str, str]] = []
+    header: str | None = None
+    parts: list[str] = []
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if line.startswith(">"):
+                if header is not None:
+                    records.append((header, "".join(parts)))
+                header, parts = line[1:], []
+            elif line:
+                parts.append(line)
+    if header is not None:
+        records.append((header, "".join(parts)))
+    return records
+
+
+def _codon_backcheck(members_map: dict[str, dict]) -> dict:
+    """Gate #6 (PLAN section 5.4): translate each member's leader specifier codon
+    and compare to ``amino_acid_top``. **Warn, never fail** -- codon-less partials
+    always skip and the raw codon is corrupt by design (PLAN section 3.1).
+
+    Reads the codon straight from the gap-free leader at the leader-relative codon
+    window (``fasta[codon_start-1:codon_end]``, PLAN section 5.4 #6), translates it
+    with the standard table, and tallies match / mismatch / skip. Returns the
+    tally; the caller surfaces it as a warning line.
+    """
+    checked = match = mismatch = skipped = 0
+    examples: list[str] = []
+    for member_id, m in members_map.items():
+        aa = m["specifier"]["aa"]
+        cs, ce = m["coords"]["window"]["codon"]
+        seq = m["fasta_sequence"] or ""
+        if aa is None or cs is None or ce is None:
+            skipped += 1
+            continue
+        lo, hi = (cs, ce) if cs <= ce else (ce, cs)
+        codon = seq[lo - 1:hi].upper()
+        if len(codon) != 3 or any(b not in "ACGT" for b in codon):
+            skipped += 1
+            continue
+        try:
+            aa1 = str(Seq(codon).translate())
+        except Exception:
+            skipped += 1
+            continue
+        checked += 1
+        aa3 = protein_letters_1to3.get(aa1, aa1).upper()
+        if aa3 == aa.upper():
+            match += 1
+        else:
+            mismatch += 1
+            if len(examples) < 5:
+                examples.append(f"{member_id}:{codon}->{aa3}!={aa}")
+    return {"checked": checked, "match": match, "mismatch": mismatch,
+            "skipped": skipped, "examples": examples}
+
+
+def validate_gates(
+    locus_objs: list[dict], members_map: dict[str, dict], pairs: list[dict]
+) -> list[str]:
+    """Run the scale-free PLAN section 5.4 gates over the build products.
+
+    Raises :class:`ValueError` listing *every* hard-gate failure (so the build
+    aborts nonzero on any gate failure, PLAN section 5.4); returns a list of
+    human-readable warnings (gate #6 is warn-not-fail). This is the single gate
+    definition reused by S0.7's ``test_build.py`` on the committed fixture, so it
+    asserts the **relational** invariants that hold at any scale -- ``members ==
+    Sum n_cores`` (#2), ``identity == Sum C(n_cores, 2)`` (#9), per-member URL /
+    sequence / length / balance (#3/#4/#5/#7), and the golden (#8). The
+    **absolute** 470 / 949 / 488 counts (gates #1/#2/#9) are asserted by
+    :func:`main` on the real build and by ``test_artifacts.py`` over the committed
+    JSON; gate #10 is :func:`verify_tree_fasta` over the emitted FASTA.
+    """
+    failures: list[str] = []
+
+    # Gate #2 (relational): each locus yields exactly n_cores members; the member
+    # map reconciles 1:1 with the loci's denormalized member_ids.
+    sum_cores = 0
+    referenced: list[str] = []
+    for lo in locus_objs:
+        sum_cores += lo["n_cores"]
+        referenced.extend(lo["member_ids"])
+        if len(lo["member_ids"]) != lo["n_cores"]:
+            failures.append(
+                f"gate#2: {lo['tandem_id']} has {len(lo['member_ids'])} member_ids "
+                f"!= n_cores {lo['n_cores']}"
+            )
+    if sum_cores != len(members_map):
+        failures.append(f"gate#2: sum(n_cores)={sum_cores} != len(members)={len(members_map)}")
+    if len(referenced) != len(members_map) or set(referenced) != set(members_map):
+        failures.append("gate#2: loci member_ids do not reconcile 1:1 with the members map")
+
+    for member_id, m in members_map.items():
+        # Gate #3: every member resolves to a tbdb_url OR an ncbi_url (a missing
+        # unique_name is the expected NCBI-fallback case, not a failure).
+        if not (m["tbdb_url"] or m["ncbi_url"]):
+            failures.append(f"gate#3: {member_id} resolves to neither tbdb_url nor ncbi_url")
+        # Gate #4: non-empty fasta_sequence and structure.
+        if not m["fasta_sequence"]:
+            failures.append(f"gate#4: {member_id} has empty fasta_sequence")
+        if not m["structure"]:
+            failures.append(f"gate#4: {member_id} has empty structure")
+        # Gate #5: len(fasta_sequence) == |locus_end - locus_start| + 1.
+        a, b = m["coords"]["leader"]
+        expected_len = abs(b - a) + 1
+        if m["fasta_sequence"] and len(m["fasta_sequence"]) != expected_len:
+            failures.append(
+                f"gate#5: {member_id} fasta len {len(m['fasta_sequence'])} "
+                f"!= |leader|+1 {expected_len}"
+            )
+        # Gate #7: the converted Stem-I structure is balanced dot-bracket, and the
+        # pass-through antiterm/term structures are already balanced.
+        if m["structure"] and not is_balanced(m["structure"]):
+            failures.append(f"gate#7: {member_id} structure is not balanced dot-bracket")
+        for col in ("whole_antiterm_structure", "term_structure"):
+            value = m[col]
+            if value is not None and not is_balanced(value):
+                failures.append(f"gate#7: {member_id} {col} is not balanced")
+
+    # Gate #9 (relational): pair count == Sum C(n_cores, 2); every pair is
+    # intra-locus and references known members.
+    expected_pairs = sum(comb(lo["n_cores"], 2) for lo in locus_objs)
+    if len(pairs) != expected_pairs:
+        failures.append(f"gate#9: identity pairs {len(pairs)} != Sum C(n_cores,2) {expected_pairs}")
+    for p in pairs:
+        if p["a"].split(".")[0] != p["b"].split(".")[0]:
+            failures.append(f"gate#9: pair {p['a']}|{p['b']} crosses loci")
+        if p["a"] not in members_map or p["b"] not in members_map:
+            failures.append(f"gate#9: pair {p['a']}|{p['b']} references an unknown member")
+
+    # Gate #8: the CP045927 golden (when present) -> specifier set {VAL, TRP},
+    # distinct non-null unique_names, transcript-5' order m1=TRP then m2=VAL. The
+    # set check alone would mask a silent minus-strand ordinal flip, so the order
+    # is pinned here too (mirrors _assert_golden_ordinal at the resolution stage).
+    golden = next((lo for lo in locus_objs if lo["accession"] == "CP045927"), None)
+    if golden is not None:
+        gm = [members_map[mid] for mid in golden["member_ids"]]
+        order = [m["specifier"]["aa"] for m in gm]
+        unames = [m["unique_name"] for m in gm]
+        if set(order) != {"VAL", "TRP"}:
+            failures.append(f"gate#8: CP045927 specifier set {set(order)} != {{VAL, TRP}}")
+        if any(u is None for u in unames) or len(set(unames)) != len(unames):
+            failures.append(f"gate#8: CP045927 unique_names not distinct/non-null: {unames}")
+        if order != ["TRP", "VAL"]:
+            failures.append(f"gate#8: CP045927 order {order} != transcript-5' ['TRP', 'VAL']")
+
+    if failures:
+        raise ValueError(
+            "build gate failure(s) (PLAN section 5.4):\n  " + "\n  ".join(failures)
+        )
+
+    # Gate #6 (WARN, never fail): leader codon back-check.
+    cb = _codon_backcheck(members_map)
+    warning = (
+        f"gate#6 (warn): codon back-check {cb['match']}/{cb['checked']} translate to "
+        f"amino_acid_top ({cb['mismatch']} mismatch, {cb['skipped']} skipped -- "
+        "codon-less partials always skip; the raw codon is corrupt by design, "
+        "PLAN section 3.1/5.4)"
+    )
+    if cb["examples"]:
+        warning += f"; e.g. {cb['examples']}"
+    return [warning]
+
+
+def verify_tree_fasta(out_dir: Path, members_map: dict[str, dict]) -> int:
+    """Gate #10 (PLAN section 5.4) over the emitted ``tree_input.fasta``.
+
+    Reuses :func:`partition_for_tree` -- the single gate definition -- so the
+    FASTA's headers are exactly the gated members' ``unique_name``s, in order, and
+    every record's native Stem-I span meets :data:`STEMI_MIN_SPAN`. Returns the
+    verified main-tree tip count (which must equal the count the build emitted).
+    """
+    main_ids, _ = partition_for_tree(members_map)
+    expected = [members_map[mid]["unique_name"] for mid in main_ids]
+    headers = [h for h, _ in _read_fasta(out_dir / "tree_input.fasta")]
+    if headers != expected:
+        raise ValueError(
+            f"gate#10: tree_input.fasta headers ({len(headers)}) do not match the "
+            f"gated unique_names ({len(expected)})"
+        )
+    for member_id in main_ids:
+        span = _native_stemI_span(members_map[member_id])
+        if span is None or span < STEMI_MIN_SPAN:
+            failures = f"gate#10: {member_id} is in the main tree but native Stem-I span {span} < {STEMI_MIN_SPAN}"
+            raise ValueError(failures)
+    return len(headers)
+
+
 # --- CLI smoke (S0.3) -------------------------------------------------------
 
 def _smoke(loci: list[dict]) -> None:
@@ -1000,6 +1196,20 @@ def main(argv: list[str] | None = None) -> int:
         locus["mean_pairwise_identity"] = means[locus["tandem_id"]]
     summary = build_summary(locus_objs, members_map, pairs)
 
+    # S0.7: lock the build behind the PLAN section 5.4 gates. validate_gates raises
+    # (nonzero exit) on any hard-gate failure (#2/#3/#4/#5/#7/#8/#9) and returns the
+    # gate #6 (warn-not-fail) codon back-check summary.
+    warnings = validate_gates(locus_objs, members_map, pairs)
+    # Gates #1/#2/#9 absolute, load-bearing counts -- the build runs on the full
+    # TBDB sources (PLAN section 5.4; CLAUDE.md section 2: 470 / 949 / 488).
+    actual = {"loci": len(locus_objs), "members": len(members_map), "identity": len(pairs)}
+    expected = {"loci": 470, "members": 949, "identity": 488}
+    if actual != expected:
+        raise ValueError(
+            f"gate#1/#2/#9: absolute counts {actual} != {expected} -- the build runs "
+            "on the full TBDB sources (PLAN section 5.4; CLAUDE.md section 2)"
+        )
+
     args.out.mkdir(parents=True, exist_ok=True)
     _write_json(args.out / "loci.json", {"loci": locus_objs, "facets": facets})
     _write_json(args.out / "members.json", members_map)
@@ -1012,7 +1222,15 @@ def main(argv: list[str] | None = None) -> int:
 
     # S0.6: the Stem-I length-gate + the two tree-build FASTAs (PLAN section 6, 5.2).
     # The main-tree tip count is emitted here and is legitimately < 949 by design.
-    write_tree_fastas(members_map, args.out)
+    main_tips, _ = write_tree_fastas(members_map, args.out)
+    # Gate #10: re-read tree_input.fasta and check it against the gate definition.
+    verified = verify_tree_fasta(args.out, members_map)
+    if verified != main_tips:
+        raise ValueError(f"gate#10: verified tip count {verified} != emitted {main_tips}")
+
+    for warning in warnings:
+        print(warning)
+    print(f"all PLAN section 5.4 gates passed ({main_tips} main-tree tips, gate #10)")
     return 0
 
 
