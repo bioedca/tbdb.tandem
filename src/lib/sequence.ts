@@ -45,10 +45,12 @@ export interface SeqSegment {
 
 /**
  * The present, in-range highlight spans of a member as 1-based inclusive `[lo, hi]`.
- * Each window is coerced to ascending order and clamped to the leader so an
- * off-the-end offset never produces a phantom highlight; a feature with no valid
- * window (e.g. a codon-less partial's `codon`, or a Stem-I-less member's `s1`) is
- * simply absent.
+ * Each window is coerced to ascending order (via `validSpan`) and a window that runs
+ * off the end of the leader is DROPPED, not clamped — matching the build's
+ * `seq[lo-1:hi]` guard, which returns None when `hi > len` (e.g. T0299.m2's corrupt
+ * `term = [153, 143]` over a 143 bp leader). So an out-of-range/corrupt window never
+ * produces a phantom highlight; a feature with no valid window (a codon-less
+ * partial's `codon`, a Stem-I-less member's `s1`) is likewise simply absent.
  */
 export function featureSpans(member: Member): Partial<Record<HighlightFeature, [number, number]>> {
   const length = member.fasta_sequence.length
@@ -56,9 +58,8 @@ export function featureSpans(member: Member): Partial<Record<HighlightFeature, [
   for (const name of HIGHLIGHT_FEATURES) {
     const span = validSpan(member.coords.window[name])
     if (!span) continue
-    const lo = Math.max(1, span[0])
-    const hi = Math.min(length, span[1])
-    if (lo <= hi) out[name] = [lo, hi]
+    const [lo, hi] = span // validSpan guarantees 1 <= lo <= hi; guard only the high end.
+    if (lo >= 1 && hi <= length) out[name] = [lo, hi]
   }
   return out
 }

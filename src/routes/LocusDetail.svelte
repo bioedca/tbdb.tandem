@@ -26,6 +26,7 @@
   // Lazily pull identity.json once (idempotent; §7.3 "identity.json lazy on detail
   // pages"), then read this locus's pairwise %-identity rows for the comparison.
   $effect(() => {
+    void id // re-attempt per locus so a prior failed load retries on locus→locus nav
     void store.ensureIdentity()
   })
   const pairs = $derived(store.identityByLocus?.get(id) ?? [])

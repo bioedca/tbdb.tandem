@@ -34,7 +34,7 @@
   /** Inline style for one segment: specifier-tint fill (data) + neutral chrome rules. */
   function segStyle(seg: SeqSegment, tint: string): string {
     const parts: string[] = []
-    if (seg.fill === 'codon') parts.push(`background:${withAlpha(tint, 0.45)}`)
+    if (seg.fill === 'codon') parts.push(`background:${withAlpha(tint, 0.45)}`, 'font-weight:700')
     else if (seg.fill === 's1') parts.push(`background:${withAlpha(tint, 0.13)}`)
     if (seg.rule === 'term') parts.push(`border-bottom:2px solid ${neutral.ink}`)
     else if (seg.rule === 'discrim') parts.push(`border-bottom:2px dotted ${neutral.muted}`)
