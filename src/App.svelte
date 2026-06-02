@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import Router, { link, router } from 'svelte-spa-router'
   import { routes } from './router'
+  import { store } from './lib/stores/filters.svelte'
+  import Spinner from './lib/components/Spinner.svelte'
 
   // Real nav (PLAN §7.2 routes); detail pages are reached from the table.
   const nav = [
@@ -9,6 +12,12 @@
     { path: '/tree', label: 'Tree' },
     { path: '/about', label: 'About' },
   ]
+
+  // Boot the staged data load (PLAN §7.3): loci.json + summary.json gate first
+  // paint; members.json loads in parallel. The router mounts once core is ready.
+  onMount(() => {
+    store.boot()
+  })
 </script>
 
 <div class="flex min-h-screen flex-col bg-surface-subtle text-body">
@@ -50,7 +59,21 @@
   </header>
 
   <main class="mx-auto w-full max-w-content flex-1 px-6 py-8">
-    <Router {routes} />
+    {#if store.status === 'error'}
+      <div
+        role="alert"
+        class="rounded-lg border border-hairline bg-surface p-6 text-small text-muted"
+      >
+        <p class="font-medium text-ink">Couldn't load the dataset.</p>
+        <p class="mt-1">{store.error}</p>
+      </div>
+    {:else if store.status === 'ready'}
+      <Router {routes} />
+    {:else}
+      <div class="flex min-h-[40vh] items-center justify-center">
+        <Spinner size={28} label="Loading TandemView data…" />
+      </div>
+    {/if}
   </main>
 
   <!-- Per-page attribution footer (PLAN §11.4, §8): Data: TBDB → citing page. -->
