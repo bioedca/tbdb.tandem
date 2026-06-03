@@ -22,4 +22,14 @@ describe('Kpi', () => {
     render(Kpi, { props: { label: 'Mean %id', value: '80.0' } })
     expect(screen.getByText('80.0')).toBeInTheDocument()
   })
+
+  test('renders an info affordance carrying the glossary definition when a term is given', () => {
+    render(Kpi, { props: { label: 'Loci', value: 470, term: 'locus' } })
+    expect(screen.getByRole('button')).toHaveAccessibleName(/^Locus:/)
+  })
+
+  test('renders no info affordance without a term or tip', () => {
+    render(Kpi, { props: { label: 'Loci', value: 470 } })
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
 })

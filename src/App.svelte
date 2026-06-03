@@ -10,7 +10,7 @@
     { path: '/', label: 'Dashboard' },
     { path: '/browse', label: 'Browse' },
     { path: '/tree', label: 'Tree' },
-    { path: '/about', label: 'About' },
+    { path: '/about', label: 'About & method' },
   ]
 
   // Boot the staged data load (PLAN §7.3): loci.json + summary.json gate first
