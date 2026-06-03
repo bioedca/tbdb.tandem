@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-03
+
 ### Added
 - **Tandem-architecture diagram** (`ArchitectureDiagram`) — the signature view: a to-scale, biological-5′→3′ locus track rendering per element the T-box body (tinted by its own specifier, so mixed loci read two-tone), Stem-I with a notched terminal loop, the specifier-codon tick + amino-acid code, the antiterminator outline, the terminator hairpin (a schematic anti-SD sequestrator for translational elements), and the discriminator — plus dashed inter-element spacers labelled with their bp gap, strand chevrons, a scale bar, and a function-class-tagged downstream-ORF block arrow. Hand-rolled SVG with D3 supplying only the linear position scale.
 - **Element-comparison panel** (`ElementComparison`) — per-element specifier/codon, tRNA family, ΔΔG and terminator-energy as in-cell bars, completeness dots, and tbdb.io / NCBI deep-links, with the intra-locus pairwise %-identity (from `identity.json`); collapse-recovered shared-leader loci are flagged where their leader identity saturates at 100%.
@@ -34,5 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tests** — the Python build-gate + artifact-integrity suite (`pytest`) and the Phase-1 frontend unit + component suite (Vitest + Testing Library).
 - **CI/CD** — GitHub Actions CI (`data` + `web` jobs) and a Pages deploy workflow, with Dependabot and CodeRabbit configuration.
 
-[Unreleased]: https://github.com/bioedca/tandem-tbox-explorer/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/bioedca/tandem-tbox-explorer/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/bioedca/tandem-tbox-explorer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/bioedca/tandem-tbox-explorer/releases/tag/v0.1.0
