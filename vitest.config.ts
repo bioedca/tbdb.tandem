@@ -5,7 +5,7 @@
 // and pull Svelte's client build (per the Svelte testing guide). The Tailwind
 // plugin is intentionally absent: components use utility classes as plain strings,
 // so no CSS processing is needed at test time.
-import { defineConfig } from 'vitest/config'
+import { defineConfig, configDefaults } from 'vitest/config'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
 export default defineConfig({
@@ -14,6 +14,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['tests/**/*.{test,spec}.ts'],
+    // The Playwright e2e suite lives under tests/e2e/ and uses @playwright/test —
+    // it must NOT be collected by Vitest (it needs a real browser, not jsdom).
+    exclude: [...configDefaults.exclude, 'tests/e2e/**'],
     setupFiles: ['tests/setup.ts'],
   },
   // Use the `browser` entry points even though Vitest runs in Node, so Svelte

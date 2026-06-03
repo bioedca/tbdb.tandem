@@ -70,7 +70,30 @@ jobs:
       - name: Production build
         run: npm run build
 
-      # Playwright e2e + visual regression (PLAN §11.3, §10.4–10.5) land at S3.4,
-      # once playwright.config.ts and the five-route suite exist. Until then the
-      # `web` job stops at the build (the report-upload-on-failure step lands with
-      # the Playwright step at S3.4).
+      # Playwright e2e + visual regression against the production build (PLAN §11.3,
+      # §10.4–10.5). The webServer in playwright.config.ts builds + previews at the
+      # real Pages base; browsers are the PINNED Playwright build (package.json's
+      # exact @playwright/test), so the rendered pixels match the committed
+      # CI-Linux baselines.
+      - name: Install Playwright browser (chromium)
+        run: npx playwright install --with-deps chromium
+
+      - name: e2e + visual regression (Playwright)
+        run: npx playwright test
+
+      # On failure: the HTML report (PLAN §11.3) plus the snapshot artifacts — the
+      # committed baselines, any newly-written baselines (first run), and the
+      # per-run actuals under test-results/ — so a missing OR mismatched CI-Linux
+      # visual baseline (§10.5) can be seeded/refreshed from one download. Never
+      # runs on a green build.
+      - name: Upload Playwright report + snapshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report/
+            test-results/
+            tests/e2e/__screenshots__/
+          retention-days: 7
+          if-no-files-found: ignore
