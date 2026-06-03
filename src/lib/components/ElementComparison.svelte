@@ -11,6 +11,7 @@
   import type { IdentityPair, Member } from '../data/types'
   import { aaColor } from '../color'
   import { sharesLeader } from '../architecture'
+  import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
 
   let { members, pairs = [] }: { members: Member[]; pairs?: IdentityPair[] } = $props()
@@ -70,11 +71,17 @@
       <thead>
         <tr class="border-b border-hairline text-left text-caption uppercase tracking-wide text-muted">
           <th class="py-1.5 pr-3 font-medium">Element</th>
-          <th class="py-1.5 pr-3 font-medium">Specifier</th>
+          <th class="py-1.5 pr-3 font-medium">
+            <span class="inline-flex items-center gap-1">Specifier <InfoTip term="specifier" /></span>
+          </th>
           <th class="py-1.5 pr-3 font-medium">tRNA</th>
           <th class="py-1.5 pr-3 font-medium">Complete</th>
-          <th class="py-1.5 pr-3 font-medium">ΔΔG</th>
-          <th class="py-1.5 pr-3 font-medium">Term&nbsp;E</th>
+          <th class="py-1.5 pr-3 font-medium">
+            <span class="inline-flex items-center gap-1">ΔΔG <InfoTip term="ddg" /></span>
+          </th>
+          <th class="py-1.5 pr-3 font-medium">
+            <span class="inline-flex items-center gap-1">Term&nbsp;ΔG <InfoTip term="terminator_energy" /></span>
+          </th>
           <th class="py-1.5 font-medium">Links</th>
         </tr>
       </thead>
@@ -138,7 +145,9 @@
   <!-- Intra-locus pairwise %-identity (identity.json) -->
   {#if pairRows.length > 0}
     <div class="space-y-1.5">
-      <h3 class="text-caption uppercase tracking-wide text-muted">Pairwise identity</h3>
+      <h3 class="inline-flex items-center gap-1 text-caption uppercase tracking-wide text-muted">
+        Pairwise identity <InfoTip term="mean_identity" />
+      </h3>
       <ul class="space-y-1">
         {#each pairRows as r (r.a + '|' + r.b)}
           <li class="flex items-center gap-2 text-small">

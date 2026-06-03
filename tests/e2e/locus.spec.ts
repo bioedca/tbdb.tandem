@@ -17,7 +17,8 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('T0342')
 
     // Architecture diagram: the SVG renders one group per element (2 for this pair).
-    const arch = page.locator('figure.tv-arch svg')
+    // The main diagram svg carries role="img"; the legend glyph svgs are aria-hidden.
+    const arch = page.locator('figure.tv-arch svg[role="img"]')
     await expect(arch).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('figure.tv-arch g.tv-arch-element')).toHaveCount(2)
 

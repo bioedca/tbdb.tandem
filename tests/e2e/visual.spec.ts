@@ -29,7 +29,8 @@ test.describe('Visual regression', () => {
   test('architecture diagram (T0342)', async ({ page }) => {
     await gotoRoute(page, '/locus/T0342')
     const arch = page.locator('figure.tv-arch')
-    await expect(arch.locator('svg')).toBeVisible({ timeout: 30_000 })
+    // The main diagram svg carries role="img"; the legend glyph svgs are aria-hidden.
+    await expect(arch.locator('svg[role="img"]')).toBeVisible({ timeout: 30_000 })
     await fontsReady(page)
     await expect(arch).toHaveScreenshot('architecture-T0342.png')
   })

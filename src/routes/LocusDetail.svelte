@@ -9,7 +9,9 @@
   import { link } from 'svelte-spa-router'
   import { store } from '../lib/stores/filters.svelte'
   import { swatchBackground } from '../lib/color'
+  import { def } from '../lib/glossary'
   import Card from '../lib/components/Card.svelte'
+  import InfoTip from '../lib/components/InfoTip.svelte'
   import Badge from '../lib/components/Badge.svelte'
   import Spinner from '../lib/components/Spinner.svelte'
   import ArchitectureDiagram from '../lib/components/ArchitectureDiagram.svelte'
@@ -63,16 +65,26 @@
             style:background={swatchBackground(locus.specifier_aa)}
             aria-hidden="true"
           ></span>
-          <span class="font-mono font-medium text-ink">{locus.specifier_aa ?? '?'}</span>
-          <span class="text-muted">· {locus.same_specifier ? 'same' : 'mixed'}</span>
+          <span class="font-mono font-medium text-ink" title={def('specifier')}
+            >{locus.specifier_aa ?? '?'}</span
+          >
+          <span class="text-muted" title={def('same_mixed')}
+            >· {locus.same_specifier ? 'same' : 'mixed'}</span
+          >
         </span>
         {#if locus.confidence}
           <Badge variant={locus.confidence === 'high' ? 'high' : 'low'} />
         {/if}
-        <span class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-small text-muted">
+        <span
+          class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-small text-muted"
+          title={def('regulation_type')}
+        >
           {locus.type}
         </span>
-        <span class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-small text-muted">
+        <span
+          class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-small text-muted"
+          title="Number of T-box elements (cores) in this tandem locus."
+        >
           {locus.n_cores} cores
         </span>
       </div>
@@ -104,7 +116,9 @@
           <dd class="text-small text-ink">{locus.downstream_gene ?? '—'}</dd>
         </div>
         <div>
-          <dt class="text-caption uppercase tracking-wide text-muted">Mean %id</dt>
+          <dt class="inline-flex items-center gap-1 text-caption uppercase tracking-wide text-muted">
+            Mean %id <InfoTip term="mean_identity" />
+          </dt>
           <dd class="font-mono text-small text-ink">{locus.mean_pairwise_identity === null ? '—' : locus.mean_pairwise_identity.toFixed(1)}</dd>
         </div>
         <div>
@@ -147,7 +161,7 @@
            intra-locus pairwise %-identity (identity.json, lazily loaded above). -->
       <Card
         title="Element comparison"
-        subtitle="Specifier · tRNA · ΔΔG · terminator energy · pairwise identity · deep links"
+        subtitle="Specifier · tRNA · ΔΔG / terminator ΔG (kcal/mol; longer bar = more negative) · pairwise identity · deep links"
       >
         <ElementComparison {members} {pairs} />
       </Card>
@@ -161,7 +175,7 @@
            effort fornac render per element, with the guaranteed tbdb.io VARNA deep-link. -->
       <Card
         title="RNA secondary structure"
-        subtitle="In-app (best-effort) · whole-leader antiterminator fold · tbdb.io VARNA is the definitive view"
+        subtitle="In-app preview of the leader's antiterminator fold (the tRNA-bound, gene-ON state) · the tbdb.io VARNA diagram is the reference structure"
       >
         <RnaStructure {members} />
       </Card>

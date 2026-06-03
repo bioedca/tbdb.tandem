@@ -92,7 +92,7 @@ export const GLOSSARY = {
   },
   ddg: {
     term: 'ΔΔG',
-    def: 'A predicted free-energy difference (kcal/mol) between the riboswitch’s alternative folds. More negative favours the read-through (gene-ON) fold.',
+    def: 'A predicted free-energy difference (kcal/mol) between the riboswitch’s two alternative folds (antiterminator vs terminator). The in-cell bar shows its magnitude.',
   },
   terminator_energy: {
     term: 'Terminator energy',
