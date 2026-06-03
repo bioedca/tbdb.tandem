@@ -7,6 +7,7 @@
   // to the shared selection (dims loci outside it) and SELECTS by specifier on a
   // tip click. The KPI strip stays the dataset overview (470/949/488 are fixed
   // facts, §3.1); the live selection count lives in the table toolbar.
+  import { link } from 'svelte-spa-router'
   import KpiStrip from '../lib/components/KpiStrip.svelte'
   import SpecificityChart from '../lib/components/SpecificityChart.svelte'
   import SpecPhylumHeatmap from '../lib/components/SpecPhylumHeatmap.svelte'
@@ -18,9 +19,22 @@
 <section class="space-y-6">
   <header>
     <h1 class="text-h1 text-ink">Dashboard</h1>
-    <p class="mt-1 text-small text-muted">
-      Explore the 470 tandem T-box loci. Filter once — every panel and the table share a single
-      cross-filter state, so a selection in any chart narrows the whole dashboard live.
+    <p class="mt-2 max-w-3xl text-small text-body">
+      A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in a bacterial
+      mRNA leader that senses whether its target tRNA is charged with its amino acid, switching the
+      downstream gene on when that amino acid is scarce. A
+      <strong class="font-medium text-ink">tandem</strong> locus stacks two or more T-box elements in one
+      leader — this explorer covers all 470 such loci.
+    </p>
+    <p class="mt-1.5 max-w-3xl text-small text-muted">
+      Filter once: every panel and the table share one cross-filter state, so a selection in any chart
+      narrows the whole dashboard live. New here? Start with
+      <a
+        use:link
+        href="/about"
+        class="text-brand underline decoration-brand/30 underline-offset-2 hover:text-brand-strong"
+        >About &amp; method</a
+      > for what a tandem T-box locus is and how these 470 loci were detected.
     </p>
   </header>
 

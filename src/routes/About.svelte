@@ -54,6 +54,15 @@
   <Card title="What this is">
     <div class="max-w-3xl space-y-3">
       <p>
+        A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in the 5′
+        leader of a bacterial mRNA. It binds one specific tRNA and senses whether that tRNA is charged
+        with its amino acid: when the amino acid is scarce (the tRNA is uncharged), the T-box switches
+        its downstream gene <strong class="font-medium text-ink">on</strong>. The amino acid each T-box
+        responds to is its <em>specifier</em>. A <strong class="font-medium text-ink">tandem</strong> locus
+        stacks two or more complete T-box units in the same leader, regulating the same downstream gene
+        or operon.
+      </p>
+      <p>
         TandemView is a companion to {@render code('tbdb.io')} that owns the
         <em>tandem-level</em> story of T-box riboswitches — stacked-element architecture, specificity
         pairing, regulated-operon coupling, and a sequence-similarity map. It never re-implements
@@ -63,7 +72,7 @@
       {#if s}
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {@render stat(s.counts.loci, 'tandem loci')}
-          {@render stat(s.counts.members, 'canonical members')}
+          {@render stat(s.counts.members, 'T-box elements')}
           {@render stat(s.counts.intra_locus_pairs, 'intra-locus pairs')}
           {@render stat(`${s.counts.pairs} + ${s.counts.triples}`, 'pairs + triples')}
           {@render stat(`${s.confidence.high} / ${s.confidence.low}`, 'high / low confidence')}
@@ -89,12 +98,13 @@
           )}) before the join.
         </li>
         <li>
-          Assign each T-box's strand from its coordinate order and project a genomic 5′ anchor
-          ({@render code('core5')}).
+          Assign each T-box's strand from its coordinate order and project each one's genomic 5′ start
+          (the {@render code('core5')} anchor), so cores can be ordered along the leader.
         </li>
         <li>
-          Within each {@render code('(accession, strand)')}, single-linkage cluster cores at 600&nbsp;bp
-          — this is the locus-detection step.
+          Group cores on the same {@render code('(accession, strand)')} into one locus whenever a core
+          sits within 600&nbsp;bp of another in the group (single-linkage clustering — chaining nearby
+          cores). This is the locus-detection step.
         </li>
         <li>
           Collapse cores within 60&nbsp;bp to one representative per physical core, keeping the best
@@ -107,9 +117,11 @@
         </li>
       </ol>
       <p class="text-small text-muted">
-        This yields {s ? s.counts.loci : 470} loci and exactly {s ? s.counts.members : 949} canonical
-        members (one representative row per physical core); the intra-locus pairwise %-identity
-        payload covers {s ? s.counts.intra_locus_pairs : 488} pairs.
+        This yields {s ? s.counts.loci : 470} loci and exactly {s ? s.counts.members : 949} T-box
+        elements — one representative row per physical T-box core (duplicate annotation rows are
+        collapsed); the intra-locus pairwise %-identity payload covers {s
+          ? s.counts.intra_locus_pairs
+          : 488} pairs.
       </p>
     </div>
   </Card>
@@ -230,8 +242,11 @@
         <dd class="text-muted">A genomic window holding ≥2 T-box cores (the 470).</dd>
       </div>
       <div>
-        <dt class="font-medium text-ink">Core / member / element</dt>
-        <dd class="text-muted">One physical T-box within a locus (the 949 canonical members).</dd>
+        <dt class="font-medium text-ink">Element (core, member)</dt>
+        <dd class="text-muted">
+          One complete T-box unit — Stem I plus its switch — within a locus (the 949 total). “Core” and
+          “member” are used interchangeably for the same unit.
+        </dd>
       </div>
       <div>
         <dt class="font-medium text-ink">Specifier</dt>

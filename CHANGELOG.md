@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **First-contact primer + shared glossary** — the Dashboard now opens with a one-paragraph, plain-language definition of what a T-box riboswitch and a tandem locus are (a T-box binds one specific tRNA, senses whether it is charged with its amino acid, and switches the downstream gene **on** when that amino acid is scarce; a tandem locus stacks two or more elements in one leader), plus a "New here? → About & method" link. A single-source glossary (`glossary.ts`) defines the load-bearing vocabulary once — present-tense and structural, no evolutionary direction — and is surfaced inline through a small, keyboard-reachable ⓘ affordance (`InfoTip`) so a newcomer can resolve a term in place. The About page gains a "what a T-box is" lead paragraph and plain-language glosses of the detection pipeline (the `core5` 5′ anchor; single-linkage clustering as "chaining nearby cores").
+
+### Changed
+- **KPI strip relabelled for first-time readers** — the tiles that conflated or mislabelled their numbers are fixed: "Triples / 461 pairs" (which paired a headline of 9 three-element loci with a sublabel about 461 two-element loci) now reads "Triples 9 · 3-element loci · 461 are pairs"; "Non-Firmicutes / outlier loci" → "loci outside Firmicutes" (a taxonomic fact, not a statistical/quality judgment); "Members / canonical cores" → "individual T-box cores"; "Intra-locus pairs / %-identity pairs" → "element pairs within a locus"; and every tile now carries an ⓘ definition. The nav item "About" → "About & method" (matching the page's own heading), and the About count tile "canonical members" → "T-box elements".
+
 ## [0.3.0] - 2026-06-03
 
 ### Added
