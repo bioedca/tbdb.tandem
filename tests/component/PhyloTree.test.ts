@@ -113,4 +113,34 @@ describe('PhyloTree', () => {
     const { getByRole } = render(PhyloTree)
     expect(getByRole('status')).toBeInTheDocument()
   })
+
+  // ── S3.2: dashboard cross-filter (selector + responder) ─────────────────────────
+
+  test('the full /tree view (default) hints a tip click opens its detail page', () => {
+    const { getByText } = render(PhyloTree)
+    expect(getByText(/click to open its detail page/i)).toBeInTheDocument()
+  })
+
+  test('the selectable dashboard panel hints a tip click filters by specifier', () => {
+    const { getByText } = render(PhyloTree, { props: { selectable: true } })
+    expect(getByText(/click to filter the dashboard by its specifier/i)).toBeInTheDocument()
+  })
+
+  test('shows the cross-filter cue and still mounts when the store is filtered (responder)', async () => {
+    // An active facet makes `store.isFiltered` true → the responder path runs
+    // (selectedTandemIds / crossFiltered / specifierByLocus derivations + the
+    // out-of-selection dimming). The full tree still mounts (filtering dims, it
+    // does not rebuild the topology), and the tip-count line surfaces the cue.
+    store.setFacet('specifier', ['TRP'])
+    const { getByRole, getByText } = render(PhyloTree, { props: { selectable: true } })
+    await waitFor(() => expect(mock.constructed.length).toBeGreaterThanOrEqual(1))
+    expect(getByRole('button', { name: 'Locus' })).toBeInTheDocument()
+    expect(getByText(/cross-filtered/i)).toBeInTheDocument()
+  })
+
+  test('hides the cross-filter cue when the store is unfiltered', () => {
+    // seedStore() leaves the store unfiltered → crossFiltered is false → no cue.
+    const { queryByText } = render(PhyloTree, { props: { selectable: true } })
+    expect(queryByText(/cross-filtered/i)).toBeNull()
+  })
 })

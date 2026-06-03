@@ -1,7 +1,9 @@
 <script lang="ts">
-  // /tree — the sequence-similarity map (PLAN §9④, §6). S3.1 stands up the viewer;
-  // the persistent NoPolarityBanner + dashboard cross-filter land at S3.2.
+  // /tree — the sequence-similarity map (PLAN §9④, §6). The persistent
+  // NoPolarityBanner (§6/§8.1/§13) sits above the viewer as the standing
+  // no-polarity guardrail; the dashboard cross-filter is wired in PhyloTree (S3.2).
   import PhyloTree from '../lib/components/PhyloTree.svelte'
+  import NoPolarityBanner from '../lib/components/NoPolarityBanner.svelte'
 </script>
 
 <section class="space-y-4">
@@ -15,6 +17,8 @@
       non-Firmicutes outliers.
     </p>
   </header>
+
+  <NoPolarityBanner />
 
   <PhyloTree />
 </section>
