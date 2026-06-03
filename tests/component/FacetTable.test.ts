@@ -105,4 +105,28 @@ describe('FacetTable', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
     expect(tab.calls.download).toContainEqual(['csv', 'tandemview-loci.csv'])
   })
+
+  // PLAN §8.4 list fade/reflow, scoped (S2.6): the `tv-narrowing` class is added
+  // around a genuine cross-filter narrow and removed one animation later. Scoping it
+  // to a `store.selected` change is what keeps the fade off Tabulator's virtual-scroll
+  // recycling + column sorts (which re-render rows without this effect firing).
+  test('scopes the fade to a cross-filter narrow: tv-narrowing added then removed', () => {
+    vi.useFakeTimers()
+    try {
+      const { container } = render(FacetTable)
+      flushSync()
+      const wrap = container.querySelector('.tv-table') as HTMLElement
+      vi.advanceTimersByTime(250) // clear any mount-time narrow
+      expect(wrap.classList.contains('tv-narrowing')).toBe(false)
+
+      store.toggleFacet('specifier', 'TRP') // a real cross-filter narrow
+      flushSync()
+      expect(wrap.classList.contains('tv-narrowing')).toBe(true)
+
+      vi.advanceTimersByTime(250)
+      expect(wrap.classList.contains('tv-narrowing')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
