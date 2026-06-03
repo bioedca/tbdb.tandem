@@ -5,6 +5,7 @@
   import KpiStrip from '../lib/components/KpiStrip.svelte'
   import SpecificityChart from '../lib/components/SpecificityChart.svelte'
   import SpecPhylumHeatmap from '../lib/components/SpecPhylumHeatmap.svelte'
+  import OperonBreakdown from '../lib/components/OperonBreakdown.svelte'
   import FacetTable from '../lib/components/FacetTable.svelte'
 </script>
 
@@ -22,6 +23,8 @@
   <SpecificityChart />
 
   <SpecPhylumHeatmap />
+
+  <OperonBreakdown />
 
   <FacetTable height="56vh" />
 </section>

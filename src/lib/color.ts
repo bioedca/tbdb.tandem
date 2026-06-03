@@ -10,6 +10,7 @@
 // Conventions (§8.2): `?`/unknown specifier → neutral grey; a "mixed" locus
 // specifier (`ILE;LEU`, `GLY;TRP`, …) → a 45° two-tone split of its constituents.
 
+import type { FuncClass } from './data/types'
 import { brand, neutral } from './design/tokens'
 
 /** The 20 standard amino-acid 3-letter codes used as specifier keys. */
@@ -95,6 +96,21 @@ export const PHYLUM_COUNT_RAMP: [number, string][] = [
   [0.6, '#cbd5e1'], // slate-300
   [1, '#94a3b8'], // slate-400 — capped maximum (ink text ≈ 7:1 contrast)
 ]
+
+/**
+ * Regulated-`func_class` CHROME shades (§8.2) — a neutral slate ramp, NEVER a
+ * specifier hue, so the downstream-function encoding can never read as a data
+ * swatch. Single source of truth: the architecture diagram's downstream-ORF arrow
+ * (S2.1) and the operon breakdown's bars + Sankey func_class nodes (S2.5) both read
+ * from here, so the same function class is the same shade everywhere.
+ */
+export const FUNC_CLASS_SHADE: Record<FuncClass, string> = {
+  aaRS: '#475569', // slate-600
+  biosynthesis: '#64748b', // slate-500
+  transporter: '#94a3b8', // slate-400
+  oxidoreductase: '#334155', // slate-700
+  unknown: '#cbd5e1', // slate-300
+}
 
 const AA_SET = new Set(Object.keys(SPECIFIER_COLORS))
 
@@ -232,6 +248,10 @@ const CHROME_NEUTRALS: string[] = [
   neutral.hairline,
   neutral.surface,
   neutral.surfaceSubtle,
+  // The func_class slate ramp (S2.5) is chrome too — prove it disjoint from data
+  // alongside the brand/neutral chrome, so a future edit can't drift a func_class
+  // shade into a specifier hue without tripping the dev-time assertion.
+  ...Object.values(FUNC_CLASS_SHADE),
 ]
 
 /** The 20 CHROMATIC data colors (excludes the by-design-neutral `?` grey). */
