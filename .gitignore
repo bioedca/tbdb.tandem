@@ -19,6 +19,10 @@ test-results/
 coverage/
 *.tsbuildinfo
 
+# session scratch (Claude Code state + Playwright-MCP snapshots) — never committed
+.claude/
+.playwright-mcp/
+
 # OS
 .DS_Store
 

@@ -14,7 +14,7 @@
   // the pure, unit-tested model in `architecture.ts`.
   import { scaleLinear } from 'd3'
   import type { FuncClass, FuncSource, Member, Strand } from '../data/types'
-  import { aaColor } from '../color'
+  import { aaColor, FUNC_CLASS_SHADE } from '../color'
   import { neutral } from '../design/tokens'
   import { buildArchitecture, type ElementLayout, type FeatureBox } from '../architecture'
 
@@ -104,15 +104,9 @@
   })
 
   // Downstream ORF fill — NEUTRAL chrome shades keyed by func_class, never a
-  // specifier hue (§8.2 chrome⟂data invariant). Labels carry the class name.
-  const FUNC_SHADE: Record<FuncClass, string> = {
-    aaRS: '#475569', // slate-600
-    biosynthesis: '#64748b', // slate-500
-    transporter: '#94a3b8', // slate-400
-    oxidoreductase: '#334155', // slate-700
-    unknown: '#cbd5e1', // slate-300
-  }
-  const orfFill = $derived(FUNC_SHADE[funcClass])
+  // specifier hue (§8.2 chrome⟂data invariant). Shared with the operon breakdown
+  // (S2.5) via `FUNC_CLASS_SHADE` in color.ts. Labels carry the class name.
+  const orfFill = $derived(FUNC_CLASS_SHADE[funcClass])
   const orfDark = $derived(funcClass !== 'unknown' && funcClass !== 'transporter')
 
   // Strand chevrons along the baseline — they point in the transcription direction,
