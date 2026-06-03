@@ -118,10 +118,19 @@ export function buildArchitecture(members: Member[], strand: Strand): Architectu
     // leader[0] = locus_start = the biological-5′ genome coord → leftmost on the axis.
     const bioLeaderStart = bioPos(member.coords.leader[0])
     const toBio = (offset: number) => bioLeaderStart + (offset - 1)
+    const leaderLen = leaderLength(member) // == fasta_sequence.length (gate #5)
 
     const featBox = (name: FeatureName): FeatureBox | null => {
       const v = validSpan(member.coords.window[name])
-      return v ? { name, start: toBio(v[0]), end: toBio(v[1]) } : null
+      // DROP a window that runs off the leader's 3′ end rather than rely on the d3
+      // `.clamp(true)` scale — matching the build's `seq[lo-1:hi]` guard and
+      // `sequence.ts` featureSpans (which return None/absent when `hi > len`). So a
+      // corrupt/out-of-range window (e.g. T0299.m2's `term = [153, 143]` over a
+      // 143 bp leader) yields NO glyph instead of a clamped one pinned at the body
+      // edge. (`tbox` is always in range on real data; if it weren't, the body
+      // falls back to the full leader, exactly as for an absent tbox.)
+      if (!v || v[1] > leaderLen) return null
+      return { name, start: toBio(v[0]), end: toBio(v[1]) }
     }
 
     const tbox = featBox('tbox')
