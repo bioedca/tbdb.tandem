@@ -9,7 +9,7 @@
   const nav = [
     { path: '/', label: 'Dashboard' },
     { path: '/browse', label: 'Browse' },
-    { path: '/tree', label: 'Tree' },
+    { path: '/tree', label: 'Similarity map' },
     { path: '/about', label: 'About & method' },
   ]
 

@@ -38,6 +38,7 @@
   } from '../tree'
   import { PHYLUM_COLORS, SPECIFIER_COLORS, UNKNOWN_SPECIFIER_COLOR } from '../color'
   import Card from './Card.svelte'
+  import InfoTip from './InfoTip.svelte'
   import Spinner from './Spinner.svelte'
 
   // ── phylotree interop (loose types; the package is legacy vanilla JS) ────────────
@@ -174,7 +175,7 @@
         m.tandem_id,
         `Specifier: ${m.specifier ?? '?'}`,
         `Phylum: ${m.phylum ?? 'unassigned'}`,
-        `${m.memberCount} element${m.memberCount === 1 ? '' : 's'} in this tree`,
+        `${m.memberCount} T-box element${m.memberCount === 1 ? '' : 's'} in this locus (one dot here)`,
       ],
     }
   }
@@ -354,6 +355,10 @@
       <fieldset class="flex items-center gap-2">
         <legend class="sr-only">Tip granularity</legend>
         <span class="text-small text-muted">View</span>
+        <InfoTip
+          label="View"
+          tip="Each tandem locus holds two or more T-box elements. Locus shows one dot per locus; Element shows every element separately — when a locus's elements land far apart in Element view, their Stem-I sequences differ."
+        />
         <div class="inline-flex overflow-hidden rounded-md border border-hairline">
           <button
             type="button"
@@ -373,6 +378,10 @@
       <fieldset class="flex items-center gap-2">
         <legend class="sr-only">Which tree</legend>
         <span class="text-small text-muted">Tree</span>
+        <InfoTip
+          label="Tree"
+          tip="Main · Stem-I builds the map from each element's Stem I — the region carrying the specifier codon and contacting the tRNA. Fallback maps the shorter, length-gated elements by their antiterminator region instead; positions are not comparable across the two trees."
+        />
         <div class="inline-flex overflow-hidden rounded-md border border-hairline">
           <button
             type="button"
@@ -384,13 +393,14 @@
             type="button"
             class="border-l border-hairline px-3 py-1 text-small {which === 'fallback' ? 'bg-brand text-white' : 'bg-surface text-text'}"
             aria-pressed={which === 'fallback'}
-            onclick={() => (which = 'fallback')}>Fallback</button
+            onclick={() => (which = 'fallback')}>Fallback (antiterminator)</button
           >
         </div>
       </fieldset>
 
-      <label class="flex items-center gap-2 text-small text-text">
-        Fade support &lt;
+      <div class="flex items-center gap-2 text-small text-text">
+        <span>Fade support &lt;</span>
+        <InfoTip term="branch_support" />
         <input
           type="range"
           min="0"
@@ -401,12 +411,18 @@
           aria-label="Fade branches with support below this value"
         />
         <span class="w-9 font-mono text-muted">{supportThreshold.toFixed(2)}</span>
-      </label>
+      </div>
 
-      <label class="flex items-center gap-2 text-small text-text">
-        <input type="checkbox" bind:checked={nonFirmicutesOnly} class="accent-brand" />
-        Non-Firmicutes only
-      </label>
+      <div class="flex items-center gap-2">
+        <label class="flex items-center gap-2 text-small text-text">
+          <input type="checkbox" bind:checked={nonFirmicutesOnly} class="accent-brand" />
+          Non-Firmicutes only
+        </label>
+        <InfoTip
+          label="Non-Firmicutes only"
+          tip="Isolate the 16 non-Firmicutes loci (of 470). T-box riboswitches are predominantly found in Firmicutes, so these are the notable minority."
+        />
+      </div>
 
       <span class="ml-auto text-small text-muted">
         {tipCount} tip{tipCount === 1 ? '' : 's'}
@@ -436,24 +452,29 @@
 
     <!-- Legend -->
     <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-caption text-muted">
-      <span class="font-medium text-text">Specifier</span>
+      <span class="inline-flex items-center gap-1">
+        <span class="font-medium text-text">Specifier</span>
+        <InfoTip term="specifier" />
+      </span>
       {#each legendSpecifiers as s (s)}
         <span class="inline-flex items-center gap-1.5">
           <span
             class="inline-block size-3 rounded-full"
             style:background={s === '?' ? UNKNOWN_SPECIFIER_COLOR : specifierFill(s)}
           ></span>
-          <span class="font-mono">{s}</span>
+          <span class="font-mono">{s}</span>{#if s === '?'}<span>unassigned</span>{/if}
         </span>
       {/each}
       <span class="ml-2 inline-flex items-center gap-1.5">
         <span class="inline-block size-3 rounded-full border-2" style:border-color={PHYLUM_COLORS.Firmicutes}></span>
-        outer ring = phylum context
+        outer ring = phylum (separate neutral scale; differently-ringed tips are the non-Firmicutes minority)
       </span>
     </div>
     <p class="mt-2 text-caption text-muted">
-      An exploratory sequence-similarity map, displayed unrooted — branch positions reflect
-      sequence similarity, not ancestry. Hover a tip for its locus;
+      An exploratory sequence-similarity map, displayed unrooted — branch positions reflect sequence
+      similarity, not ancestry. A long branch is a sequence markedly different from the rest (often a
+      non-Firmicutes locus); the dense centre holds many similar ones. Scroll or drag to zoom and pan;
+      hover a tip for its locus;
       {selectable
         ? 'click to filter the dashboard by its specifier.'
         : 'click to open its detail page.'}

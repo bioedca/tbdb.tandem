@@ -89,7 +89,7 @@ describe('PhyloTree', () => {
   test('the fallback toggle switches to the fallback tree', async () => {
     const { getByRole } = render(PhyloTree)
     await waitFor(() => expect(mock.constructed.length).toBeGreaterThanOrEqual(1))
-    await fireEvent.click(getByRole('button', { name: 'Fallback' }))
+    await fireEvent.click(getByRole('button', { name: /^Fallback/ }))
     // Now the fallback loci (T3, T4) replace the main loci (T1, T2). In the default
     // locus view its leaves are relabeled to tandem_id; 2 single-tip loci → 2 tips.
     await waitFor(() => {
