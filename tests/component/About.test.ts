@@ -1,0 +1,78 @@
+// Component: About / method page (PLAN §10.3; §9 About, §14, §2/§3.1, §6, §11.4).
+// Locks the S3.3 exit criteria — "About renders all required sections; attribution
+// links resolve" — plus a minimal no-polarity CI guard (§6/§13 ship standard): the
+// page must carry the exact NoPolarityBanner text and must not slip in unambiguous
+// evolutionary-direction verbs. The full no-polarity label review is the human ship
+// gate (recorded at S3.2); this guard just catches a regression in the copy.
+import { render, screen } from '@testing-library/svelte'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import About from '../../src/routes/About.svelte'
+import { NO_POLARITY_BANNER_TEXT } from '../../src/lib/components/NoPolarityBanner.svelte'
+import { seedStore, resetStore } from '../helpers'
+
+beforeEach(seedStore)
+afterEach(resetStore)
+
+const SECTIONS = [
+  'About & method',
+  'What this is',
+  'How the 470 loci are detected',
+  'Data caveats',
+  'The similarity map is not a phylogeny',
+  'Provenance & citation',
+  'Glossary',
+]
+
+describe('About', () => {
+  test('renders every required method-note section', () => {
+    render(About)
+    for (const name of SECTIONS) {
+      expect(screen.getByRole('heading', { name })).toBeInTheDocument()
+    }
+  })
+
+  test('carries the exact no-polarity disclaimer + the not-a-phylogeny negation', () => {
+    const { container } = render(About)
+    expect(screen.getByText(NO_POLARITY_BANNER_TEXT)).toBeInTheDocument()
+    // The disclaimer must be a negation, never an assertion of ancestry (§6).
+    expect(container.textContent).toContain('not')
+    expect(container.textContent).toMatch(/ancestral-state reconstruction/i)
+  })
+
+  test('attribution links resolve (TBDB, CC-BY DOI, citing page)', () => {
+    const { container } = render(About)
+    const hrefs = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'))
+    expect(hrefs).toContain('https://tbdb.io')
+    expect(hrefs).toContain('https://doi.org/10.1093/nar/gkaa721')
+    expect(hrefs).toContain('https://tbdb.io/citing.html')
+  })
+
+  test('links to the in-app similarity map via SPA hash routing', () => {
+    // The no-polarity section CTA uses `use:link` (svelte-spa-router) so it routes
+    // in-app rather than reloading — matching the App.svelte nav idiom (§7.2).
+    render(About)
+    const treeLink = screen.getByRole('link', { name: /similarity map/i })
+    expect(treeLink.getAttribute('href')).toMatch(/(^|#)\/tree$/)
+  })
+
+  test('surfaces the load-bearing counts live from the store summary', () => {
+    render(About)
+    // The stat chips are bound from `store.summary` (seedStore loads the fixture:
+    // pairs 5 + triples 1, confidence 4 high / 2 low), so the figures track the
+    // build instead of drifting in hardcoded prose. These composite strings are
+    // distinctive single text nodes (unlike a bare "6").
+    expect(screen.getByText('5 + 1')).toBeInTheDocument()
+    expect(screen.getByText('4 / 2')).toBeInTheDocument()
+  })
+
+  test('contains no unambiguous evolutionary-direction language (§6)', () => {
+    const { container } = render(About)
+    const text = (container.textContent ?? '').toLowerCase()
+    // 'ancestral state of' (with spaces) is the directional assertion to forbid; it
+    // deliberately does NOT match the legitimate negation 'ancestral-state
+    // reconstruction' (hyphenated) that the disclaimer requires.
+    for (const banned of ['redeploy', 'abandon', 'gained', 'ancestral state of']) {
+      expect(text).not.toContain(banned)
+    }
+  })
+})
