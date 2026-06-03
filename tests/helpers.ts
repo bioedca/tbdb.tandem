@@ -35,4 +35,5 @@ export function resetStore(): void {
   store.treeLocusMap = null
   store.newickMain = null
   store.newickFallback = null
+  store.treesStatus = 'idle'
 }
