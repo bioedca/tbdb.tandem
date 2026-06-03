@@ -24,6 +24,7 @@
   import { store } from '../stores/filters.svelte'
   import { FUNC_CLASS_SHADE } from '../color'
   import { fontFamily, neutral } from '../design/tokens'
+  import { fitOnResize } from '../plotly'
   import {
     buildOperonBars,
     buildSankey,
@@ -58,7 +59,9 @@
   let barEl: HTMLDivElement
   let sankeyEl: HTMLDivElement
   let barBound = false
-  const CONFIG = { displayModeBar: false, responsive: true }
+  // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
+  // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
+  const CONFIG = { displayModeBar: false }
 
   /** Single-select-from-chart on a func_class bar: clicking the sole active class
    *  clears it, else narrows to exactly that class (toggle-clear; §9 centerpiece). */
@@ -106,6 +109,13 @@
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       bargap: 0.34,
+      // No Plotly `transition`: these bars carry marker.pattern (the §5.3/§9③
+      // provenance hatching), and a `Plots.resize` landing anywhere near a
+      // patterned-bar transition — including its finalization phase — throws
+      // asynchronously from Plotly's transition frame (verified). Since window
+      // resizes can't be fully fenced off, the bars narrow INSTANTLY instead; the
+      // §8.4 "feels live" cue is carried by the table's list fade/reflow + the
+      // synchronized instant narrowing of every panel.
       xaxis: {
         title: { text: 'loci', font: { size: 11, color: neutral.muted } },
         zeroline: false,
@@ -171,15 +181,15 @@
 
   onMount(() => {
     let disposed = false
+    let teardown: (() => void) | null = null
     void import('plotly.js-dist-min').then((mod) => {
-      if (!disposed) plotly = mod.default ?? (mod as unknown as PlotlyStatic)
+      if (disposed) return
+      plotly = mod.default ?? (mod as unknown as PlotlyStatic)
+      teardown = fitOnResize(plotly, [barEl, sankeyEl])
     })
     return () => {
       disposed = true
-      if (plotly) {
-        if (barEl) plotly.purge(barEl)
-        if (sankeyEl) plotly.purge(sankeyEl)
-      }
+      teardown?.()
     }
   })
 </script>

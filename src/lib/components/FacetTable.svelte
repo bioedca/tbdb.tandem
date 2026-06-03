@@ -115,8 +115,10 @@
   // ── Tabulator lifecycle + store-driven data sync ────────────────────────────────
 
   let containerEl: HTMLDivElement
+  let tableWrap: HTMLDivElement
   let table: Tabulator | undefined
   let built = $state(false)
+  let narrowTimer: ReturnType<typeof setTimeout> | undefined
 
   onMount(() => {
     table = new Tabulator(containerEl, {
@@ -137,6 +139,7 @@
       push(`/locus/${(row.getData() as Locus).tandem_id}`)
     })
     return () => {
+      clearTimeout(narrowTimer)
       table?.destroy()
       table = undefined
       built = false
@@ -145,9 +148,18 @@
 
   // Re-feed Tabulator whenever the cross-filtered selection changes (§7.3). The
   // `built` guard avoids `replaceData` before Tabulator finishes its async build.
+  // The `tv-narrowing` class is added synchronously BEFORE replaceData (so the rows
+  // it renders inherit it) and removed one animation later — that scopes the §8.4
+  // row fade to genuine cross-filter narrows only, NOT to Tabulator's virtual-scroll
+  // row recycling or column sorts (which re-render rows without this effect).
   $effect(() => {
     const rows = store.selected
-    if (built && table) table.replaceData(rows).catch(() => {})
+    if (built && table) {
+      tableWrap?.classList.add('tv-narrowing')
+      table.replaceData(rows).catch(() => {})
+      clearTimeout(narrowTimer)
+      narrowTimer = setTimeout(() => tableWrap?.classList.remove('tv-narrowing'), 220)
+    }
   })
 
   function exportCsv(): void {
@@ -247,7 +259,10 @@
   </div>
 
   <!-- The Tabulator table (PLAN §7.1). Styled to the design tokens below. -->
-  <div class="tv-table overflow-hidden rounded-panel border border-hairline bg-surface shadow-sm">
+  <div
+    bind:this={tableWrap}
+    class="tv-table overflow-hidden rounded-panel border border-hairline bg-surface shadow-sm"
+  >
     <div bind:this={containerEl}></div>
   </div>
 </div>
@@ -278,6 +293,23 @@
     border-bottom: 1px solid var(--color-hairline);
     background: var(--color-surface);
     cursor: pointer;
+  }
+  /* List fade/reflow (§8.4): rows ease in ONLY while `.tv-narrowing` is set — which
+     the cross-filter $effect toggles around replaceData — so the fade reads as a live
+     narrow and does NOT re-fire on Tabulator's virtual-scroll row recycling or on
+     column sort. Opacity-only + brief; the global prefers-reduced-motion rule
+     (app.css) neutralizes it. `-global-` keeps the keyframes name un-scoped so the
+     :global rule matches. */
+  :global(.tv-table.tv-narrowing .tabulator-row) {
+    animation: tv-row-in 150ms var(--ease-standard) both;
+  }
+  @keyframes -global-tv-row-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   :global(.tv-table .tabulator-row:hover) {
     background: var(--color-surface-subtle);

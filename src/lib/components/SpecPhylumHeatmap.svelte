@@ -18,6 +18,7 @@
   import { store } from '../stores/filters.svelte'
   import { PHYLUM_COUNT_RAMP } from '../color'
   import { brand, fontFamily, neutral } from '../design/tokens'
+  import { fitOnResize } from '../plotly'
   import {
     buildSpecPhylumHeatmap,
     PHYLUM_UNASSIGNED,
@@ -36,7 +37,9 @@
   let plotly = $state<PlotlyStatic | null>(null)
   let el: HTMLDivElement
   let bound = false
-  const CONFIG = { displayModeBar: false, responsive: true }
+  // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
+  // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
+  const CONFIG = { displayModeBar: false }
 
   /** Cross-filter on a cell: set the specifier + phylum facets (toggle to clear).
    *  The `unassigned` row sets only the specifier — a null phylum is not a
@@ -151,12 +154,15 @@
 
   onMount(() => {
     let disposed = false
+    let teardown: (() => void) | null = null
     void import('plotly.js-dist-min').then((mod) => {
-      if (!disposed) plotly = mod.default ?? (mod as unknown as PlotlyStatic)
+      if (disposed) return
+      plotly = mod.default ?? (mod as unknown as PlotlyStatic)
+      teardown = fitOnResize(plotly, [el])
     })
     return () => {
       disposed = true
-      if (plotly && el) plotly.purge(el)
+      teardown?.()
     }
   })
 </script>
