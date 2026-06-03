@@ -278,6 +278,19 @@
     border-bottom: 1px solid var(--color-hairline);
     background: var(--color-surface);
     cursor: pointer;
+    /* List fade/reflow (§8.4): rows the cross-filter brings into view ease in, so a
+       narrow reads as live. Opacity-only + brief so it stays calm under Tabulator's
+       virtual scroll. The global prefers-reduced-motion rule (app.css) neutralizes
+       it. `-global-` keeps the keyframes name un-scoped so the :global rule matches. */
+    animation: tv-row-in 150ms var(--ease-standard) both;
+  }
+  @keyframes -global-tv-row-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   :global(.tv-table .tabulator-row:hover) {
     background: var(--color-surface-subtle);

@@ -18,6 +18,7 @@
   import { store } from '../stores/filters.svelte'
   import { aaColor, withAlpha } from '../color'
   import { brand, fontFamily, neutral } from '../design/tokens'
+  import { fitOnResize } from '../plotly'
   import {
     barModel,
     buildSpecMatrix,
@@ -45,7 +46,9 @@
   let barBound = false
   let matrixBound = false
 
-  const CONFIG = { displayModeBar: false, responsive: true }
+  // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
+  // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
+  const CONFIG = { displayModeBar: false }
   // Count color scale — a quantitative teal ramp (chrome, NOT a specifier hue, so
   // the §8.2 chrome⟂data invariant holds: cells encode COUNTS, not specifiers).
   const COUNT_SCALE: [number, string][] = [
@@ -205,15 +208,15 @@
 
   onMount(() => {
     let disposed = false
+    let teardown: (() => void) | null = null
     void import('plotly.js-dist-min').then((mod) => {
-      if (!disposed) plotly = mod.default ?? (mod as unknown as PlotlyStatic)
+      if (disposed) return
+      plotly = mod.default ?? (mod as unknown as PlotlyStatic)
+      teardown = fitOnResize(plotly, [barEl, matrixEl])
     })
     return () => {
       disposed = true
-      if (plotly) {
-        if (barEl) plotly.purge(barEl)
-        if (matrixEl) plotly.purge(matrixEl)
-      }
+      teardown?.()
     }
   })
 </script>
