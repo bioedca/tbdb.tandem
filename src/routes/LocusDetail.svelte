@@ -161,7 +161,7 @@
            intra-locus pairwise %-identity (identity.json, lazily loaded above). -->
       <Card
         title="Element comparison"
-        subtitle="Specifier · tRNA · ΔΔG / terminator ΔG (kcal/mol; longer bar = more negative) · pairwise identity · deep links"
+        subtitle="Specifier · tRNA · ΔΔG (fold-difference magnitude) · terminator ΔG (kcal/mol; longer bar = more stable hairpin) · pairwise identity · deep links"
       >
         <ElementComparison {members} {pairs} />
       </Card>

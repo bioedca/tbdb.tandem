@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Final-review accuracy corrections** to the clarity copy above: the `intra-locus pair` definition said identity is scored on **Stem I** — it is actually scored on the **full leader** (Stem I is what the *similarity map* compares); corrected, and reconciled with the `mean %id` definition. The function-class glossary/legend no longer overclaims "amino-acid biosynthesis/transporter" (the classifier buckets by EC class / keyword, which does not establish substrate scope) — now "biosynthetic enzyme (transferase/lyase)" and "membrane transporter/permease". The element-comparison subtitle no longer applies a "more negative" sign reading to **ΔΔG** (kept as a magnitude, per its definition); only the terminator energy carries the directional reading. The heatmap caption uses the canonical verb ("its elements **sense** different amino acids", not "read").
+
 ### Added
 - **First-contact primer + shared glossary** — the Dashboard now opens with a one-paragraph, plain-language definition of what a T-box riboswitch and a tandem locus are (a T-box binds one specific tRNA, senses whether it is charged with its amino acid, and switches the downstream gene **on** when that amino acid is scarce; a tandem locus stacks two or more elements in one leader), plus a "New here? → About & method" link. A single-source glossary (`glossary.ts`) defines the load-bearing vocabulary once — present-tense and structural, no evolutionary direction — and is surfaced inline through a small, keyboard-reachable ⓘ affordance (`InfoTip`) so a newcomer can resolve a term in place. The About page gains a "what a T-box is" lead paragraph and plain-language glosses of the detection pipeline (the `core5` 5′ anchor; single-linkage clustering as "chaining nearby cores").
 

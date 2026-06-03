@@ -226,9 +226,10 @@
         <InfoTip term="func_class" />
       </div>
       <p class="mb-2 text-caption text-muted">
-        Function of the regulated gene — <span class="font-mono">aaRS</span> = aminoacyl-tRNA synthetase ·
-        biosynthesis = amino-acid biosynthesis · transporter = amino-acid transporter · oxidoreductase =
-        redox enzyme · unknown = no functional annotation.
+        Function of the regulated gene (from its EC number or text annotation) —
+        <span class="font-mono">aaRS</span> = aminoacyl-tRNA synthetase · biosynthesis = biosynthetic
+        enzyme (transferase/lyase) · transporter = membrane transporter/permease · oxidoreductase = redox
+        enzyme · unknown = no annotation.
       </p>
       <p class="mb-2 text-caption text-muted">
         Classification source — solid = backed by an EC (Enzyme Commission) number · hatched = inferred
