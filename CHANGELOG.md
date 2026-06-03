@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Similarity-map viewer** (`PhyloTree` on `/tree`) — the real sequence-derived Stem-I tree, rendered with phylotree.js as an **unrooted** equal-angle layout (the stored Newick is midpoint-rooted for stable layout only; no root or polarity is shown or implied). Built element-level (keyed by `unique_name`) and **collapsed to a per-locus default view**: a locus whose element tips form one clade (sisters — a duplication) folds to a single locus tip, while loci whose copies are dispersed stay as separate tips, so the **locus ⇄ element toggle** reveals which. A **main Stem-I ⇄ antiterminator-fallback** tree toggle, a **support-collapse slider** (FastTree SH-like supports; weakly-supported branches fade, default < 0.5), and a **non-Firmicutes-only** filter for the 16 outliers. Tips are coloured by specifier (the primary data axis) with a thin neutral phylum-context ring; hovering a tip shows its locus/element, clicking opens its detail page. phylotree.js (legacy d3 v7 + lodash) is dynamically imported so it stays off the boot path. Verified tip counts — 847 main / 102 fallback elements; 782 / 102 collapsed loci.
+- **Tree-load error surface** — the lazy four-artifact tree load now tracks a status and degrades gracefully (the `/tree` view shows a fallback message and a later visit can retry) instead of leaving an unhandled rejection.
+
 ## [0.2.0] - 2026-06-03
 
 ### Added

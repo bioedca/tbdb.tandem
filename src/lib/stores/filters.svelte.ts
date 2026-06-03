@@ -129,6 +129,7 @@ export class TandemStore {
   treeLocusMap = $state<TreeLocusMap | null>(null)
   newickMain = $state<string | null>(null)
   newickFallback = $state<string | null>(null)
+  treesStatus = $state<LoadStatus>('idle')
 
   // Filter state + the cross-filtered selection.
   filter = $state<FilterState>(emptyFilterState())
@@ -208,20 +209,29 @@ export class TandemStore {
     return this.#identityPromise
   }
 
-  /** Lazily load the four tree artifacts (`/tree`; PLAN §7.3). */
+  /** Lazily load the four tree artifacts (`/tree`; PLAN §7.3). A failed load sets
+   *  `treesStatus = 'error'` (the `/tree` view shows a fallback message) and clears
+   *  the guard so a later visit can retry — never an unhandled rejection. */
   ensureTrees(): Promise<void> {
     if (!this.#treesPromise) {
+      this.treesStatus = 'loading'
       this.#treesPromise = Promise.all([
         loadTreeTips(),
         loadTreeLocusMap(),
         loadNewick('main'),
         loadNewick('fallback'),
-      ]).then(([tips, locusMap, main, fallback]) => {
-        this.treeTips = tips
-        this.treeLocusMap = locusMap
-        this.newickMain = main
-        this.newickFallback = fallback
-      })
+      ])
+        .then(([tips, locusMap, main, fallback]) => {
+          this.treeTips = tips
+          this.treeLocusMap = locusMap
+          this.newickMain = main
+          this.newickFallback = fallback
+          this.treesStatus = 'ready'
+        })
+        .catch(() => {
+          this.treesStatus = 'error'
+          this.#treesPromise = null
+        })
     }
     return this.#treesPromise
   }
