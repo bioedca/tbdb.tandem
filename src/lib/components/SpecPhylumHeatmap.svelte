@@ -169,7 +169,7 @@
 
 <Card
   title="Specifier × phylum"
-  subtitle="Loci by specifier and phylum. The dataset is near-monochrome (454/470 Firmicutes) — cells use the neutral phylum ramp, so the 16 non-Firmicutes outliers stand out. Click a cell to cross-filter."
+  subtitle="Loci by specifier amino acid (the amino acid each T-box senses) and phylum. The dataset is near-monochrome (454/470 Firmicutes) — cells use a neutral grey ramp, so the 16 non-Firmicutes loci stand out. Click a cell to cross-filter."
 >
   <div class="relative h-[22rem] w-full">
     <div bind:this={el} class="h-full w-full"></div>
@@ -184,7 +184,9 @@
     {/if}
   </div>
   <p class="mt-2 text-caption text-muted">
-    Counts shown in-cell; shade encodes magnitude (capped). Blank = no loci. The
-    <span class="font-mono">unassigned</span> row holds the 3 loci with no phylum assignment.
+    Counts shown in-cell; shade encodes magnitude (capped). Blank = no loci. A semicolon (e.g.
+    <span class="font-mono">ILE;LEU</span>) marks a mixed-specifier locus — its elements read different
+    amino acids. The <span class="font-mono">unassigned</span> row holds the 3 loci with no phylum
+    assignment.
   </p>
 </Card>

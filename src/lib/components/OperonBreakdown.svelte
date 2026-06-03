@@ -34,6 +34,7 @@
   } from '../operon'
   import type { FuncSource, RegulationType } from '../data/types'
   import Card from './Card.svelte'
+  import InfoTip from './InfoTip.svelte'
   import Spinner from './Spinner.svelte'
 
   // ── Derived models (all boot from loci.json — no members.json needed) ───────────
@@ -196,7 +197,7 @@
 
 <Card
   title="Regulated-operon breakdown"
-  subtitle="Loci grouped by the downstream function class they regulate (split by classification source), and the specifier → function coupling. Observed associations only — no evolutionary direction is implied."
+  subtitle="Each T-box sits in the leader of a downstream gene or operon and switches it on or off as its amino acid runs scarce; loci are grouped here by the function class of that regulated gene or operon (split by classification source). Observed associations only — no evolutionary direction is implied."
 >
   <!-- Regulation type — shown as chips, not a toggle (§2.2/§9③) -->
   <div class="mb-4 flex flex-wrap items-center gap-2">
@@ -220,9 +221,18 @@
   <div class="grid gap-6 lg:grid-cols-5">
     <!-- ① Stacked bars by func_class (solid = EC · hatched = text-inferred* · dotted = none) -->
     <div class="lg:col-span-2">
-      <h3 class="mb-1 text-small font-medium text-ink">By function class</h3>
+      <div class="mb-1 flex items-center gap-1">
+        <h3 class="text-small font-medium text-ink">By function class</h3>
+        <InfoTip term="func_class" />
+      </div>
       <p class="mb-2 text-caption text-muted">
-        Solid = EC-backed · hatched = text-inferred<span class="font-mono">*</span> · dotted = no
+        Function of the regulated gene — <span class="font-mono">aaRS</span> = aminoacyl-tRNA synthetase ·
+        biosynthesis = amino-acid biosynthesis · transporter = amino-acid transporter · oxidoreductase =
+        redox enzyme · unknown = no functional annotation.
+      </p>
+      <p class="mb-2 text-caption text-muted">
+        Classification source — solid = backed by an EC (Enzyme Commission) number · hatched = inferred
+        from the gene's text annotation (<span class="font-mono">*</span>lower confidence) · dotted = no
         annotation. Click a bar to cross-filter.
       </p>
       <div class="relative h-[18rem] w-full">
@@ -243,8 +253,9 @@
     <div class="lg:col-span-3">
       <h3 class="mb-1 text-small font-medium text-ink">Specifier → function coupling</h3>
       <p class="mb-2 text-caption text-muted">
-        Each band is the number of loci whose specifier (left) co-occurs with a regulated function
-        class (right).
+        Each band counts the loci whose specifier amino acid (left, colored by amino acid) regulates a
+        given function class (right, neutral grey). Width = number of loci — an observed association, not a
+        cause.
       </p>
       <div class="relative h-[30rem] w-full">
         <div bind:this={sankeyEl} class="h-full w-full"></div>
