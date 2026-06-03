@@ -27,6 +27,7 @@
     type SpecMatrix,
   } from '../specificity'
   import Card from './Card.svelte'
+  import InfoTip from './InfoTip.svelte'
   import Spinner from './Spinner.svelte'
 
   // ── Derived models (bar boots from summary; matrix waits for members) ───────────
@@ -223,18 +224,31 @@
 
 <Card
   title="Specificity overview"
-  subtitle="Locus specifier distribution + the symmetric element-pair matrix (ILE×LEU is the branched-chain focal cluster). Click a bar or cell to cross-filter."
+  subtitle="Each T-box element senses one amino acid via a specifier codon in its Stem I — the “specifier” shown here is that amino acid (3-letter code). The bar counts loci by specifier; the matrix counts two-element loci by the specifiers of their two elements. Click a bar or cell to cross-filter."
 >
   <div class="grid gap-6 lg:grid-cols-5">
     <!-- Specifier-AA bar (locus-level; boots from summary.json) -->
     <div class="lg:col-span-2">
-      <h3 class="mb-1 text-small font-medium text-ink">Specifier (per locus)</h3>
+      <div class="mb-1 flex items-center gap-1">
+        <h3 class="text-small font-medium text-ink">Specifier (per locus)</h3>
+        <InfoTip term="specifier" />
+      </div>
       <div bind:this={barEl} class="h-[26rem] w-full"></div>
+      <p class="mt-2 text-caption text-muted">
+        Each locus counted once by its overall specifier; mixed loci appear as
+        <span class="font-mono">A;B</span> (e.g. ILE;LEU).
+      </p>
     </div>
 
     <!-- Symmetric element-pair matrix (element-level; needs members.json) -->
     <div class="lg:col-span-3">
-      <h3 class="mb-1 text-small font-medium text-ink">Element-pair matrix (symmetric)</h3>
+      <div class="mb-1 flex items-center gap-1">
+        <h3 class="text-small font-medium text-ink">Element-pair matrix (symmetric)</h3>
+        <InfoTip
+          label="Element-pair matrix"
+          tip="Each cell counts the two-element loci whose two elements carry those two specifiers (row × column). The grid is folded, so every pair appears on both sides of the diagonal."
+        />
+      </div>
       <div class="relative h-[26rem] w-full">
         <div bind:this={matrixEl} class="h-full w-full"></div>
         {#if store.membersStatus !== 'ready'}
@@ -247,15 +261,29 @@
           </div>
         {/if}
       </div>
+      <p class="mt-2 text-caption text-muted">
+        Each cell = number of two-element loci with those two specifiers (row × column); darker teal = more
+        loci, <span class="font-mono">?</span> = an element whose specifier is unresolved.
+        <span class="font-medium text-body">Diagonal</span> cells = same-specifier loci (both elements sense
+        the same amino acid); <span class="font-medium text-body">off-diagonal</span> = mixed. Cell color is
+        count only — read the amino acids from the row and column labels. The off-diagonal
+        <span class="font-mono">ILE×LEU</span> cell (10 loci) is the largest pairing of two resolved
+        specifiers — an isoleucine-sensing element with a leucine-sensing one (both branched-chain).
+      </p>
     </div>
   </div>
 
   <!-- Triple-core loci — surfaced as a list, not forced into 2D cells (§9②) -->
   {#if triples.length}
     <div class="mt-5 border-t border-hairline pt-4">
-      <h3 class="mb-2 text-small font-medium text-ink">
+      <h3 class="mb-1 text-small font-medium text-ink">
         Triple-core loci <span class="font-normal text-muted">({triples.length})</span>
       </h3>
+      <p class="mb-2 text-caption text-muted">
+        These {triples.length} loci hold three T-box elements — too many for the 2-D matrix above, so they
+        are listed here. Each dot is one element's specifier amino acid in 5′→3′ order; grey
+        <span class="font-mono">?</span> = unresolved.
+      </p>
       <ul class="flex flex-wrap gap-2">
         {#each triples as t (t.tandem_id)}
           <li>

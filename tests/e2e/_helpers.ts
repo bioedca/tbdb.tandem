@@ -40,7 +40,7 @@ export async function readMatrixCell(page: Page, x: string, y: string): Promise<
       const h3 = Array.from(document.querySelectorAll('h3')).find((h) =>
         h.textContent?.includes('Element-pair matrix'),
       )
-      const plot = h3?.parentElement?.querySelector('.js-plotly-plot') as
+      const plot = h3?.closest('div.lg\\:col-span-3')?.querySelector('.js-plotly-plot') as
         | { data?: Array<{ x?: string[]; y?: string[]; z?: (number | null)[][] }> }
         | null
       const trace = plot?.data?.[0]
@@ -71,7 +71,7 @@ export async function clickMatrixCell(
       const h3 = Array.from(document.querySelectorAll('h3')).find((h) =>
         h.textContent?.includes('Element-pair matrix'),
       )
-      const plot = h3?.parentElement?.querySelector('.js-plotly-plot') as
+      const plot = h3?.closest('div.lg\\:col-span-3')?.querySelector('.js-plotly-plot') as
         | (Element & { emit?: (ev: string, data: unknown) => void })
         | null
       if (!plot || typeof plot.emit !== 'function') {
