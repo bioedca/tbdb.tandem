@@ -54,7 +54,20 @@
   type PhyloCtor = new (nwk: string) => PhyloInstance
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
-  // ── Controls (local to this view; cross-filtering the dashboard is S3.2) ─────────
+  // ── Props (S3.2) ─────────────────────────────────────────────────────────────────
+  interface Props {
+    /** Dashboard panel: clicking a tip narrows the shared store by that locus's
+     *  specifier (toggle-clear, mirroring the specifier bar — §7.3 keeps the tree
+     *  inside the existing facet model). The full /tree page leaves this false, so
+     *  a tip click opens its detail page (the S3.1 behavior). */
+    selectable?: boolean
+    /** Canvas height (set inline; e.g. '68vh' on /tree, a shorter value on the
+     *  dashboard panel). */
+    height?: string
+  }
+  let { selectable = false, height = '68vh' }: Props = $props()
+
+  // ── Controls (local to this view; the dashboard cross-filter is the store) ───────
   let mode = $state<'locus' | 'element'>('locus')
   let which = $state<'main' | 'fallback'>('main')
   let supportThreshold = $state(0.5) // PLAN §6: "default collapse < 0.5"
@@ -93,6 +106,18 @@
       ro?.disconnect()
     }
   })
+
+  // ── Dashboard cross-filter (PLAN §9, §7.3) ───────────────────────────────────────
+  // RESPONDER (always): when the shared store is filtered, tips whose locus is NOT
+  // in `store.selected` are dimmed, so a selection in any panel narrows the tree to
+  // those loci (the §9 "narrows … tree … to those 10 loci" guarantee). SELECTOR
+  // (only when `selectable`): a tip click sets the specifier facet — see onTipClick.
+  const selectedTandemIds = $derived(new Set(store.selected.map((l) => l.tandem_id)))
+  const crossFiltered = $derived(store.isFiltered)
+  /** tandem_id → locus-level `specifier_aa`, for the specifier selector. */
+  const specifierByLocus = $derived(
+    new Map(store.loci.map((l) => [l.tandem_id, l.specifier_aa])),
+  )
 
   // ── Derived render inputs (parse/collapse are pure; PLAN §6) ─────────────────────
   const activeNewick = $derived(which === 'main' ? store.newickMain : store.newickFallback)
@@ -154,6 +179,22 @@
     }
   }
 
+  // ── Tip click: select-by-specifier (dashboard) or open detail (/tree) ────────────
+  function onTipClick(tandemId: string): void {
+    if (!selectable) {
+      push(`/locus/${tandemId}`)
+      return
+    }
+    // Narrow the shared store by this locus's specifier (toggle-clear, the §9②
+    // bar convention). Specifier is an existing facet dimension, so no new §7.3
+    // dimension is introduced; a null specifier (none on real data) no-ops.
+    const spec = specifierByLocus.get(tandemId)
+    if (spec == null) return
+    const cur = store.filter.specifier
+    if (cur.size === 1 && cur.has(spec)) store.clearFacet('specifier')
+    else store.setFacet('specifier', [spec])
+  }
+
   // ── Stylers (closures: read live control state at each (re)draw) ─────────────────
   function nodeStyler(element: D3Sel, node: PhyloNode): void {
     const isLeaf = !node.children || node.children.length === 0
@@ -184,7 +225,10 @@
     }
 
     const outlier = isNonFirmicutes(phylum)
-    const dim = nonFirmicutesOnly && !outlier
+    // Dim a tip if the local non-Firmicutes filter excludes it OR the shared
+    // cross-filter selection does (PLAN §9 — the dashboard narrows the tree).
+    const outOfSelection = crossFiltered && !selectedTandemIds.has(tandemId)
+    const dim = (nonFirmicutesOnly && !outlier) || outOfSelection
     const emphasize = nonFirmicutesOnly && outlier
     const r = dim ? 1.6 : emphasize ? 4 : mode === 'locus' ? 3 : 2.3
 
@@ -203,7 +247,7 @@
       .on('mouseenter', (ev: MouseEvent) => onEnter?.(ev))
       .on('mousemove', (ev: MouseEvent) => moveTip(ev))
       .on('mouseleave', () => hideTip())
-      .on('click', () => push(`/locus/${tandemId}`))
+      .on('click', () => onTipClick(tandemId))
   }
 
   function edgeStyler(element: D3Sel, edge: PhyloLink): void {
@@ -269,6 +313,8 @@
   $effect(() => {
     void supportThreshold
     void nonFirmicutesOnly
+    void selectedTandemIds // respond to the shared cross-filter (PLAN §9)
+    void crossFiltered
     if (!display) return
     cancelAnimationFrame(restyleRaf)
     const d = display
@@ -365,11 +411,17 @@
       <span class="ml-auto text-small text-muted">
         {tipCount} tip{tipCount === 1 ? '' : 's'}
         <span class="text-caption">({mode === 'locus' ? 'loci' : 'elements'}, {which})</span>
+        {#if crossFiltered}
+          <span class="text-caption text-brand">· cross-filtered</span>
+        {/if}
       </span>
     </div>
 
     <!-- Tree canvas -->
-    <div class="relative mt-3 h-[68vh] min-h-[28rem] w-full overflow-hidden rounded-md border border-hairline bg-surface-subtle">
+    <div
+      class="relative mt-3 min-h-[28rem] w-full overflow-hidden rounded-md border border-hairline bg-surface-subtle"
+      style:height
+    >
       <div bind:this={containerEl} class="tv-phylotree h-full w-full"></div>
       {#if store.treesStatus !== 'ready' || !Phylo}
         <div class="absolute inset-0 grid place-items-center">
@@ -401,7 +453,10 @@
     </div>
     <p class="mt-2 text-caption text-muted">
       An exploratory sequence-similarity map, displayed unrooted — branch positions reflect
-      sequence similarity, not ancestry. Hover a tip for its locus; click to open its detail page.
+      sequence similarity, not ancestry. Hover a tip for its locus;
+      {selectable
+        ? 'click to filter the dashboard by its specifier.'
+        : 'click to open its detail page.'}
     </p>
   {/snippet}
 </Card>
