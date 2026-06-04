@@ -20,7 +20,7 @@ test.describe('Tree (/tree)', () => {
     await expect(page.getByText('782 tips')).toBeVisible()
 
     // The fallback toggle switches to the separate antiterminator tree (102 tips).
-    await page.getByRole('button', { name: 'Fallback' }).click()
+    await page.getByRole('button', { name: /^Fallback/ }).click()
     await expect(page.getByText('(loci, fallback)')).toBeVisible()
     await expect(page.getByText('102 tips')).toBeVisible()
     await expect(page.getByText('(loci, main)')).toHaveCount(0)
