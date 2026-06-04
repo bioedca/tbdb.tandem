@@ -140,7 +140,7 @@
     preserveAspectRatio="xMidYMid meet"
     class="w-full"
     role="img"
-    aria-label="Tandem architecture: {model.elements.length} T-box elements, biological 5′ to 3′, {strand} strand; downstream {funcClass} operon."
+    aria-label="Tandem architecture: {model.elements.length} T-box elements, biological 5′ to 3′, {strand} strand; downstream {funcClass} gene or operon."
   >
     <!-- Backbone -->
     <line
@@ -284,9 +284,9 @@
           {#if el.member.type === 'Translational'}
             <g class="tv-arch-feature tv-arch-term tv-arch-term-sd" data-feature="term">
               <title
-                >Translational element: a hairpin sequesters the Shine–Dalgarno ribosome-binding site
-                (SD/RBS) when the cognate tRNA is charged, blocking translation initiation. Drawn
-                schematically — no SD coordinate is stored.</title
+                >Translational element: the sequestrator hairpin occludes the Shine–Dalgarno
+                ribosome-binding site (SD/RBS) when the cognate tRNA is charged, blocking translation
+                initiation. Drawn schematically — no SD coordinate is stored.</title
               >
               <path
                 d="M {tcx - 7} {Y_BODY_T - 4} q 0 -8 7 -8 q 7 0 7 8"
@@ -372,7 +372,7 @@
         <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
           <rect x="1.5" y="3" width="21" height="10" rx="2.5" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.4" />
         </svg>
-        <span>T-box element <span class="text-muted/80">(tinted by specifier)</span></span>
+        <span>T-box element <span class="text-muted/80">(tinted by specifier amino acid)</span></span>
       </li>
       <li class="inline-flex items-center gap-1.5">
         <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">

@@ -186,7 +186,7 @@
   <p class="mt-2 text-caption text-muted">
     Counts shown in-cell; shade encodes magnitude (capped). Blank = no loci. A semicolon (e.g.
     <span class="font-mono">ILE;LEU</span>) marks a mixed-specifier locus — its elements sense different
-    amino acids. The <span class="font-mono">unassigned</span> row holds the 3 loci with no phylum
-    assignment.
+    amino acids. The <span class="font-mono">unassigned</span> row holds the 3 loci whose phylum could
+    not be assigned (counted among the 16 non-Firmicutes).
   </p>
 </Card>

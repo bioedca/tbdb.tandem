@@ -197,7 +197,7 @@
 
 <Card
   title="Regulated-operon breakdown"
-  subtitle="Each T-box sits in the leader of a downstream gene or operon and switches it on or off as its amino acid runs scarce; loci are grouped here by the function class of that regulated gene or operon (split by classification source). Observed associations only — no evolutionary direction is implied."
+  subtitle="Each T-box sits in the leader of a downstream gene or operon and toggles its expression by sensing the charging state of one cognate tRNA — uncharged tRNA, which builds up when its amino acid is scarce, flips the switch. Loci are grouped here by the function class of that regulated gene or operon (split by classification source). Observed associations only — no evolutionary direction is implied."
 >
   <!-- Regulation type — shown as chips, not a toggle (§2.2/§9③) -->
   <div class="mb-4 flex flex-wrap items-center gap-2">
@@ -228,8 +228,8 @@
       <p class="mb-2 text-caption text-muted">
         Function of the regulated gene (from its EC number or text annotation) —
         <span class="font-mono">aaRS</span> = aminoacyl-tRNA synthetase · biosynthesis = biosynthetic
-        enzyme (transferase/lyase) · transporter = membrane transporter/permease · oxidoreductase = redox
-        enzyme · unknown = no annotation.
+        enzyme (transferase/lyase) · transporter = membrane transporter/permease · oxidoreductase =
+        oxidation–reduction (redox) enzyme · unknown = no annotation.
       </p>
       <p class="mb-2 text-caption text-muted">
         Classification source — solid = backed by an EC (Enzyme Commission) number · hatched = inferred

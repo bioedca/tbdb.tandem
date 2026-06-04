@@ -21,17 +21,17 @@
 </script>
 
 <div class="tv-app flex min-h-screen flex-col bg-surface-subtle text-body">
-  <!-- Dark chrome header (PLAN §8.2). The two-bar wordmark evokes two stacked
-       T-box elements (§8.1); the teal accent is the brand affordance color. -->
+  <!-- Deep-blue chrome header (PLAN §8.2). The two-bar wordmark evokes two stacked
+       T-box elements (§8.1); a light palette blue carries the brand mark on the bar. -->
   <header class="bg-chrome text-chrome-fg">
     <div class="mx-auto flex max-w-content items-center justify-between gap-6 px-6 py-3">
       <a href="/" use:link class="group flex items-center gap-2.5" aria-label="tbdb.tandem — home">
         <svg viewBox="0 0 24 24" class="size-6 shrink-0" aria-hidden="true">
           <rect x="3" y="6" width="18" height="4.5" rx="2.25" fill="var(--color-chrome-fg)" />
-          <rect x="3" y="13.5" width="18" height="4.5" rx="2.25" fill="var(--color-brand)" />
+          <rect x="3" y="13.5" width="18" height="4.5" rx="2.25" fill="var(--color-brand-on-dark)" />
         </svg>
         <span class="flex items-baseline gap-2">
-          <span class="text-h2 font-semibold tracking-tight text-white">tbdb<span class="text-brand">.tandem</span></span>
+          <span class="text-h2 font-semibold tracking-tight text-white">tbdb<span class="text-brand-on-dark">.tandem</span></span>
           <span class="hidden text-caption text-chrome-fg/60 sm:inline"
             >tandem T-box explorer</span
           >
@@ -44,7 +44,7 @@
             href={item.path}
             use:link
             class="border-b-2 px-2 py-1 transition-colors duration-150 ease-standard hover:text-white"
-            class:border-brand={router.location === item.path}
+            class:border-brand-on-dark={router.location === item.path}
             class:text-white={router.location === item.path}
             class:font-medium={router.location === item.path}
             class:border-transparent={router.location !== item.path}

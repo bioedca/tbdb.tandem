@@ -28,11 +28,11 @@ export const GLOSSARY = {
   },
   locus: {
     term: 'Locus',
-    def: 'One genomic window holding two or more T-box elements — the unit this explorer is built around (470 in all).',
+    def: 'One genomic window holding two or more T-box elements (its members) — the unit this explorer is built around (470 in all).',
   },
   element: {
-    term: 'Element (core, member)',
-    def: 'One complete T-box unit — Stem I plus its switch — within a locus. Also called a core or member; 949 in all (461 two-element loci + 9 three-element loci).',
+    term: 'Element (also member)',
+    def: 'One complete T-box unit — a Stem I that senses the tRNA plus the downstream antiterminator/terminator (or RBS-sequestering) switch — within a locus. Also called a member; 949 in all (461 two-element loci + 9 three-element loci).',
   },
   specifier: {
     term: 'Specifier',
@@ -40,23 +40,23 @@ export const GLOSSARY = {
   },
   specifier_codon: {
     term: 'Specifier codon',
-    def: 'A codon displayed in Stem I that base-pairs with the cognate tRNA’s anticodon, setting which amino acid the T-box responds to.',
+    def: 'The codon in the Stem I specifier loop that base-pairs with the cognate tRNA’s anticodon, setting which amino acid the T-box responds to.',
   },
   stem_i: {
     term: 'Stem I',
-    def: 'The part of the T-box RNA that displays the specifier codon and contacts the sensed tRNA. Its sequence is what the similarity map compares.',
+    def: 'The part of the T-box RNA whose specifier codon base-pairs the cognate tRNA’s anticodon, setting the amino acid sensed. Its sequence is what the similarity map compares.',
   },
   antiterminator: {
     term: 'Antiterminator',
-    def: 'A structure that, when the sensed tRNA is uncharged, is stabilized by that tRNA’s free 3′ end and blocks the terminator — so transcription reads through and the gene turns on.',
+    def: 'A structure that, when the sensed tRNA is uncharged, is stabilized by that tRNA’s free 3′ acceptor end and blocks the terminator — so transcription reads through and the gene turns on.',
   },
   terminator: {
     term: 'Terminator',
     def: 'A hairpin that, when it forms, stops transcription — the gene-OFF state of a transcriptional T-box.',
   },
   discriminator: {
-    term: 'Discriminator',
-    def: 'A short conserved element in the antiterminator region, at the 3′ end of the T-box switch.',
+    term: 'Discriminator base',
+    def: 'The unpaired tRNA base just 5′ of its 3′-CCA end. The conserved T-box bulge (5′-UGGN-3′) reads it by Watson–Crick pairing, helping the riboswitch verify it has bound the correct, uncharged tRNA.',
   },
   same_mixed: {
     term: 'Same / mixed specifier',
@@ -64,7 +64,7 @@ export const GLOSSARY = {
   },
   confidence: {
     term: 'Confidence',
-    def: 'Annotation confidence for a locus’s T-box calls (high = at least two complete elements). Low-confidence loci are kept and flagged, never dropped.',
+    def: 'How confident the annotation is in a locus’s T-box elements (high = at least two complete elements). Low-confidence loci are kept and flagged, never dropped.',
   },
   intra_locus_pair: {
     term: 'Intra-locus pair',
@@ -80,7 +80,7 @@ export const GLOSSARY = {
   },
   regulation_type: {
     term: 'Regulation type',
-    def: 'How a T-box acts: transcriptional T-boxes switch a terminator hairpin; translational T-boxes sequester the ribosome-binding site (SD/RBS).',
+    def: 'How a T-box acts: transcriptional (class I) T-boxes choose between an antiterminator and a terminator hairpin to start/stop transcription; translational (class II) T-boxes expose or sequester the ribosome-binding site (SD/RBS) to allow/block translation.',
   },
   branch_support: {
     term: 'Branch support',
@@ -88,7 +88,7 @@ export const GLOSSARY = {
   },
   similarity_map: {
     term: 'Similarity map',
-    def: 'An unrooted map that groups T-box elements by how alike their Stem-I sequences are. It has no time axis and no outgroup, so it is not a phylogeny — clusters mean “these sequences resemble each other,” not a lineage or order of appearance.',
+    def: 'An unrooted map that groups T-box elements by how alike their Stem I sequences are. It has no time axis and no outgroup, so it is not a phylogeny — clusters mean “these sequences resemble each other,” not a lineage or order of appearance.',
   },
   ddg: {
     term: 'ΔΔG',
@@ -104,7 +104,7 @@ export const GLOSSARY = {
   },
   non_firmicutes: {
     term: 'Non-Firmicutes',
-    def: 'T-box riboswitches are predominantly found in Firmicutes; 454 of 470 loci are Firmicutes and 16 are from other bacterial phyla.',
+    def: 'The 16 of 470 loci that fall outside Firmicutes — in other bacterial phyla such as Actinobacteria. (T-box riboswitches are predominantly a Firmicutes feature, so the remaining 454 loci are Firmicutes.)',
   },
   varna: {
     term: 'VARNA',

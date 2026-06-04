@@ -58,6 +58,7 @@ export function makeMember(o: Partial<Member> & Pick<Member, 'member_id' | 'tand
     structure: '((....))',
     whole_antiterm_structure: '((..))',
     term_structure: '((..))',
+    stems: [],
     deltadelta_g: -12.5,
     terminator_energy: -8.0,
     type: 'Transcriptional',

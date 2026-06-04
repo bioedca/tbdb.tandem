@@ -16,11 +16,18 @@
 import fornacUrl from 'fornac/dist/scripts/fornac.js?url'
 
 /** The fornac container constructor: host element + options → an object with
- *  `addRNA(structure, { sequence, name })`. */
+ *  `addRNA(structure, { sequence, name })`, plus the custom-color hooks used for
+ *  the per-stem overlay (`addCustomColors` sets a `{colorValues:{[structName]:
+ *  {[num]:hex}}}` map; `changeColorScheme('custom')` applies it — fornac returns a
+ *  literal color string for any non-numeric custom value). */
 export type FornaContainerCtor = new (
   element: Element,
   options?: Record<string, unknown>,
-) => { addRNA(structure: string, options?: Record<string, unknown>): unknown }
+) => {
+  addRNA(structure: string, options?: Record<string, unknown>): unknown
+  addCustomColors(colors: Record<string, unknown>): unknown
+  changeColorScheme(scheme: string): unknown
+}
 
 interface FornaNamespace {
   FornaContainer: FornaContainerCtor

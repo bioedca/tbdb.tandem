@@ -285,6 +285,82 @@ def test_antiterm_core_slices_window():
     assert bj._antiterm_core({**base, "coords": {"window": {"antiterm": [None, None]}}}) is None
 
 
+# --- Labelled stem spans for the RNA colour overlay (PLAN section 9) ----------
+
+def test_parse_other_stems():
+    assert bj._parse_other_stems("[[7, 107], [110, 142]]") == [(7, 107), (110, 142)]
+    assert bj._parse_other_stems("[[80, 10]]") == [(10, 80)]   # normalized lo <= hi
+    assert bj._parse_other_stems("") == []
+    assert bj._parse_other_stems(None) == []
+    assert bj._parse_other_stems("not a list") == []
+    assert bj._parse_other_stems(float("nan")) == []
+
+
+def test_derive_stems_splits_stem2_region_via_other_stems():
+    # The clean 5-stem element: Stem II vs IIA/B is split from the other_stems helices
+    # that fall inside the Stem II region (110..155).
+    row = {
+        "s1_start": 7, "s1_end": 107,
+        "stem2_region_start": 110, "stem2_region_end": 155,
+        "stem3_start": 172, "stem3_end": 194,
+        "antiterm_start": 201, "antiterm_end": 229,
+        "other_stems": "[[7, 107], [110, 142], [144, 155], [172, 194], [201, 229]]",
+    }
+    stems = bj.derive_stems(row)
+    assert [s["key"] for s in stems] == ["i", "ii", "iiab", "iii", "at"]
+    assert (stems[1]["start"], stems[1]["end"]) == (110, 142)   # Stem II = 5'-most helix
+    assert (stems[2]["start"], stems[2]["end"]) == (144, 155)   # Stem IIA/B = the rest
+
+
+def test_derive_stems_region_without_inner_helix_uses_whole_region():
+    row = {
+        "s1_start": 7, "s1_end": 100,
+        "stem2_region_start": 110, "stem2_region_end": 150,
+        "stem3_start": 0, "stem3_end": 0,
+        "antiterm_start": 0, "antiterm_end": 0,
+        "other_stems": "[]",
+    }
+    stems = bj.derive_stems(row)
+    assert [s["key"] for s in stems] == ["i", "ii"]
+    assert (stems[1]["start"], stems[1]["end"]) == (110, 150)
+
+
+def test_derive_stems_degenerate_omits_missing_spans():
+    # Stem-I-less (s1_end == 0), no Stem II region / Stem III -> only antiterminator.
+    row = {
+        "s1_start": 50, "s1_end": 0,
+        "stem2_region_start": None, "stem2_region_end": None,
+        "stem3_start": None, "stem3_end": None,
+        "antiterm_start": 60, "antiterm_end": 95,
+        "other_stems": "[[60, 95]]",
+    }
+    stems = bj.derive_stems(row)
+    assert [s["key"] for s in stems] == ["at"]
+    assert (stems[0]["start"], stems[0]["end"]) == (60, 95)
+
+
+def test_members_carry_labelled_stems(built):
+    mm = built["members_map"]
+    # T0342.m1 (GYROCCC): no Stem II region -> Stem I / III / antiterminator only.
+    assert [s["key"] for s in mm["T0342.m1"]["stems"]] == ["i", "iii", "at"]
+    # T0062.m1 (BDQUQAEI): the full five-stem element, with the Stem II split.
+    five = mm["T0062.m1"]["stems"]
+    assert [s["key"] for s in five] == ["i", "ii", "iiab", "iii", "at"]
+    ii = next(s for s in five if s["key"] == "ii")
+    iiab = next(s for s in five if s["key"] == "iiab")
+    assert (ii["start"], ii["end"]) == (110, 142)
+    assert (iiab["start"], iiab["end"]) == (144, 155)
+    # Every member's spans are well-formed, in 5'->3' order, and index the rendered
+    # antiterminator structure (which is the same length as fasta_sequence).
+    order = ["i", "ii", "iiab", "iii", "at"]
+    for m in mm.values():
+        length = len(m["fasta_sequence"])
+        keys = [s["key"] for s in m["stems"]]
+        assert keys == sorted(keys, key=order.index)
+        for s in m["stems"]:
+            assert 1 <= s["start"] <= s["end"] <= length
+
+
 def test_locus_func_class_keeps_ec_tier_when_member_matches():
     # PLAN section 5.3: classify the member whose downstream_protein_id == the tandem
     # downstream_id (so the EC tier still applies at locus level); else text-classify

@@ -110,7 +110,7 @@
                 {/if}
               </span>
             </td>
-            <!-- ΔΔG in-cell bar (chrome teal magnitude) -->
+            <!-- ΔΔG in-cell bar (chrome blue magnitude) -->
             <td class="py-2 pr-3">
               <div class="flex items-center gap-1.5">
                 <div class="h-1.5 w-16 overflow-hidden rounded-full bg-surface-subtle ring-1 ring-hairline">

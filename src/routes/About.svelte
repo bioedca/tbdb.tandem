@@ -53,7 +53,7 @@
   <header>
     <h1 class="text-h1 text-ink">About &amp; method</h1>
     <p class="mt-1 max-w-3xl text-small text-muted">
-      How the tandem T-box loci shown here are detected, the caveats that govern every view, why the
+      How the tandem T-box loci shown here are detected, the caveats behind every view, why the
       similarity map is not a phylogeny, and where the data come from.
     </p>
   </header>
@@ -71,8 +71,8 @@
       </p>
       <p>
         tbdb.tandem is a companion to {@render code('tbdb.io')} that owns the
-        <em>tandem-level</em> story of T-box riboswitches — stacked-element architecture, specificity
-        pairing, regulated-operon coupling, and a sequence-similarity map. It never re-implements
+        <em>tandem-level</em> story of T-box riboswitches — stacked-element architecture, specifier–tRNA
+        pairing, shared-operon regulation, and a sequence-similarity map. It never re-implements
         the single-element views in tbdb.io; instead every element deep-links back to its canonical
         tbdb.io entry for the structure render, genome browser, and tRNA pairing.
       </p>
@@ -98,7 +98,7 @@
         The entire dataset is derived from a <strong class="font-medium text-ink">single public
         source file</strong> — the TBDB master table ({@render code('Master_tboxes.csv')}, ≈23,500
         annotated T-box rows). A deterministic pipeline turns it into the loci, elements, and pairings
-        on every panel. The math is consistent with the ≈470 tandem estimate of
+        on every panel. The resulting count agrees with the ≈470 tandem estimate of
         Vitreschak et&nbsp;al. (2008).
       </p>
       <ol class="list-decimal space-y-2 pl-5 marker:font-medium marker:text-muted">
@@ -132,7 +132,7 @@
         <li>
           <strong class="font-medium text-ink">Order &amp; derive.</strong> Elements are numbered
           5′→3′; each specifier is read from {@render code('amino_acid_top')} /
-          {@render code('refine_codon_top')}, the Stem-I WUSS structure is converted to dot-bracket,
+          {@render code('refine_codon_top')}, the Stem I WUSS structure is converted to dot-bracket,
           the downstream function is classified (EC number, then a protein-name regex), and every
           intra-locus pairwise %-identity is aligned.
         </li>
@@ -275,20 +275,20 @@ python3 reproduce_tandem_tbox_db.py \
         <li>
           Each leader is structurally aligned to the RF00230 covariance model (Infernal {@render code(
             'cmalign',
-          )}), and only the Stem-I consensus columns are used to build the tree.
+          )}), and only the Stem I consensus columns are used to build the tree.
         </li>
         <li>
           The tree is built with FastTree (GTR + Γ, SH-like local supports) — a quick map, not an
           over-interpretable bootstrap.
         </li>
         <li>
-          It is midpoint-rooted for a stable on-screen layout only, and is always displayed
+          It is midpoint-rooted internally for a stable on-screen layout only, and is always displayed
           unrooted (radial). Branch support is a fade/collapse control, not printed numbers; there is
           no time axis and no clock.
         </li>
         <li>
-          Elements that pass a Stem-I length-gate form the main tree; degenerate fragments and the few
-          Stem-I-less elements route to a separate antiterminator-core fallback tree.
+          Elements that pass a Stem I length-gate form the main tree; degenerate fragments and the few
+          elements lacking a Stem I route to a separate antiterminator-core fallback tree.
         </li>
       </ul>
       <p class="text-small text-muted">
@@ -324,13 +324,13 @@ python3 reproduce_tandem_tbox_db.py \
     <dl class="grid max-w-4xl gap-x-8 gap-y-3 sm:grid-cols-2">
       <div>
         <dt class="font-medium text-ink">Locus / tandem</dt>
-        <dd class="text-muted">A genomic window holding ≥2 T-box cores (the 470).</dd>
+        <dd class="text-muted">A genomic window holding ≥2 T-box elements (the 470).</dd>
       </div>
       <div>
-        <dt class="font-medium text-ink">Element (core, member)</dt>
+        <dt class="font-medium text-ink">Element (also member)</dt>
         <dd class="text-muted">
-          One complete T-box unit — Stem I plus its switch — within a locus (the 949 total). “Core” and
-          “member” are used interchangeably for the same unit.
+          One complete T-box unit — Stem I plus its antiterminator/terminator decision module — within a
+          locus (the 949 total). Also called a member.
         </dd>
       </div>
       <div>
@@ -340,7 +340,7 @@ python3 reproduce_tandem_tbox_db.py \
         </dd>
       </div>
       <div>
-        <dt class="font-medium text-ink">Stem-I</dt>
+        <dt class="font-medium text-ink">Stem I</dt>
         <dd class="text-muted">
           The specifier-presenting structural element; its sequence drives the similarity map.
         </dd>
@@ -348,7 +348,7 @@ python3 reproduce_tandem_tbox_db.py \
       <div>
         <dt class="font-medium text-ink">WUSS / dot-bracket</dt>
         <dd class="text-muted">
-          RNA secondary-structure notations; the Stem-I column is WUSS and converted to dot-bracket.
+          RNA secondary-structure notations; the Stem I column is WUSS and converted to dot-bracket.
         </dd>
       </div>
       <div>
