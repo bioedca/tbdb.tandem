@@ -126,9 +126,10 @@
   })
   const scaleW = $derived(x(scaleBp) - x(0))
 
-  function ordinalTag(ordinal: number, n: number): string {
-    if (ordinal === 1) return '5′'
-    if (ordinal === n) return '3′'
+  // Per-element position tag: a plain element number (1…n in 5′→3′ order). The
+  // global 5′/3′ end-caps mark the leader ends, so the under-body tags are numbers
+  // only — no 5′/3′ overload (the legend states the numbering).
+  function ordinalTag(ordinal: number): string {
     return String(ordinal)
   }
 </script>
@@ -282,6 +283,11 @@
           {@const tcx = centre(el.features.term)}
           {#if el.member.type === 'Translational'}
             <g class="tv-arch-feature tv-arch-term tv-arch-term-sd" data-feature="term">
+              <title
+                >Translational element: a hairpin sequesters the Shine–Dalgarno ribosome-binding site
+                (SD/RBS) when the cognate tRNA is charged, blocking translation initiation. Drawn
+                schematically — no SD coordinate is stored.</title
+              >
               <path
                 d="M {tcx - 7} {Y_BODY_T - 4} q 0 -8 7 -8 q 7 0 7 8"
                 fill="none"
@@ -289,7 +295,7 @@
                 stroke-width="1.3"
                 stroke-dasharray="2 1.5"
               />
-              <text x={tcx} y={Y_BODY_T - 16} class="tv-arch-sd-label" text-anchor="middle">SD?</text>
+              <text x={tcx} y={Y_BODY_T - 16} class="tv-arch-sd-label" text-anchor="middle">SD/RBS</text>
             </g>
           {:else}
             <path
@@ -326,7 +332,7 @@
 
         <!-- Ordinal tag under the body -->
         <text x={(body.x + body.x + body.w) / 2} y={Y_BODY_B + 14} class="tv-arch-ord" text-anchor="middle">
-          {ordinalTag(el.ordinal, model.elements.length)}
+          {ordinalTag(el.ordinal)}
         </text>
       </g>
     {/each}
@@ -357,8 +363,74 @@
     </g>
   </svg>
 
-  <figcaption class="sr-only">
-    Tandem T-box architecture, {strand} strand, drawn biological 5′ to 3′ to scale.
+  <figcaption class="mt-2 border-t border-hairline pt-2.5">
+    <span class="sr-only">
+      Tandem T-box architecture, {strand} strand, drawn biological 5′ to 3′ to scale. Legend follows.
+    </span>
+    <ul class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-muted">
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
+          <rect x="1.5" y="3" width="21" height="10" rx="2.5" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.4" />
+        </svg>
+        <span>T-box element <span class="text-muted/80">(tinted by specifier)</span></span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
+          <rect x="4" y="6" width="12" height="4" rx="1.5" fill="currentColor" fill-opacity="0.55" />
+        </svg>
+        <span>Stem I</span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
+          <line x1="9" y1="10" x2="9" y2="6" stroke="currentColor" stroke-width="1.3" />
+          <path d="M5 6 A4 4 0 1 1 10.5 9" fill="none" stroke="currentColor" stroke-width="1.4" />
+        </svg>
+        <span>Stem-I loop</span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-ink" aria-hidden="true">
+          <line x1="12" y1="2" x2="12" y2="14" stroke="currentColor" stroke-width="2.4" />
+        </svg>
+        <span>specifier codon</span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2.5 2" />
+        </svg>
+        <span>antiterminator</span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-ink" fill="none" aria-hidden="true">
+          <path d="M7 15 L7 6 A5 5 0 0 1 17 6 L17 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+        </svg>
+        <span>terminator</span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
+          <path d="M12 5 l4 4 l-4 4 l-4 -4 z" fill="currentColor" />
+        </svg>
+        <span>discriminator</span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
+          <path d="M2 4 H16 L22 8 L16 12 H2 Z" fill="currentColor" fill-opacity="0.6" />
+        </svg>
+        <span>downstream gene / operon</span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
+          <path d="M9 4 L14 8 L9 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>transcription 5′→3′</span>
+      </li>
+      <li class="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
+          <line x1="2" y1="8" x2="22" y2="8" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" />
+        </svg>
+        <span>spacer (bp gap)</span>
+      </li>
+      <li class="text-muted/90">Elements numbered 1…n in 5′→3′ order; 5′ / 3′ mark the leader ends.</li>
+    </ul>
   </figcaption>
 </figure>
 

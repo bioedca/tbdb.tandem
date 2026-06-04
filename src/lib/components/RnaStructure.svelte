@@ -17,6 +17,7 @@
   //     `rna.ts` — the Stem-I alignment column carries non-nucleotide junk.
   import type { Member } from '../data/types'
   import { swatchBackground } from '../color'
+  import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
   import { leaderRnaModel, varnaLink, type RnaModel } from '../rna'
   import { loadFornac, type FornaContainerCtor } from '../fornac'
@@ -196,11 +197,12 @@
 
     <!-- Caption + the GUARANTEED VARNA deep-link (always shown, per element) -->
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-      <p class="text-caption text-muted">
-        {#if model}
-          {model.source} · {model.pairs} base pairs ·
-        {/if}
-        best-effort in-app render — the tbdb.io VARNA view is the definitive structure.
+      <p class="inline-flex items-center gap-1 text-caption text-muted">
+        <span>
+          {#if model}{model.source} · {model.pairs} base pairs · {/if}in-app preview (approximate layout)
+          — the tbdb.io VARNA diagram is the reference structure.
+        </span>
+        <InfoTip term="varna" />
       </p>
       {#if deepLink}
         <TbdbLink

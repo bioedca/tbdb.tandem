@@ -68,11 +68,11 @@ export const GLOSSARY = {
   },
   intra_locus_pair: {
     term: 'Intra-locus pair',
-    def: 'A pair of elements within the same locus, scored by Stem-I sequence identity. 461 two-element loci give 1 pair each and 9 three-element loci give 3 each = 488 pairs.',
+    def: 'A pair of elements within the same locus, scored by full-leader sequence identity (gap-aware global alignment). 461 two-element loci give 1 pair each and 9 three-element loci give 3 each = 488 pairs.',
   },
   func_class: {
     term: 'Function class',
-    def: 'The function of the gene a locus regulates: aaRS (aminoacyl-tRNA synthetase), biosynthesis (amino-acid biosynthesis), transporter (amino-acid transporter), oxidoreductase (redox enzyme), or unknown.',
+    def: 'The function of the gene a locus regulates, from its EC number or text annotation: aaRS = aminoacyl-tRNA synthetase, biosynthesis = a biosynthetic enzyme (EC transferase/lyase), transporter = a membrane transporter or permease, oxidoreductase = a redox enzyme, or unknown.',
   },
   func_source: {
     term: 'Classification source',
@@ -92,7 +92,7 @@ export const GLOSSARY = {
   },
   ddg: {
     term: 'ΔΔG',
-    def: 'A predicted free-energy difference (kcal/mol) between the riboswitch’s alternative folds. More negative favours the read-through (gene-ON) fold.',
+    def: 'A predicted free-energy difference (kcal/mol) between the riboswitch’s two alternative folds (antiterminator vs terminator). The in-cell bar shows its magnitude.',
   },
   terminator_energy: {
     term: 'Terminator energy',
@@ -100,7 +100,7 @@ export const GLOSSARY = {
   },
   mean_identity: {
     term: 'Mean % identity',
-    def: 'Mean sequence identity between an element’s full leaders within a locus (gap-aware global alignment). Collapse-recovered loci share one leader window, so their identity saturates at 100%.',
+    def: 'Mean sequence identity between the full leaders of the elements in a locus (gap-aware global alignment). Collapse-recovered loci share one leader window, so their identity saturates at 100%.',
   },
   non_firmicutes: {
     term: 'Non-Firmicutes',
