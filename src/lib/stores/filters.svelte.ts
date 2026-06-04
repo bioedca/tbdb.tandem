@@ -1,4 +1,4 @@
-// TandemView cross-filter brain + reactive data layer (PLAN §7.3, §7.5).
+// tbdb.tandem cross-filter brain + reactive data layer (PLAN §7.3, §7.5).
 //
 // One `$state` filter store with a `$derived selected = ALL.filter(...)` — 470
 // rows recompute sub-millisecond, so there is NO crossfilter.js (PLAN §7.3). The

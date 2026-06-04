@@ -66,7 +66,7 @@ jobs:
         run: npm run test
 
       # GITHUB_ACTIONS is set on the runner, so vite builds at the Pages base
-      # path (/tandem-tbox-explorer/) — this validates the production bundle.
+      # path (/tbdb.tandem/) — this validates the production bundle.
       - name: Production build
         run: npm run build
 

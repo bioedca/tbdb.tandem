@@ -106,7 +106,7 @@ def _write_json(path: Path, obj: object) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Post-process the cluster tree outputs into the four committed "
-        "TandemView tree artifacts (PLAN section 5.2, 6).",
+        "tbdb.tandem tree artifacts (PLAN section 5.2, 6).",
     )
     parser.add_argument(
         "--main-nwk", type=Path, default=Path("tree_elements.midpoint.nwk"),

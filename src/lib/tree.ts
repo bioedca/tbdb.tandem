@@ -1,4 +1,4 @@
-// TandemView similarity-tree logic (PLAN §6, §9④) — pure, framework-agnostic.
+// tbdb.tandem similarity-tree logic (PLAN §6, §9④) — pure, framework-agnostic.
 //
 // The committed tree artifacts are an EXPLORATORY SIMILARITY MAP, displayed
 // unrooted (PLAN §6) — NOT an ancestral-state instrument. This module is the

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Reproduce the TandemView tandem-T-box database from ``Master_tboxes.csv`` alone.
+"""Reproduce the tbdb.tandem tandem-T-box database from ``Master_tboxes.csv`` alone.
 
 ================================================================================
 WHAT THIS SCRIPT DOES
 ================================================================================
-TandemView (https://bioedca.github.io/tandem-tbox-explorer/) explores the
+tbdb.tandem (https://bioedca.github.io/tbdb.tandem/) explores the
 **470 tandem T-box riboswitch loci** found in TBDB. This single, self-contained
 script regenerates that entire dataset from the one public source file:
 
@@ -802,7 +802,7 @@ def verify(locus_objs: list[dict], members_map: dict[str, dict], pairs: list[dic
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Reproduce the TandemView tandem-T-box database from Master_tboxes.csv.",
+        description="Reproduce the tbdb.tandem tandem-T-box database from Master_tboxes.csv.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--master", type=Path, required=True, help="path to Master_tboxes.csv")

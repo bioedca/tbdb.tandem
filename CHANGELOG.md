@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **TandemView** are documented in this file.
+All notable changes to **tbdb.tandem** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **First-contact primer + shared glossary** — the Dashboard now opens with a one-paragraph, plain-language definition of what a T-box riboswitch and a tandem locus are (a T-box binds one specific tRNA, senses whether it is charged with its amino acid, and switches the downstream gene **on** when that amino acid is scarce; a tandem locus stacks two or more elements in one leader), plus a "New here? → About & method" link. A single-source glossary (`glossary.ts`) defines the load-bearing vocabulary once — present-tense and structural, no evolutionary direction — and is surfaced inline through a small, keyboard-reachable ⓘ affordance (`InfoTip`) so a newcomer can resolve a term in place. The About page gains a "what a T-box is" lead paragraph and plain-language glosses of the detection pipeline (the `core5` 5′ anchor; single-linkage clustering as "chaining nearby cores").
 
 ### Changed
+- **Renamed the project to `tbdb.tandem`** (was *TandemView* / `tandem-tbox-explorer`) — the app, the GitHub repo, and the GitHub-Pages URL now read as a sub-brand of [tbdb.io](https://tbdb.io). The site moves to **https://bioedca.github.io/tbdb.tandem/**; the old `…/tandem-tbox-explorer/` Pages URL stops resolving (GitHub redirects the repo, release, and git URLs, but not the Pages sub-path). The Vite build base, the in-app wordmark/title/footer/loading copy, the favicon label, the CSV export name (`tbdb-tandem-loci.csv`), the reproduce-script header, and the docs were updated in lockstep; the frontend's data fetches already resolve through the Vite base (`import.meta.env.BASE_URL`), so no data paths changed.
 - **KPI strip relabelled for first-time readers** — the tiles that conflated or mislabelled their numbers are fixed: "Triples / 461 pairs" (which paired a headline of 9 three-element loci with a sublabel about 461 two-element loci) now reads "Triples 9 · 3-element loci · 461 are pairs"; "Non-Firmicutes / outlier loci" → "loci outside Firmicutes" (a taxonomic fact, not a statistical/quality judgment); "Members / canonical cores" → "individual T-box cores"; "Intra-locus pairs / %-identity pairs" → "element pairs within a locus"; and every tile now carries an ⓘ definition. The nav item "About" → "About & method" (matching the page's own heading), and the About count tile "canonical members" → "T-box elements".
 - **Locus-detail clarity** — the signature **architecture diagram now carries a glyph legend** (T-box element, Stem I, Stem-I loop, specifier codon, antiterminator, terminator, discriminator, downstream gene/operon, transcription direction, spacer), and its per-element tags are plain numbers (1…n in 5′→3′ order) so they no longer collide with the global 5′/3′ leader-end caps; the translational `SD?` glyph is relabelled **`SD/RBS`** with an explanatory tooltip. The element-comparison table defines `ΔΔG` and renames `Term E` → **`Term ΔG`**, both with units (kcal/mol) and ⓘ tooltips — ΔΔG is described generally (a free-energy difference between the two folds) rather than asserting an undocumented sign convention — and the Specifier column, the Pairwise-identity heading, and the Mean %id field gain ⓘ definitions (including the shared-leader 100% caveat). The locus header chips (same/mixed, regulation type, cores) get hover tooltips, and the RNA panel now reads "in-app preview (approximate layout)" with the antiterminator fold (the tRNA-bound, gene-ON state) and VARNA defined.
 - **Similarity-map clarity** — the nav item "Tree" → "Similarity map" (it is a sequence-similarity map, not a phylogeny), and the page intro now says what Stem I is and *why* the map is unrooted (no time axis, no outgroup → a cluster means the sequences resemble each other, not a lineage or order of appearance). Every control gains an inline definition (ⓘ): the View (locus vs element) toggle, the Tree toggle (Main · Stem-I vs the relabelled **"Fallback (antiterminator)"**), the branch-support slider, and the non-Firmicutes filter. The legend defines "specifier", labels the grey **"? unassigned"** dot, and expands the phylum outer-ring note; the caption adds a how-to-read hint for the long branches. "outliers" → "minority" throughout.
@@ -60,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tests** — the Python build-gate + artifact-integrity suite (`pytest`) and the Phase-1 frontend unit + component suite (Vitest + Testing Library).
 - **CI/CD** — GitHub Actions CI (`data` + `web` jobs) and a Pages deploy workflow, with Dependabot and CodeRabbit configuration.
 
-[Unreleased]: https://github.com/bioedca/tandem-tbox-explorer/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/bioedca/tandem-tbox-explorer/releases/tag/v0.3.0
-[0.2.0]: https://github.com/bioedca/tandem-tbox-explorer/releases/tag/v0.2.0
-[0.1.0]: https://github.com/bioedca/tandem-tbox-explorer/releases/tag/v0.1.0
+[Unreleased]: https://github.com/bioedca/tbdb.tandem/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/bioedca/tbdb.tandem/releases/tag/v0.3.0
+[0.2.0]: https://github.com/bioedca/tbdb.tandem/releases/tag/v0.2.0
+[0.1.0]: https://github.com/bioedca/tbdb.tandem/releases/tag/v0.1.0

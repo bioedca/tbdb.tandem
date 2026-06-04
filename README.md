@@ -1,10 +1,10 @@
-# TandemView
+# tbdb.tandem
 
 A static web app for exploring **tandem T-box riboswitch loci** — a companion to [tbdb.io](https://tbdb.io).
 
 Browse, facet, and visualize the **470 tandem loci** derived from the TBDB master table: tandem-element architecture, specificity pairing (incl. the mixed-specifier `ILE;LEU` cluster), regulated-operon coupling, and a sequence-derived similarity tree. Each element deep-links to its canonical tbdb.io entry.
 
-Once built, the app lives at **https://bioedca.github.io/tandem-tbox-explorer/** — one URL, no install.
+Once built, the app lives at **https://bioedca.github.io/tbdb.tandem/** — one URL, no install.
 
 > **Status:** In active development. See `CHANGELOG.md` for milestone history.
 
