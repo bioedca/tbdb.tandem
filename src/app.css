@@ -26,22 +26,24 @@
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
 
-  /* Brand / UI accent (§8.2): ONE teal hue, chosen OUTSIDE the 20-AA specifier
-     hue range — interactive affordances only (links, focus, primary, active facet).
-     teal-700 is the AA-safe accent: 5.47:1 as text on white and white-on-brand. */
-  --color-brand: #0f766e; /* teal-700 — accent (AA text + fill safe) */
-  --color-brand-strong: #115e59; /* teal-800 — hover / pressed */
-  --color-brand-subtle: #f0fdfa; /* teal-50  — soft tint */
+  /* Brand / UI accent (§8.2): ONE blue hue (~197°), chosen OUTSIDE the 20-AA
+     specifier hue range — interactive affordances only (links, focus, primary,
+     active facet). A darkened relative of the #6096B4 palette blue: AA-safe as
+     text on white (5.7:1) and on the cream page (4.7:1), and white-on-brand. */
+  --color-brand: #2d6e87; /* deep palette blue — accent (AA text + fill safe) */
+  --color-brand-strong: #21566b; /* darker — hover / pressed */
+  --color-brand-subtle: #e9f1f5; /* soft blue tint */
+  --color-brand-on-dark: #93bfcf; /* light palette blue — brand mark/accents on the chrome bar */
 
-  /* Ink/slate neutral base (§8.2): text, surfaces, hairlines, dark chrome */
-  --color-ink: #0f172a; /* slate-900 */
-  --color-body: #334155; /* slate-700 */
-  --color-muted: #64748b; /* slate-500 */
-  --color-hairline: #e2e8f0; /* slate-200 */
-  --color-surface: #ffffff;
-  --color-surface-subtle: #f8fafc; /* slate-50 */
-  --color-chrome: #0f172a; /* dark header/footer bar */
-  --color-chrome-fg: #e2e8f0;
+  /* Neutral base (§8.2): text, surfaces, hairlines (blue/cream palette family) */
+  --color-ink: #0f172a; /* slate-900 — strongest text */
+  --color-body: #334155; /* slate-700 — body text */
+  --color-muted: #556373; /* blue-slate — secondary text (AA on cream + white) */
+  --color-hairline: #c7d4dc; /* soft blue-grey */
+  --color-surface: #ffffff; /* cards / panels */
+  --color-surface-subtle: #eee9da; /* warm cream — page background */
+  --color-chrome: #234b5e; /* deep palette-blue header/footer bar */
+  --color-chrome-fg: #e7eff2; /* light text on the chrome bar */
 
   /* Type ramp (§8.3): display / h1 / h2 / small / caption as size utilities.
      "body" is the base default size (1rem/1.5rem, set in @layer base), so there

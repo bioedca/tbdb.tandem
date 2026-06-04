@@ -16,7 +16,7 @@
   //   • The render basis (whole-leader antiterminator structure) is chosen in
   //     `rna.ts` — the Stem-I alignment column carries non-nucleotide junk.
   import type { Member } from '../data/types'
-  import { swatchBackground } from '../color'
+  import { swatchBackground, STEM_COLORS, STEM_LINKER_COLOR, STEM_META } from '../color'
   import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
   import { leaderRnaModel, varnaLink, type RnaModel } from '../rna'
@@ -36,6 +36,13 @@
   const member = $derived(els[active] ?? null)
   const model = $derived<RnaModel | null>(member ? leaderRnaModel(member) : null)
   const deepLink = $derived(member ? varnaLink(member) : null)
+
+  // Stem-overlay legend: the labelled domains actually present on the active
+  // element (degenerate elements omit some), in canonical 5′→3′ order (PLAN §9).
+  const legendStems = $derived.by(() => {
+    const present = new Set((member?.stems ?? []).map((s) => s.key))
+    return STEM_META.filter((s) => present.has(s.key))
+  })
 
   function ordinalLabel(ordinal: number, n: number): string {
     if (ordinal === 1) return "5′ (1)"
@@ -87,6 +94,7 @@
     const ctor = Forna
     const m = model
     const name = member?.unique_name ?? ''
+    const stems = member?.stems ?? []
     if (!el || !ctor || !m) return
     el.innerHTML = '' // drop any previous render before re-mounting
 
@@ -122,6 +130,21 @@
         initialSize: [width, HOST_H],
       })
       container.addRNA(m.structure, { sequence: m.sequence, name })
+
+      // Per-stem color overlay (PLAN §9): paint each nucleotide by the structural
+      // domain it sits in (Stem I / II / IIA-B / III / antiterminator); linkers stay
+      // a quiet grey. fornac returns a non-numeric custom value verbatim as the node
+      // fill, so we map nucleotide number → hex directly (structName === name).
+      const colorValues: Record<number, string> = {}
+      const len = m.sequence.length
+      for (let i = 1; i <= len; i++) colorValues[i] = STEM_LINKER_COLOR
+      for (const s of stems) {
+        const col = STEM_COLORS[s.key]
+        if (!col) continue
+        for (let p = Math.max(1, s.start); p <= Math.min(len, s.end); p++) colorValues[p] = col
+      }
+      container.addCustomColors({ colorValues: { [name]: colorValues } })
+      container.changeColorScheme('custom')
     } catch {
       renderFailed = true
       el.innerHTML = ''
@@ -198,7 +221,7 @@
         <div class="absolute inset-0 grid place-items-center p-6 text-center">
           <p class="max-w-sm text-small text-muted">
             {#if !model}
-              An in-app structure isn't available for this element.
+              No in-app preview is available for this element.
             {:else if loadFailed || renderFailed}
               The in-app structure viewer couldn't load.
             {:else}
@@ -211,12 +234,32 @@
       {/if}
     </div>
 
+    <!-- Stem color key (only the domains present on the active element) -->
+    {#if showViewer && legendStems.length}
+      <ul
+        class="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted"
+        aria-label="Stem color key"
+      >
+        {#each legendStems as s (s.key)}
+          <li class="inline-flex items-center gap-1.5">
+            <span
+              class="size-2.5 rounded-sm ring-1 ring-ink/10"
+              style:background={s.color}
+              aria-hidden="true"
+            ></span>
+            <span>{s.label}</span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+
     <!-- Caption + the GUARANTEED VARNA deep-link (always shown, per element) -->
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
       <p class="inline-flex items-center gap-1 text-caption text-muted">
         <span>
-          {#if model}{model.source} · {model.pairs} base pairs · {/if}in-app preview (approximate layout)
-          — the tbdb.io VARNA diagram is the reference structure.
+          {#if model}{model.source} · {model.pairs} base pairs · {/if}in-app preview — the
+          base pairs are exact, but the layout is approximate; the tbdb.io VARNA diagram is
+          the reference drawing.
         </span>
         <InfoTip term="varna" />
       </p>

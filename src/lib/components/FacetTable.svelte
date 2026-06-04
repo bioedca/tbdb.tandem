@@ -96,8 +96,8 @@
     { title: 'Organism', field: 'organism', widthGrow: 3, minWidth: 180, formatter: textOrDash },
     { title: 'Phylum', field: 'phylum', width: 132, formatter: textOrDash },
     { title: 'Specifier', field: 'specifier_aa', width: 132, sorter: 'string', formatter: specifierCell },
-    { title: 'Cores', field: 'n_cores', width: 74, hozAlign: 'center', sorter: 'number', cssClass: 'tv-mono' },
-    { title: 'Agreement', field: 'same_specifier', width: 110, sorter: 'boolean', formatter: agreementCell },
+    { title: 'Elements', field: 'n_cores', width: 92, hozAlign: 'center', sorter: 'number', cssClass: 'tv-mono' },
+    { title: 'Spec. agreement', field: 'same_specifier', width: 132, sorter: 'boolean', formatter: agreementCell },
     { title: 'Confidence', field: 'confidence', width: 116, formatter: textOrDash },
     { title: 'Function', field: 'func_class', width: 150, sorter: 'string', formatter: funcCell },
     {

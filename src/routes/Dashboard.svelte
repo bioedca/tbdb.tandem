@@ -21,13 +21,13 @@
     <h1 class="text-h1 text-ink">Dashboard</h1>
     <p class="mt-2 max-w-3xl text-small text-body">
       A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in a bacterial
-      mRNA leader that senses whether its target tRNA is charged with its amino acid, switching the
+      mRNA leader that senses whether its cognate tRNA is charged with its amino acid, switching the
       downstream gene on when that amino acid is scarce. A
       <strong class="font-medium text-ink">tandem</strong> locus stacks two or more T-box elements in one
       leader — this explorer covers all 470 such loci.
     </p>
     <p class="mt-1.5 max-w-3xl text-small text-muted">
-      Filter once: every panel and the table share one cross-filter state, so a selection in any chart
+      Filter once: every panel and the table update together, so a selection in any chart
       narrows the whole dashboard live. New here? Start with
       <a
         use:link

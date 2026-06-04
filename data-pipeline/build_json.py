@@ -69,6 +69,7 @@ already baked into the 470 loci (PLAN section 14); the resolution here operates
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import sys
@@ -134,8 +135,11 @@ _FIELD_COLS = [
     "term_structure",            # already dot-bracket -> pass through (nullable)
     "s1_start", "s1_end",        # Stem-I span (window offsets)
     "s1_loop_start", "s1_loop_end",
+    "stem2_region_start", "stem2_region_end",  # Stem II region (split via other_stems)
+    "stem3_start", "stem3_end",  # Stem III span
     "antiterm_start", "antiterm_end",
     "term_start", "term_end",
+    "other_stems",               # per-helix spans -> labelled stem overlay (PLAN section 9)
     "codon_end",                 # codon_start is in _RESOLUTION_COLS
     "discrim_start", "discrim_end",
     "refine_codon_top",          # specifier codon (PLAN section 3.1, never raw `codon`)
@@ -169,6 +173,7 @@ _FEATURE_SPANS = {
 #: and the window payload read nullable ints (``pd.NA`` for codon-less partials).
 _COORD_COLS = [
     "s1_start", "s1_end", "s1_loop_start", "s1_loop_end",
+    "stem2_region_start", "stem2_region_end", "stem3_start", "stem3_end",
     "antiterm_start", "antiterm_end", "term_start", "term_end",
     "codon_start", "codon_end", "discrim_start", "discrim_end",
 ]
@@ -442,6 +447,96 @@ def _f(value: object, ndigits: int = 2) -> float | None:
         return None
 
 
+# --- Labelled stem spans -> the in-app RNA colour overlay (PLAN section 9) ---
+
+#: Internal token -> stem key emitted in members.json. The frontend maps each key
+#: to a display label + colour (src/lib/color.ts STEM_*), so the data stays compact.
+#: Order is biological 5'->3' through the antiterminator conformation.
+_STEM_KEYS = ("i", "ii", "iiab", "iii", "at")
+
+
+def _parse_other_stems(value: object) -> list[tuple[int, int]]:
+    """Parse the Master ``other_stems`` cell into ordered ``(lo, hi)`` int pairs.
+
+    The cell is a Python-literal list of ``[start, end]`` leader offsets (1-based,
+    same frame as ``fasta_sequence``), e.g. ``"[[7, 107], [110, 142], ...]"``. A
+    blank / unparseable / malformed cell yields ``[]`` -- the overlay then simply
+    omits the Stem II split for that element (it degrades, never raises).
+    """
+    if pd.isna(value):
+        return []
+    text = str(value).strip()
+    if not text:
+        return []
+    try:
+        raw = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        return []
+    spans: list[tuple[int, int]] = []
+    for item in raw:
+        try:
+            a, b = int(item[0]), int(item[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        spans.append((min(a, b), max(a, b)))
+    return spans
+
+
+def derive_stems(row: object) -> list[dict]:
+    """Ordered, labelled stem spans for a member's RNA colour overlay (PLAN section 9).
+
+    Spans are 1-based, inclusive, leader-relative -- the SAME frame as
+    ``fasta_sequence`` / ``whole_antiterm_structure`` -- so the frontend can paint
+    each nucleotide of the rendered antiterminator fold by the domain it sits in:
+
+    * **Stem I**           = ``s1_start..s1_end``
+    * **Stem II**          = the 5'-most helix inside the Stem II region
+    * **Stem IIA/B**       = the following pseudoknot helix(es) in that region
+    * **Stem III**         = ``stem3_start..stem3_end``
+    * **Antiterminator**   = ``antiterm_start..antiterm_end``
+
+    The Stem II region (``stem2_region_start..stem2_region_end``) is a single
+    Master span; its internal Stem II vs IIA/B boundary lives only in ``other_stems``
+    (the per-helix list), so the two are split from the ``other_stems`` helices that
+    fall within the region. Degenerate elements (no Stem I, no Stem II region, ...)
+    simply omit the missing spans -- the overlay leaves those nucleotides neutral.
+    Accepts a ``pd.Series`` (the resolved pool row) or any mapping (unit tests).
+    """
+    def span(c0: str, c1: str) -> tuple[int, int] | None:
+        a, b = _i(row[c0]), _i(row[c1])
+        if a is None or b is None or a <= 0 or b <= 0:
+            return None
+        return (min(a, b), max(a, b))
+
+    stems: list[tuple[str, tuple[int, int]]] = []
+
+    s1 = span("s1_start", "s1_end")
+    if s1:
+        stems.append(("i", s1))
+
+    s2_region = span("stem2_region_start", "stem2_region_end")
+    if s2_region:
+        inner = sorted(
+            sp for sp in _parse_other_stems(row["other_stems"])
+            if sp[0] >= s2_region[0] and sp[1] <= s2_region[1]
+        )
+        if len(inner) >= 2:
+            stems.append(("ii", inner[0]))                       # Stem II = 5'-most helix
+            stems.append(("iiab", (inner[1][0], inner[-1][1])))  # Stem IIA/B = the rest
+        else:
+            stems.append(("ii", inner[0] if inner else s2_region))
+
+    s3 = span("stem3_start", "stem3_end")
+    if s3:
+        stems.append(("iii", s3))
+
+    at = span("antiterm_start", "antiterm_end")
+    if at:
+        stems.append(("at", at))
+
+    return [{"key": key, "start": lo, "end": hi} for key, (lo, hi) in stems]
+
+
 def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) -> dict:
     """Build one ``members.json`` object from its resolved Master row (PLAN 5.2).
 
@@ -495,6 +590,9 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
         # Already dot-bracket -> pass through, never converted (PLAN section 3.1).
         "whole_antiterm_structure": _s(row["whole_antiterm_structure"]),
         "term_structure": _s(row["term_structure"]),
+        # Labelled stem spans (Stem I / II / IIA-B / III / antiterminator) for the
+        # in-app RNA colour overlay; leader-relative, indexes whole_antiterm_structure.
+        "stems": derive_stems(row),
         "deltadelta_g": _f(row["deltadelta_g"]),
         "terminator_energy": _f(row["terminator_energy"]),
         "type": _s(row["type"]),

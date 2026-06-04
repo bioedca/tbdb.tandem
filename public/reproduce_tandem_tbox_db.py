@@ -146,6 +146,7 @@ Pierson Smela, Jordan, Narasimhan & Church (2021), Nucleic Acids Research
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import sys
@@ -193,7 +194,9 @@ _FIELD_COLS = [
     "FASTA_sequence", "Sequence", "Structure",
     "whole_antiterm_structure", "term_structure",
     "s1_start", "s1_end", "s1_loop_start", "s1_loop_end",
+    "stem2_region_start", "stem2_region_end", "stem3_start", "stem3_end",
     "antiterm_start", "antiterm_end", "term_start", "term_end",
+    "other_stems",
     "codon_end", "discrim_start", "discrim_end",
     "refine_codon_top", "type", "trna_family_top",
     "deltadelta_g", "terminator_energy",
@@ -206,6 +209,7 @@ _ALL_COLS = list(dict.fromkeys(_DETECT_COLS + _FIELD_COLS))
 #: Feature-offset columns coerced to nullable ints (``<NA>`` for codon-less partials).
 _COORD_COLS = [
     "Tbox_start", "Tbox_end", "s1_start", "s1_end", "s1_loop_start", "s1_loop_end",
+    "stem2_region_start", "stem2_region_end", "stem3_start", "stem3_end",
     "antiterm_start", "antiterm_end", "term_start", "term_end",
     "codon_start", "codon_end", "discrim_start", "discrim_end",
 ]
@@ -458,6 +462,70 @@ def _f(value, ndigits: int = 2):
         return None
 
 
+def _parse_other_stems(value) -> list:
+    """Parse the Master ``other_stems`` cell into ordered ``(lo, hi)`` int pairs.
+
+    Blank / unparseable cells yield ``[]`` (the overlay then omits the Stem II split).
+    """
+    if pd.isna(value):
+        return []
+    text = str(value).strip()
+    if not text:
+        return []
+    try:
+        raw = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        return []
+    spans = []
+    for item in raw:
+        try:
+            a, b = int(item[0]), int(item[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        spans.append((min(a, b), max(a, b)))
+    return spans
+
+
+def derive_stems(row) -> list:
+    """Ordered, labelled stem spans for a member's RNA colour overlay.
+
+    Spans are 1-based, inclusive, leader-relative (same frame as ``fasta_sequence`` /
+    ``whole_antiterm_structure``): Stem I = ``s1_start..s1_end``, Stem III =
+    ``stem3_start..stem3_end``, antiterminator = ``antiterm_start..antiterm_end``, and
+    the Stem II region (``stem2_region_*``) split into Stem II (5'-most helix) + Stem
+    IIA/B (the following pseudoknot helix) from the ``other_stems`` helices inside it.
+    Missing domains are simply omitted.
+    """
+    def span(c0, c1):
+        a, b = _i(row[c0]), _i(row[c1])
+        if a is None or b is None or a <= 0 or b <= 0:
+            return None
+        return (min(a, b), max(a, b))
+
+    stems = []
+    s1 = span("s1_start", "s1_end")
+    if s1:
+        stems.append(("i", s1))
+    s2_region = span("stem2_region_start", "stem2_region_end")
+    if s2_region:
+        inner = sorted(
+            sp for sp in _parse_other_stems(row["other_stems"])
+            if sp[0] >= s2_region[0] and sp[1] <= s2_region[1]
+        )
+        if len(inner) >= 2:
+            stems.append(("ii", inner[0]))
+            stems.append(("iiab", (inner[1][0], inner[-1][1])))
+        else:
+            stems.append(("ii", inner[0] if inner else s2_region))
+    s3 = span("stem3_start", "stem3_end")
+    if s3:
+        stems.append(("iii", s3))
+    at = span("antiterm_start", "antiterm_end")
+    if at:
+        stems.append(("at", at))
+    return [{"key": key, "start": lo, "end": hi} for key, (lo, hi) in stems]
+
+
 def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) -> dict:
     """Build one ``members.json`` element record from its representative Master row."""
     locus_start, locus_end = int(row["locus_start_n"]), int(row["locus_end_n"])
@@ -492,6 +560,7 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
         "structure": wuss_to_dotbracket(str(row["Structure"])),
         "whole_antiterm_structure": _s(row["whole_antiterm_structure"]),
         "term_structure": _s(row["term_structure"]),
+        "stems": derive_stems(row),
         "deltadelta_g": _f(row["deltadelta_g"]),
         "terminator_energy": _f(row["terminator_energy"]),
         "type": _s(row["type"]),

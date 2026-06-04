@@ -13,7 +13,7 @@
 {#if s}
   <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
     <Kpi label="Loci" value={s.counts.loci} hint="tandem T-box loci" term="locus" />
-    <Kpi label="Members" value={s.counts.members} hint="individual T-box cores" term="element" />
+    <Kpi label="Members" value={s.counts.members} hint="individual T-box elements" term="element" />
     <Kpi
       label="Intra-locus pairs"
       value={s.counts.intra_locus_pairs}

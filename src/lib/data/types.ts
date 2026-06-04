@@ -69,6 +69,19 @@ export interface MemberCoords {
   genome: Record<FeatureName, Span>
 }
 
+/** Stem-overlay key (build_json.py `derive_stems`) → a labelled structural domain
+ *  of the rendered antiterminator fold (PLAN §9). Order is biological 5′→3′. */
+export type StemKey = 'i' | 'ii' | 'iiab' | 'iii' | 'at'
+
+/** One labelled stem span for the in-app RNA color overlay: 1-based, inclusive,
+ *  leader-relative — the same frame as `fasta_sequence` / `whole_antiterm_structure`
+ *  (PLAN §9). Absent domains are simply omitted (degenerate elements). */
+export interface MemberStem {
+  key: StemKey
+  start: number
+  end: number
+}
+
 /** Regulated-operon downstream protein + its two-tier classification (PLAN §5.3). */
 export interface MemberDownstream {
   protein: string | null
@@ -106,6 +119,9 @@ export interface Member {
   whole_antiterm_structure: string | null
   /** Already dot-bracket — passed through; null for 13 members (PLAN §3.1). */
   term_structure: string | null
+  /** Labelled stem spans (Stem I / II / IIA-B / III / antiterminator) indexing the
+   *  rendered antiterminator fold, for the in-app RNA color overlay (PLAN §9). */
+  stems: MemberStem[]
   deltadelta_g: number | null
   terminator_energy: number | null
   /** Regulation mode; non-null on the real data (the build's `_s()` allows null). */

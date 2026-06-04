@@ -357,7 +357,7 @@
         <span class="text-small text-muted">View</span>
         <InfoTip
           label="View"
-          tip="Each tandem locus holds two or more T-box elements. Locus shows one dot per locus; Element shows every element separately — when a locus's elements land far apart in Element view, their Stem-I sequences differ."
+          tip="Each tandem locus holds two or more T-box elements. Locus shows one dot per locus; Element shows every element separately — so when a locus's elements sit far apart in Element view, their Stem I sequences are markedly different."
         />
         <div class="inline-flex overflow-hidden rounded-md border border-hairline">
           <button
@@ -380,20 +380,20 @@
         <span class="text-small text-muted">Tree</span>
         <InfoTip
           label="Tree"
-          tip="Main · Stem-I builds the map from each element's Stem I — the region carrying the specifier codon and contacting the tRNA. Fallback maps the shorter, length-gated elements by their antiterminator region instead; positions are not comparable across the two trees."
+          tip="Main · Stem I builds the map from each element's Stem I — the region carrying the specifier codon that base-pairs the cognate tRNA's anticodon. Fallback maps the shorter, length-gated elements by their antiterminator region instead; positions are not comparable across the two trees."
         />
         <div class="inline-flex overflow-hidden rounded-md border border-hairline">
           <button
             type="button"
             class="px-3 py-1 text-small {which === 'main' ? 'bg-brand text-white' : 'bg-surface text-text'}"
             aria-pressed={which === 'main'}
-            onclick={() => (which = 'main')}>Main · Stem-I</button
+            onclick={() => (which = 'main')}>Main · Stem I</button
           >
           <button
             type="button"
             class="border-l border-hairline px-3 py-1 text-small {which === 'fallback' ? 'bg-brand text-white' : 'bg-surface text-text'}"
             aria-pressed={which === 'fallback'}
-            onclick={() => (which = 'fallback')}>Fallback (antiterminator)</button
+            onclick={() => (which = 'fallback')}>Fallback · antiterminator</button
           >
         </div>
       </fieldset>
@@ -467,7 +467,7 @@
       {/each}
       <span class="ml-2 inline-flex items-center gap-1.5">
         <span class="inline-block size-3 rounded-full border-2" style:border-color={PHYLUM_COLORS.Firmicutes}></span>
-        outer ring = phylum (separate neutral scale; differently-ringed tips are the non-Firmicutes minority)
+        outer ring = phylum (a separate neutral scale; tips with a different ring are the non-Firmicutes minority)
       </span>
     </div>
     <p class="mt-2 text-caption text-muted">

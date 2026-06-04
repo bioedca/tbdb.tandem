@@ -50,13 +50,13 @@
   // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
   // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
   const CONFIG = { displayModeBar: false }
-  // Count color scale — a quantitative teal ramp (chrome, NOT a specifier hue, so
+  // Count color scale — a quantitative blue ramp (chrome, NOT a specifier hue, so
   // the §8.2 chrome⟂data invariant holds: cells encode COUNTS, not specifiers).
   const COUNT_SCALE: [number, string][] = [
-    [0, '#f0fdfa'],
-    [0.15, '#ccfbf1'],
-    [0.6, '#5eead4'],
-    [1, '#14b8a6'],
+    [0, '#eef5f9'],
+    [0.15, '#cfe5f0'],
+    [0.6, '#92c4dc'],
+    [1, '#5ba0c4'],
   ]
 
   /** Single-select-from-chart: clicking the sole active value clears it, else sets
@@ -262,13 +262,13 @@
         {/if}
       </div>
       <p class="mt-2 text-caption text-muted">
-        Each cell = number of two-element loci with those two specifiers (row × column); darker teal = more
+        Each cell = number of two-element loci with those two specifiers (row × column); darker blue = more
         loci, <span class="font-mono">?</span> = an element whose specifier is unresolved.
         <span class="font-medium text-body">Diagonal</span> cells = same-specifier loci (both elements sense
         the same amino acid); <span class="font-medium text-body">off-diagonal</span> = mixed. Cell color is
-        count only — read the amino acids from the row and column labels. The off-diagonal
-        <span class="font-mono">ILE×LEU</span> cell (10 loci) is the largest pairing of two resolved
-        specifiers — an isoleucine-sensing element with a leucine-sensing one (both branched-chain).
+        count only — read the amino acids from the row and column labels. The largest off-diagonal
+        cell, <span class="font-mono">ILE×LEU</span> (10 loci), pairs an isoleucine-sensing element with a
+        leucine-sensing one — both branched-chain amino acids.
       </p>
     </div>
   </div>

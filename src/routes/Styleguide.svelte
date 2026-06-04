@@ -210,9 +210,9 @@
 
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Kpi label="Loci" value={470} />
-        <Kpi label="Members" value={949} hint="canonical cores" />
+        <Kpi label="Members" value={949} hint="complete T-box units" />
         <Kpi label="Intra-locus pairs" value={488} />
-        <Kpi label="Main-tree tips" value={847} hint="Stem-I length-gated" />
+        <Kpi label="Similarity-map tips" value={847} hint="Stem I length-gated" />
       </div>
 
       <NoPolarityBanner />

@@ -12,25 +12,29 @@
 
 /**
  * Brand / UI accent — ONE deliberate hue chosen OUTSIDE the 20-AA specifier hue
- * range (a teal direction, §8.2), used only for interactive affordances: links,
- * focus rings, primary buttons, active facets. Invariant: chrome color never
- * overlaps data color — proven in `color.ts` via `assertChromeDataDisjoint()`.
+ * range (a deep-blue direction ~197°, §8.2), used only for interactive affordances:
+ * links, focus rings, primary buttons, active facets. A darkened relative of the
+ * site's #6096B4 palette blue, pushed dark + clear of the specifier "Basic" blues
+ * (≥24° hue gap) so it stays AA-legible as text and never reads as data. Invariant:
+ * chrome color never overlaps data color — proven in `color.ts` via
+ * `assertChromeDataDisjoint()`.
  */
 export const brand = {
-  accent: '#0f766e', // teal-700  — links / active facet / primary (AA: 5.47:1 on white)
-  accentStrong: '#115e59', // teal-800  — hover / pressed
-  accentSubtle: '#f0fdfa', // teal-50   — soft background tint
+  accent: '#2d6e87', // deep palette blue — links / active facet / primary (AA: 5.7:1 white, 4.7:1 cream)
+  accentStrong: '#21566b', // darker — hover / pressed
+  accentSubtle: '#e9f1f5', // soft blue tint — backgrounds
+  onDark: '#93bfcf', // light palette blue — the brand mark/accents ON the deep-blue chrome bar
 } as const
 
-/** Ink/slate neutral base — text, surfaces, hairlines, and the dark chrome bar. */
+/** Neutral base — text, surfaces, hairlines (blue/cream palette family). */
 export const neutral = {
-  ink: '#0f172a', // slate-900 — strongest text + dark chrome background
+  ink: '#0f172a', // slate-900 — strongest text
   text: '#334155', // slate-700 — body text
-  muted: '#64748b', // slate-500 — secondary / caption text
-  hairline: '#e2e8f0', // slate-200 — 1px borders
+  muted: '#556373', // blue-slate — secondary / caption text (AA on cream + white)
+  hairline: '#c7d4dc', // soft blue-grey — 1px borders
   surface: '#ffffff', //           — cards / panels
-  surfaceSubtle: '#f8fafc', // slate-50  — page background
-  chromeFg: '#e2e8f0', // slate-200 — text on the dark chrome bar
+  surfaceSubtle: '#eee9da', // warm cream — page background
+  chromeFg: '#e7eff2', // light — text on the deep-blue chrome bar
 } as const
 
 /**

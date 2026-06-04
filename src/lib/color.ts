@@ -66,6 +66,39 @@ export const SPECIFIER_COLORS: Record<AminoAcid, string> = {
 /** `?` / unknown / null specifier — deliberately neutral (achromatic), NOT a hue. */
 export const UNKNOWN_SPECIFIER_COLOR = '#9ca3af' // gray-400
 
+// ── RNA stem overlay (a SEPARATE categorical axis) ──────────────────────────────
+/**
+ * Colors for the in-app RNA secondary-structure overlay (PLAN §9 detail flow):
+ * each structural domain of the rendered antiterminator fold is tinted by which
+ * stem it is. This is its OWN categorical axis — like `PHYLUM_COLORS`, it is NOT
+ * part of the chrome⟂specifier disjointness proof. A cool, muted register that
+ * harmonizes with the chrome palette and reads distinctly from the saturated 20-AA
+ * specifier hues (the two only co-occur as a small per-element tab swatch beside
+ * the structure). Keyed by the `stems[].key` the build emits (build_json.py
+ * `derive_stems`); ordered biological 5′→3′ through the leader.
+ */
+export type StemKey = 'i' | 'ii' | 'iiab' | 'iii' | 'at'
+
+export const STEM_META: { key: StemKey; label: string; color: string }[] = [
+  { key: 'i', label: 'Stem I', color: '#4f8fc0' }, //     blue
+  { key: 'ii', label: 'Stem II', color: '#5ba6a0' }, //   teal
+  { key: 'iiab', label: 'Stem IIA/B', color: '#93c9c4' }, // light teal (sibling of II)
+  { key: 'iii', label: 'Stem III', color: '#b284c0' }, //  muted purple
+  { key: 'at', label: 'Antiterminator', color: '#dd8a6a' }, // warm coral (the switch)
+]
+
+/** `stems[].key` → overlay color. */
+export const STEM_COLORS: Record<StemKey, string> = STEM_META.reduce(
+  (acc, s) => {
+    acc[s.key] = s.color
+    return acc
+  },
+  {} as Record<StemKey, string>,
+)
+
+/** Nucleotides outside any labelled stem (linkers / single strand) — quiet grey. */
+export const STEM_LINKER_COLOR = '#cbd3d8'
+
 /**
  * Phylum CONTEXT ramp (§8.2) — a small, separate, deliberately neutral ramp used
  * ONLY for the tree's phylum ring, so it never competes with the specifier hues.
@@ -235,7 +268,7 @@ export function withAlpha(hex: string, alpha: number): string {
  * The chromatic BRAND accents (teals). Separated from data by HUE — this is the
  * §8.2 "brand accent chosen OUTSIDE the 20-AA hue range" requirement.
  */
-const BRAND_ACCENTS: string[] = [brand.accent, brand.accentStrong, brand.accentSubtle]
+const BRAND_ACCENTS: string[] = [brand.accent, brand.accentStrong, brand.accentSubtle, brand.onDark]
 
 /**
  * The ink/slate NEUTRAL chrome. Separated from data by being less saturated than

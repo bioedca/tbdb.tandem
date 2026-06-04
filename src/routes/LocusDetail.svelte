@@ -83,9 +83,9 @@
         </span>
         <span
           class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-small text-muted"
-          title="Number of T-box elements (cores) in this tandem locus."
+          title="Number of T-box elements in this tandem locus."
         >
-          {locus.n_cores} cores
+          {locus.n_cores} elements
         </span>
       </div>
       <p class="text-body text-body">
@@ -108,7 +108,7 @@
         <div>
           <dt class="text-caption uppercase tracking-wide text-muted">Function class</dt>
           <dd class="text-small text-ink">
-            {locus.func_class}{#if locus.func_source === 'text'}<span title="Inferred from downstream-protein text (not EC)">*</span>{/if}
+            {locus.func_class}{#if locus.func_source === 'text'}<span title="Inferred from the downstream gene's text annotation, not an EC (Enzyme Commission) number">*</span>{/if}
           </dd>
         </div>
         <div>
@@ -122,11 +122,11 @@
           <dd class="font-mono text-small text-ink">{locus.mean_pairwise_identity === null ? '—' : locus.mean_pairwise_identity.toFixed(1)}</dd>
         </div>
         <div>
-          <dt class="text-caption uppercase tracking-wide text-muted">Complete cores</dt>
+          <dt class="text-caption uppercase tracking-wide text-muted">Complete elements</dt>
           <dd class="font-mono text-small text-ink">{fmt(locus.n_complete_cores)}</dd>
         </div>
         <div>
-          <dt class="text-caption uppercase tracking-wide text-muted">Core span</dt>
+          <dt class="text-caption uppercase tracking-wide text-muted">Element span</dt>
           <dd class="font-mono text-small text-ink">{fmt(locus.core_span, ' bp')}</dd>
         </div>
       </dl>
@@ -146,7 +146,7 @@
       <!-- ① Tandem architecture (PLAN §9①, the signature view) -->
       <Card
         title="Tandem architecture"
-        subtitle="To-scale, biological 5′ → 3′ — each element tinted by its own specifier"
+        subtitle="Drawn to scale in 5′ → 3′ transcription order — each element colored by its specifier amino acid"
       >
         <ArchitectureDiagram
           {members}
@@ -161,7 +161,7 @@
            intra-locus pairwise %-identity (identity.json, lazily loaded above). -->
       <Card
         title="Element comparison"
-        subtitle="Specifier · tRNA · ΔΔG (fold-difference magnitude) · terminator ΔG (kcal/mol; longer bar = more stable hairpin) · pairwise identity · deep links"
+        subtitle="Specifier · tRNA · ΔΔG (antiterminator vs terminator free-energy gap; bar shows magnitude) · terminator ΔG (kcal/mol; longer bar = more stable hairpin) · pairwise identity · deep links"
       >
         <ElementComparison {members} {pairs} />
       </Card>
