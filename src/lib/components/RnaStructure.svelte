@@ -138,6 +138,22 @@
   })
 
   const showViewer = $derived(!!model && !!Forna && !renderFailed)
+
+  // Scroll-to-zoom must never chain to the page. fornac's legacy d3 v3 zoom only
+  // cancels the page-scroll default for one wheel direction (wheel-down), so
+  // wheel-up zooms AND scrolls the window. Cancel the default ourselves in BOTH
+  // directions with a non-passive listener (passive:false so preventDefault takes
+  // effect) — fornac still receives the event and zooms; only the page scroll is
+  // suppressed. (The similarity-map tree handles this itself via d3 v7.)
+  function lockWheel(node: HTMLElement) {
+    const onWheel = (e: WheelEvent) => e.preventDefault()
+    node.addEventListener('wheel', onWheel, { passive: false })
+    return {
+      destroy() {
+        node.removeEventListener('wheel', onWheel)
+      },
+    }
+  }
 </script>
 
 <div class="space-y-3">
@@ -177,7 +193,7 @@
       style:height="{HOST_H}px"
     >
       {#if showViewer}
-        <div bind:this={host} class="h-full w-full" aria-label="RNA secondary structure"></div>
+        <div bind:this={host} use:lockWheel class="h-full w-full" aria-label="RNA secondary structure"></div>
       {:else}
         <div class="absolute inset-0 grid place-items-center p-6 text-center">
           <p class="max-w-sm text-small text-muted">
