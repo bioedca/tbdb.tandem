@@ -32,6 +32,10 @@
   // Pages base path (committed in public/), so the labmate can download and run
   // it against the public TBDB master table — no clone, no app build.
   const scriptUrl = `${import.meta.env.BASE_URL}reproduce_tandem_tbox_db.py`
+  // The pre-built member-level base table (one row per T-box element, incl. the
+  // component-stem colour spans) ships committed under public/data/ — the same
+  // file the build emits and the reproduction script regenerates.
+  const membersCsvUrl = `${import.meta.env.BASE_URL}data/members.csv`
 </script>
 
 {#snippet code(text: string)}
@@ -175,6 +179,32 @@
         </a>
         <TbdbLink href={scriptUrl} title="View the script source in a new tab">View source</TbdbLink>
       </div>
+      <div class="rounded-md border border-hairline bg-surface-subtle px-4 py-3">
+        <p class="text-small text-muted">
+          <span class="font-medium text-ink">Prefer the finished table?</span> Download the
+          member-level base table directly — one row per T-box element, every per-element field plus the
+          component-stem spans (Stem&nbsp;I / II / IIA-B / III / antiterminator) the app colours the RNA
+          secondary structure by. It is the same {@render code('members.csv')} the build emits and the
+          script regenerates.
+        </p>
+        <a
+          href={membersCsvUrl}
+          download="tbdb-tandem-members.csv"
+          class="mt-2.5 inline-flex items-center justify-center gap-1.5 rounded-md border border-hairline bg-surface px-3 py-1.5 text-small font-medium text-ink transition-colors duration-200 ease-standard hover:bg-brand-subtle"
+        >
+          <svg viewBox="0 0 16 16" class="size-4 shrink-0" aria-hidden="true">
+            <path
+              d="M8 2.5v7m0 0L5 6.5M8 9.5l3-3M3 11.5v1A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5v-1"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              fill="none"
+            />
+          </svg>
+          Download members.csv ({s ? s.counts.members : 949} elements)
+        </a>
+      </div>
       <div class="space-y-2">
         <p class="text-small text-muted">
           Get the source table — {@render code('Master_tboxes.csv')} — from the TBDB repository, then
@@ -192,8 +222,11 @@ python3 reproduce_tandem_tbox_db.py \
           The source table lives at <TbdbLink href="https://github.com/mpiersonsmela/tbox"
             >github.com/mpiersonsmela/tbox</TbdbLink
           >. The script writes {@render code('loci.json')}, {@render code('members.json')},
-          {@render code('identity.json')}, {@render code('summary.json')}, the tree-input FASTAs, and
-          (with {@render code('--emit-table')}) a readable {@render code('tandem_loci.tsv')}.
+          {@render code('identity.json')}, {@render code('summary.json')}, {@render code('members.csv')}
+          (the member-level base table, with the component-stem spans flattened into columns), the
+          tree-input FASTAs, and (with {@render code('--emit-table')}) a readable {@render code(
+            'tandem_loci.tsv',
+          )}.
         </p>
       </div>
       <div class="rounded-md border border-hairline bg-surface-subtle px-4 py-3 text-small text-muted">

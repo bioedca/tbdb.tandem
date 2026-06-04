@@ -70,6 +70,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import csv
 import json
 import re
 import sys
@@ -878,6 +879,88 @@ def _write_json(path: Path, obj: object) -> None:
         json.dump(obj, fh, separators=(",", ":"), ensure_ascii=True)
 
 
+# --- Member-level base table (members.csv) ----------------------------------
+#
+# The same database, one flat row per canonical member, with the component-stem
+# spans (PLAN section 9) flattened into fixed columns. This keeps the stem
+# identity *in* the main database (alongside every other per-member field)
+# rather than only inside members.json's nested ``stems`` array -- the CSV is the
+# spreadsheet-friendly "base table" and carries the EXACT spans the website
+# colours the RNA secondary structure by (1-based, inclusive, leader-relative,
+# the same frame as ``fasta_sequence`` / ``whole_antiterm_structure``). Driven
+# off :data:`_STEM_KEYS` so the stem columns can never drift from
+# :func:`derive_stems`. Blank cell == that stem is absent on the element.
+
+#: Scalar member + locus-context columns, in header order, that precede the stems.
+_MEMBER_CSV_LEAD = [
+    "member_id", "tandem_id", "ordinal",
+    "accession", "strand", "organism", "phylum",
+    "unique_name", "specifier_aa", "specifier_codon",
+    "type", "completeness", "trna",
+    "deltadelta_g", "terminator_energy",
+    "func_class", "func_source", "downstream_protein", "downstream_id", "downstream_ec",
+    "leader_length",
+]
+#: One ``start``/``end`` column pair per stem key (Stem I / II / IIA-B / III / antiterm).
+_STEM_CSV_COLS = [f"stem_{key}_{end}" for key in _STEM_KEYS for end in ("start", "end")]
+#: Full members.csv header: lead columns -> stem span pairs -> the two deep-link URLs.
+_MEMBER_CSV_HEADER = _MEMBER_CSV_LEAD + _STEM_CSV_COLS + ["tbdb_url", "ncbi_url"]
+
+
+def _member_csv_row(member: dict, locus: dict) -> list:
+    """Flatten one member (+ its locus context) into a members.csv row."""
+    spans = {s["key"]: (s["start"], s["end"]) for s in member.get("stems", [])}
+    spec = member.get("specifier") or {}
+    down = member.get("downstream") or {}
+    lead = {
+        "member_id": member["member_id"],
+        "tandem_id": member["tandem_id"],
+        "ordinal": member["ordinal"],
+        "accession": locus.get("accession"),
+        "strand": locus.get("strand"),
+        "organism": locus.get("organism"),
+        "phylum": locus.get("phylum"),
+        "unique_name": member.get("unique_name"),
+        "specifier_aa": spec.get("aa"),
+        "specifier_codon": spec.get("codon"),
+        "type": member.get("type"),
+        "completeness": member.get("completeness"),
+        "trna": member.get("trna"),
+        "deltadelta_g": member.get("deltadelta_g"),
+        "terminator_energy": member.get("terminator_energy"),
+        "func_class": down.get("func_class"),
+        "func_source": down.get("func_source"),
+        "downstream_protein": down.get("protein"),
+        "downstream_id": down.get("id"),
+        "downstream_ec": down.get("ec"),
+        "leader_length": len(member.get("fasta_sequence") or ""),
+    }
+    row = [lead[col] for col in _MEMBER_CSV_LEAD]
+    for key in _STEM_KEYS:
+        lo, hi = spans.get(key, (None, None))
+        row.extend([lo, hi])
+    row.extend([member.get("tbdb_url"), member.get("ncbi_url")])
+    return row
+
+
+def write_members_csv(
+    locus_objs: list[dict], members_map: dict[str, dict], out_dir: Path
+) -> int:
+    """Write ``members.csv`` -- the member-level base table with flattened stem spans.
+
+    One row per canonical member (members.json order); locus context (accession,
+    strand, organism, phylum) is joined per member from ``locus_objs``. Returns the
+    number of data rows written.
+    """
+    loc_by_member = {mid: loc for loc in locus_objs for mid in loc["member_ids"]}
+    with (out_dir / "members.csv").open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.writer(fh, lineterminator="\n")
+        writer.writerow(_MEMBER_CSV_HEADER)
+        for member_id, member in members_map.items():
+            writer.writerow(_member_csv_row(member, loc_by_member[member_id]))
+    return len(members_map)
+
+
 # --- Tree-build FASTAs: Stem-I length-gate (PLAN section 6, 5.2) -------------
 
 def _native_stemI_span(member: dict) -> int | None:
@@ -1320,9 +1403,10 @@ def main(argv: list[str] | None = None) -> int:
     _write_json(args.out / "members.json", members_map)
     _write_json(args.out / "identity.json", pairs)
     _write_json(args.out / "summary.json", summary)
+    n_csv = write_members_csv(locus_objs, members_map, args.out)
     print(
         f"wrote loci.json ({len(locus_objs)}) + members.json ({len(members_map)}) "
-        f"+ identity.json ({len(pairs)}) + summary.json -> {args.out}"
+        f"+ identity.json ({len(pairs)}) + summary.json + members.csv ({n_csv}) -> {args.out}"
     )
 
     # S0.6: the Stem-I length-gate + the two tree-build FASTAs (PLAN section 6, 5.2).

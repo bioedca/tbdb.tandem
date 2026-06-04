@@ -10,6 +10,7 @@ over the real data -- the full-scale complement to ``test_build.py``'s fixture r
 
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
@@ -54,8 +55,49 @@ def summary():
 
 def test_all_artifacts_present():
     for name in ("summary.json", "loci.json", "members.json", "identity.json",
-                 "tree_input.fasta", "antiterm_fallback.fasta"):
+                 "members.csv", "tree_input.fasta", "antiterm_fallback.fasta"):
         assert (DATA / name).exists(), f"missing committed artifact: {name}"
+
+
+# --- members.csv : the member-level base table with flattened stem spans -----
+
+@pytest.fixture(scope="module")
+def members_csv():
+    with (DATA / "members.csv").open(newline="") as fh:
+        rows = list(csv.reader(fh))
+    return rows[0], rows[1:]
+
+
+def test_members_csv_shape(members_csv):
+    header, rows = members_csv
+    assert header == bj._MEMBER_CSV_HEADER
+    assert len(rows) == N_MEMBERS
+    for key in bj._STEM_KEYS:  # every stem key contributes a start/end column pair
+        assert f"stem_{key}_start" in header and f"stem_{key}_end" in header
+
+
+def test_members_csv_stem_spans_match_members_json(members_csv, members):
+    """The flat stem columns reproduce members.json['stems'] exactly -- so the CSV
+    carries the same spans the web app colours the RNA structure by (PLAN section 9)."""
+    header, rows = members_csv
+    idx = {c: i for i, c in enumerate(header)}
+    for row in rows:
+        mid = row[idx["member_id"]]
+        assert mid in members, f"members.csv references unknown member {mid}"
+        expected = {s["key"]: (s["start"], s["end"]) for s in members[mid]["stems"]}
+        for key in bj._STEM_KEYS:
+            lo, hi = row[idx[f"stem_{key}_start"]], row[idx[f"stem_{key}_end"]]
+            got = (int(lo), int(hi)) if lo != "" else None
+            assert got == expected.get(key), f"{mid} stem {key}: {got} != {expected.get(key)}"
+
+
+def test_members_csv_is_current(loci, members, tmp_path):
+    """The committed members.csv is exactly what build_json.write_members_csv emits
+    from the committed JSON -- guards against a stale hand-edited table."""
+    bj.write_members_csv(loci["loci"], members, tmp_path)
+    regenerated = (tmp_path / "members.csv").read_bytes()
+    committed = (DATA / "members.csv").read_bytes()
+    assert regenerated == committed, "public/data/members.csv is stale; rerun build_json.py"
 
 
 # --- Gate #1 / #2 / #9 : absolute counts ------------------------------------
