@@ -16,7 +16,8 @@ afterEach(resetStore)
 const SECTIONS = [
   'About & method',
   'What this is',
-  'How the 470 loci are detected',
+  'How the database is built',
+  'Reproduce it yourself',
   'Data caveats',
   'The similarity map is not a phylogeny',
   'Provenance & citation',
@@ -37,6 +38,13 @@ describe('About', () => {
     // The disclaimer must be a negation, never an assertion of ancestry (§6).
     expect(container.textContent).toContain('not')
     expect(container.textContent).toMatch(/ancestral-state reconstruction/i)
+  })
+
+  test('offers the reproduction script as a download', () => {
+    render(About)
+    const dl = screen.getByRole('link', { name: /Download reproduce_tandem_tbox_db\.py/ })
+    expect(dl.getAttribute('download')).toBe('reproduce_tandem_tbox_db.py')
+    expect(dl.getAttribute('href')).toContain('reproduce_tandem_tbox_db.py')
   })
 
   test('attribution links resolve (TBDB, CC-BY DOI, citing page)', () => {

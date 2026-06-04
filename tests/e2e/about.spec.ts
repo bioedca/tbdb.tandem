@@ -7,7 +7,8 @@ import { gotoRoute } from './_helpers'
 
 const SECTIONS = [
   'What this is',
-  'How the 470 loci are detected',
+  'How the database is built',
+  'Reproduce it yourself',
   'Data caveats',
   'The similarity map is not a phylogeny',
   'Provenance & citation',
@@ -25,6 +26,12 @@ test.describe('About (/about)', () => {
 
     // No-polarity disclaimer embeds the banner (§6).
     await expect(page.getByRole('note')).toBeVisible()
+
+    // The reproduction script is offered as a download under the Pages base path.
+    const download = page.getByRole('link', { name: /Download reproduce_tandem_tbox_db\.py/ })
+    await expect(download).toBeVisible()
+    await expect(download).toHaveAttribute('download', 'reproduce_tandem_tbox_db.py')
+    expect(await download.getAttribute('href')).toContain('reproduce_tandem_tbox_db.py')
 
     // The three attribution links (§14): TBDB home, the CC-BY DOI, the citing page.
     await expect(page.locator('a[href="https://tbdb.io"]')).toBeVisible()
