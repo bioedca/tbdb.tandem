@@ -103,7 +103,7 @@ describe('FacetTable', () => {
   test('Export CSV triggers a Tabulator csv download', () => {
     render(FacetTable)
     fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
-    expect(tab.calls.download).toContainEqual(['csv', 'tandemview-loci.csv'])
+    expect(tab.calls.download).toContainEqual(['csv', 'tbdb-tandem-loci.csv'])
   })
 
   // PLAN §8.4 list fade/reflow, scoped (S2.6): the `tv-narrowing` class is added

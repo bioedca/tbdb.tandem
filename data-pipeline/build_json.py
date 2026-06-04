@@ -1,4 +1,4 @@
-"""build_json.py -- TandemView offline data build (PLAN section 5).
+"""build_json.py -- tbdb.tandem offline data build (PLAN section 5).
 
 The deterministic local job that turns the two read-only TBDB source files into
 the static JSON the app loads and the ``tree_input.fasta`` the cluster tree build
@@ -1168,7 +1168,7 @@ def _assert_golden_ordinal(loci: list[dict]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Build TandemView static JSON from the TBDB sources (PLAN section 5).",
+        description="Build tbdb.tandem static JSON from the TBDB sources (PLAN section 5).",
     )
     parser.add_argument("--master", type=Path, required=True, help="Master_tboxes.csv (read-only)")
     parser.add_argument("--tandem", type=Path, required=True, help="tandem_tbox_FINAL.tsv (read-only)")

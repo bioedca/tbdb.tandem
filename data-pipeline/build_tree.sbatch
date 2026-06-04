@@ -1,5 +1,5 @@
 #!/bin/bash
-# build_tree.sbatch -- TandemView similarity-tree build (PLAN section 6, 6.1; Track B).
+# build_tree.sbatch -- tbdb.tandem similarity-tree build (PLAN section 6, 6.1; Track B).
 #
 # Runs on the lab cluster (`two` login node, ProxyJump via zero.biochem.northwestern.edu)
 # via SLURM `sbatch`. The job is small, CPU-only, and offline -- the toolchain + RF00230
@@ -26,7 +26,7 @@
 # Outputs retrieved by SB.3 / consumed by build_tree_artifacts.py at SB.4:
 #   tree_elements.nwk, tree_elements.midpoint.nwk, tree_fallback.nwk, tree_%j.log
 #
-#SBATCH --job-name=tandemview-tree
+#SBATCH --job-name=tbdb-tandem-tree
 #SBATCH --partition=gpu              # node `two` (see DEVIATION note above); CPU-only, NO --gres
 #SBATCH --nodelist=two               # `compute`/`zero` step-launch broken; `one` DOWN (2026-06-02)
 #SBATCH --cpus-per-task=8 --mem=16G --time=01:00:00

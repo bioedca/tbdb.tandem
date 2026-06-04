@@ -70,7 +70,7 @@
         or operon.
       </p>
       <p>
-        TandemView is a companion to {@render code('tbdb.io')} that owns the
+        tbdb.tandem is a companion to {@render code('tbdb.io')} that owns the
         <em>tandem-level</em> story of T-box riboswitches — stacked-element architecture, specificity
         pairing, regulated-operon coupling, and a sequence-similarity map. It never re-implements
         the single-element views in tbdb.io; instead every element deep-links back to its canonical
@@ -302,7 +302,7 @@ python3 reproduce_tandem_tbox_db.py \
     <div class="max-w-3xl space-y-3">
       <p>
         All data derive from <TbdbLink href="https://tbdb.io">TBDB (tbdb.io)</TbdbLink>, used under
-        the CC-BY license. TandemView adds only the tandem-level views and layout; the underlying
+        the CC-BY license. tbdb.tandem adds only the tandem-level views and layout; the underlying
         annotations are TBDB's.
       </p>
       <p class="rounded-md border border-hairline bg-surface-subtle px-4 py-3 text-small">

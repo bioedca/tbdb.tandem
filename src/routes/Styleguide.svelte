@@ -77,7 +77,7 @@
   <div>
     <h1 class="text-display text-ink">Design system</h1>
     <p class="mt-1 text-body text-muted">
-      TandemView identity (PLAN §8) — dev-only review surface at <code
+      tbdb.tandem identity (PLAN §8) — dev-only review surface at <code
         class="font-mono text-small">/styleguide</code
       >.
     </p>
@@ -107,7 +107,7 @@
       {#each typeRamp as t (t.cls)}
         <div class="flex items-baseline gap-4">
           <span class="w-20 shrink-0 font-mono text-caption text-muted">{t.label}</span>
-          <span class={t.cls}>The quick brown fox — TandemView</span>
+          <span class={t.cls}>The quick brown fox — tbdb.tandem</span>
         </div>
       {/each}
       <div class="flex items-baseline gap-4">

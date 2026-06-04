@@ -1,7 +1,7 @@
 # data-pipeline
 
 The offline build that turns the two read-only TBDB source files into the static
-JSON the TandemView SPA loads, plus the `tree_input.fasta` the cluster tree build
+JSON the tbdb.tandem SPA loads, plus the `tree_input.fasta` the cluster tree build
 consumes. This is the **single source of truth** for member resolution and field
 provenance (PLAN §4, §5).
 

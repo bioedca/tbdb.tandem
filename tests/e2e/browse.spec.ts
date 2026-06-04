@@ -60,7 +60,7 @@ test.describe('Browse', () => {
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Export CSV' }).click(),
     ])
-    expect(download.suggestedFilename()).toBe('tandemview-loci.csv')
+    expect(download.suggestedFilename()).toBe('tbdb-tandem-loci.csv')
 
     // The CSV must carry the current selection — header + 470 data rows — not be
     // empty/stale (content-vs-selection is also covered by the §10.3 component test).

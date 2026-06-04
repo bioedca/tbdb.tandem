@@ -1,4 +1,4 @@
-// TandemView data contract — hand-written, stable types (PLAN §5.4).
+// tbdb.tandem data contract — hand-written, stable types (PLAN §5.4).
 //
 // These mirror exactly what `data-pipeline/build_json.py` emits into
 // `public/data/*.json` (PLAN §5.2). PLAN §5.4 deliberately omits a generated

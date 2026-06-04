@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 // End-to-end + visual-regression config (PLAN §10.4–§10.6, §11.3).
 //
 // Runs against the PRODUCTION build served by `vite preview` at the REAL Pages
-// base path (`/tandem-tbox-explorer/`), so the suite exercises exactly what ships
+// base path (`/tbdb.tandem/`), so the suite exercises exactly what ships
 // — base-path rebasing, hash routing, the committed JSON/tree artifacts, and the
 // dynamically-imported chart bundles. GITHUB_ACTIONS is forced on for the
 // webServer so the base path is the deploy base both locally and in CI (it is
@@ -11,7 +11,7 @@ import { defineConfig, devices } from '@playwright/test'
 // uses an exact `@playwright/test` version) so the bundled Chromium — and thus the
 // rendered pixels — are identical between local generation and the CI runner; the
 // visual baselines are generated and compared in the CI Linux container (§10.5).
-const BASE = '/tandem-tbox-explorer/'
+const BASE = '/tbdb.tandem/'
 const PORT = 4173
 const ORIGIN = `http://localhost:${PORT}`
 

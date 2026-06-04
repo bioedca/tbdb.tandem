@@ -1,4 +1,4 @@
-// TandemView staged data loading (PLAN §7.3).
+// tbdb.tandem staged data loading (PLAN §7.3).
 //
 // The committed artifacts under `public/data/` are fetched in stages so the
 // dashboard boots instantly (PLAN §7.3):
@@ -9,7 +9,7 @@
 //   lazy      → tree.* on /tree           (the four tree artifacts)
 //
 // Every fetch goes through `import.meta.env.BASE_URL` (PLAN §7.4) so the same code
-// resolves at `/` locally and `/tandem-tbox-explorer/` on GitHub Pages. These are
+// resolves at `/` locally and `/tbdb.tandem/` on GitHub Pages. These are
 // pure functions with no reactive state — the reactive store in
 // `stores/filters.svelte.ts` orchestrates and holds the results.
 
@@ -26,7 +26,7 @@ import type {
 
 /** Absolute URL of a committed `public/data/<file>`, base-path aware (PLAN §7.4).
  *  `BASE_URL` always ends in `/`, so e.g. `data/loci.json` →
- *  `/tandem-tbox-explorer/data/loci.json` in CI, `/data/loci.json` locally. */
+ *  `/tbdb.tandem/data/loci.json` in CI, `/data/loci.json` locally. */
 export function dataUrl(file: string): string {
   return `${import.meta.env.BASE_URL}data/${file}`
 }

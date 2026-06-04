@@ -1,4 +1,4 @@
-// TandemView design tokens (PLAN §8).
+// tbdb.tandem design tokens (PLAN §8).
 //
 // These mirror the Tailwind v4 `@theme` block in `src/app.css` and exist for
 // PROGRAMMATIC use — Plotly and D3 cannot read Tailwind utility classes, so any

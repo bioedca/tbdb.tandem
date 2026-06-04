@@ -1,4 +1,4 @@
-// TandemView data/specifier palette (PLAN §8.2).
+// tbdb.tandem data/specifier palette (PLAN §8.2).
 //
 // THE color axis for the dataset. One colorblind-aware 20-amino-acid set, grouped
 // by side-chain biochemistry so related specifiers read as a family, reused

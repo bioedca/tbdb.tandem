@@ -25,13 +25,13 @@
        T-box elements (§8.1); the teal accent is the brand affordance color. -->
   <header class="bg-chrome text-chrome-fg">
     <div class="mx-auto flex max-w-content items-center justify-between gap-6 px-6 py-3">
-      <a href="/" use:link class="group flex items-center gap-2.5" aria-label="TandemView — home">
+      <a href="/" use:link class="group flex items-center gap-2.5" aria-label="tbdb.tandem — home">
         <svg viewBox="0 0 24 24" class="size-6 shrink-0" aria-hidden="true">
           <rect x="3" y="6" width="18" height="4.5" rx="2.25" fill="var(--color-chrome-fg)" />
           <rect x="3" y="13.5" width="18" height="4.5" rx="2.25" fill="var(--color-brand)" />
         </svg>
         <span class="flex items-baseline gap-2">
-          <span class="text-h2 font-semibold tracking-tight text-white">TandemView</span>
+          <span class="text-h2 font-semibold tracking-tight text-white">tbdb<span class="text-brand">.tandem</span></span>
           <span class="hidden text-caption text-chrome-fg/60 sm:inline"
             >tandem T-box explorer</span
           >
@@ -71,7 +71,7 @@
       <Router {routes} />
     {:else}
       <div class="flex min-h-[40vh] items-center justify-center">
-        <Spinner size={28} label="Loading TandemView data…" />
+        <Spinner size={28} label="Loading tbdb.tandem data…" />
       </div>
     {/if}
   </main>
@@ -81,7 +81,7 @@
     <div
       class="mx-auto flex max-w-content flex-wrap items-center justify-between gap-2 px-6 py-3 text-caption"
     >
-      <span>TandemView — a companion to <span class="font-mono">tbdb.io</span></span>
+      <span>tbdb.tandem — a companion to <span class="font-mono">tbdb.io</span></span>
       <span>
         Data:
         <a

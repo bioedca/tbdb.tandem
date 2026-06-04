@@ -1,7 +1,7 @@
-<!-- TandemView mark (PLAN §8.1): two stacked bars = two tandem T-box elements.
+<!-- tbdb.tandem mark (PLAN §8.1): two stacked bars = two tandem T-box elements.
      Dark-slate chrome ground, light upper bar + teal brand accent lower bar.
      Standalone asset — hex literals mirror the tokens (--color-chrome-fg / --color-brand). -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="TandemView">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="tbdb.tandem">
   <rect width="32" height="32" rx="7" fill="#0f172a" />
   <rect x="7" y="10" width="18" height="5" rx="2.5" fill="#e2e8f0" />
   <rect x="7" y="18" width="18" height="5" rx="2.5" fill="#0f766e" />

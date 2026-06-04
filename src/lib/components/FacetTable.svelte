@@ -163,7 +163,7 @@
   })
 
   function exportCsv(): void {
-    table?.download('csv', 'tandemview-loci.csv')
+    table?.download('csv', 'tbdb-tandem-loci.csv')
   }
 </script>
 

@@ -1,9 +1,9 @@
 {
-  "name": "tandem-tbox-explorer",
+  "name": "tbdb-tandem",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "TandemView — a static explorer for the 470 tandem T-box riboswitch loci (companion to tbdb.io).",
+  "description": "tbdb.tandem — a static explorer for the 470 tandem T-box riboswitch loci (companion to tbdb.io).",
   "license": "MIT",
   "engines": {
     "node": ">=20"
