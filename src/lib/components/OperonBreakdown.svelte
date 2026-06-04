@@ -107,8 +107,8 @@
       barmode: 'stack',
       margin: { l: 104, r: 14, t: 6, b: 30 },
       font: { family: fontFamily.sans, size: 12, color: neutral.text },
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: 'rgba(0,0,0,0)',
+      paper_bgcolor: neutral.surface,
+      plot_bgcolor: neutral.surface,
       bargap: 0.34,
       // No Plotly `transition`: these bars carry marker.pattern (the §5.3/§9③
       // provenance hatching), and a `Plots.resize` landing anywhere near a
@@ -174,8 +174,8 @@
       autosize: true,
       margin: { l: 6, r: 6, t: 6, b: 6 },
       font: { family: fontFamily.sans, size: 11, color: neutral.text },
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: 'rgba(0,0,0,0)',
+      paper_bgcolor: neutral.surface,
+      plot_bgcolor: neutral.surface,
     }
     void plotly.react(sankeyEl, data, layout, CONFIG)
   })

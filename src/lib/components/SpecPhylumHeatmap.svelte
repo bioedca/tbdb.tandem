@@ -123,8 +123,8 @@
       autosize: true,
       margin: { l: 128, r: 8, t: 6, b: 56 },
       font: { family: fontFamily.mono, size: 10, color: neutral.text },
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: neutral.surfaceSubtle,
+      paper_bgcolor: neutral.surface,
+      plot_bgcolor: neutral.surface,
       xaxis: {
         side: 'bottom',
         tickangle: -90,
