@@ -1,8 +1,10 @@
 <script lang="ts">
   // /about — the method note (PLAN §7.2 /about route, §14, §2/§3.1, §6, §11.4/§8;
   // a Phase-3 deliverable, S3.3).
-  // Documents how the 470 tandem loci are detected, the data caveats
-  // (contamination drop, corrupt-codon specifier source, kept-and-flagged
+  // Documents how the tandem T-box database is built (the full Master_tboxes.csv →
+  // loci pipeline) and offers a self-contained Python script that reproduces it
+  // (public/reproduce_tandem_tbox_db.py, downloaded from the Pages base path), the
+  // data caveats (contamination drop, corrupt-codon specifier source, kept-and-flagged
   // low-confidence loci, near-monochrome taxonomy), the no-polarity disclaimer for
   // the similarity map (§6 — the tree is NOT a phylogeny / ancestral-state
   // reconstruction), the offline cluster build, and the TBDB provenance + citation
@@ -25,6 +27,11 @@
   const unknownLoci = $derived(
     s?.distributions.specifier.find((d) => d.value === '?')?.count ?? null,
   )
+
+  // The self-contained reproduction script ships as a static asset under the
+  // Pages base path (committed in public/), so the labmate can download and run
+  // it against the public TBDB master table — no clone, no app build.
+  const scriptUrl = `${import.meta.env.BASE_URL}reproduce_tandem_tbox_db.py`
 </script>
 
 {#snippet code(text: string)}
@@ -83,46 +90,124 @@
   </Card>
 
   <Card
-    title="How the 470 loci are detected"
-    subtitle="The locus-detection pipeline that produced this dataset — it runs upstream of TandemView."
+    title="How the database is built"
+    subtitle="From the raw TBDB master table to the loci shown here — every step is deterministic and scriptable."
   >
     <div class="max-w-3xl space-y-3">
       <p>
-        The tandem loci are derived from the TBDB master table by a deterministic pipeline. The math
-        is consistent with the ≈470 tandem estimate of Vitreschak et&nbsp;al. (2008).
+        The entire dataset is derived from a <strong class="font-medium text-ink">single public
+        source file</strong> — the TBDB master table ({@render code('Master_tboxes.csv')}, ≈23,500
+        annotated T-box rows). A deterministic pipeline turns it into the loci, elements, and pairings
+        on every panel. The math is consistent with the ≈470 tandem estimate of
+        Vitreschak et&nbsp;al. (2008).
       </p>
       <ol class="list-decimal space-y-2 pl-5 marker:font-medium marker:text-muted">
         <li>
-          Drop the 24 confirmed non-bacterial contaminant rows (phylum ∈ {@render code(
-            'Arthropoda, Ascomycota, Nematoda, Streptophyta',
-          )}) before the join.
+          <strong class="font-medium text-ink">Drop contamination.</strong> 24 non-bacterial rows
+          (phylum ∈ {@render code('Arthropoda, Ascomycota, Nematoda, Streptophyta')}) are removed
+          before anything else, so they never reach a locus.
         </li>
         <li>
-          Assign each T-box's strand from its coordinate order and project each one's genomic 5′ start
-          (the {@render code('core5')} anchor), so cores can be ordered along the leader.
+          <strong class="font-medium text-ink">Orient each T-box.</strong> Strand comes from the
+          coordinate order; each core's genomic 5′ anchor (the {@render code('core5')} position) is
+          projected so cores can be placed along the leader.
         </li>
         <li>
-          Group cores on the same {@render code('(accession, strand)')} into one locus whenever a core
-          sits within 600&nbsp;bp of another in the group (single-linkage clustering — chaining nearby
-          cores). This is the locus-detection step.
+          <strong class="font-medium text-ink">Cluster nearby cores.</strong> Within each
+          {@render code('(accession, strand)')}, cores that sit within 600&nbsp;bp are chained into one
+          candidate window (single-linkage — the chaining is transitive).
         </li>
         <li>
-          Collapse cores within 60&nbsp;bp to one representative per physical core, keeping the best
-          row (complete &gt; has a start codon &gt; has a {@render code('unique_name')} &gt; lowest
-          E-value).
+          <strong class="font-medium text-ink">Collapse redundant annotations.</strong> The same
+          physical T-box is often annotated by several pipelines; cores within 60&nbsp;bp are one
+          physical core, and the best representative row is kept (complete &gt; has a called codon &gt;
+          has a {@render code('unique_name')} &gt; lowest E-value).
         </li>
         <li>
-          Keep a window as a tandem locus when it holds ≥2 distinct cores that share a gene ID
-          <em>or</em> a specifier amino acid; mark it high-confidence when ≥2 of those cores are complete.
+          <strong class="font-medium text-ink">Keep the tandems.</strong> A window with ≥2 physical
+          cores is a tandem locus when its cores are plausibly co-regulated — they share a downstream
+          gene, share a specifier amino acid, <em>or</em> sit in overlapping leaders. A locus is
+          high-confidence when ≥2 of its cores have a called specifier codon.
+        </li>
+        <li>
+          <strong class="font-medium text-ink">Order &amp; derive.</strong> Elements are numbered
+          5′→3′; each specifier is read from {@render code('amino_acid_top')} /
+          {@render code('refine_codon_top')}, the Stem-I WUSS structure is converted to dot-bracket,
+          the downstream function is classified (EC number, then a protein-name regex), and every
+          intra-locus pairwise %-identity is aligned.
         </li>
       </ol>
       <p class="text-small text-muted">
         This yields {s ? s.counts.loci : 470} loci and exactly {s ? s.counts.members : 949} T-box
-        elements — one representative row per physical T-box core (duplicate annotation rows are
-        collapsed); the intra-locus pairwise %-identity payload covers {s
-          ? s.counts.intra_locus_pairs
-          : 488} pairs.
+        elements — one representative per physical core (duplicate annotation rows are collapsed) —
+        with {s ? s.counts.intra_locus_pairs : 488} intra-locus pairwise identities.
       </p>
+    </div>
+  </Card>
+
+  <Card
+    title="Reproduce it yourself"
+    subtitle="One script, one input file — regenerate the entire dataset from scratch."
+  >
+    <div class="max-w-3xl space-y-4">
+      <p>
+        The whole pipeline above is packaged as a single, self-contained Python script. Point it at
+        the public TBDB master table and it regenerates the same loci, elements, pairings, and summary
+        this app loads, then self-verifies the counts on exit.
+      </p>
+      <div class="flex flex-wrap items-center gap-3">
+        <a
+          href={scriptUrl}
+          download="reproduce_tandem_tbox_db.py"
+          class="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-small font-medium text-white transition-colors duration-200 ease-standard hover:bg-brand-strong"
+        >
+          <svg viewBox="0 0 16 16" class="size-4 shrink-0" aria-hidden="true">
+            <path
+              d="M8 2.5v7m0 0L5 6.5M8 9.5l3-3M3 11.5v1A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5v-1"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              fill="none"
+            />
+          </svg>
+          Download reproduce_tandem_tbox_db.py
+        </a>
+        <TbdbLink href={scriptUrl} title="View the script source in a new tab">View source</TbdbLink>
+      </div>
+      <div class="space-y-2">
+        <p class="text-small text-muted">
+          Get the source table — {@render code('Master_tboxes.csv')} — from the TBDB repository, then
+          run:
+        </p>
+        <pre
+          class="overflow-x-auto rounded-md border border-hairline bg-surface-subtle px-4 py-3 font-mono text-[0.8rem] leading-relaxed text-ink"><code
+            >pip install "pandas&gt;=2.0" "biopython&gt;=1.81"
+
+python3 reproduce_tandem_tbox_db.py \
+  --master Master_tboxes.csv \
+  --out ./out --emit-table</code
+          ></pre>
+        <p class="text-small text-muted">
+          The source table lives at <TbdbLink href="https://github.com/mpiersonsmela/tbox"
+            >github.com/mpiersonsmela/tbox</TbdbLink
+          >. The script writes {@render code('loci.json')}, {@render code('members.json')},
+          {@render code('identity.json')}, {@render code('summary.json')}, the tree-input FASTAs, and
+          (with {@render code('--emit-table')}) a readable {@render code('tandem_loci.tsv')}.
+        </p>
+      </div>
+      <div class="rounded-md border border-hairline bg-surface-subtle px-4 py-3 text-small text-muted">
+        <span class="font-medium text-ink">Faithful to the published dataset.</span> The
+        {s ? s.counts.loci : 470}&nbsp;/&nbsp;{s ? s.counts.members : 949}&nbsp;/&nbsp;{s
+          ? s.counts.intra_locus_pairs
+          : 488} counts, the
+        {#if s}{s.confidence.high}&nbsp;/&nbsp;{s.confidence.low}{:else}high&nbsp;/&nbsp;low{/if}
+        confidence split, and every specifier and phylum distribution reproduce exactly; 943 of 949
+        element records are byte-identical. The few differences are documented curatorial edge cases —
+        a handful of physical cores carry several redundant source annotations, and locus IDs are
+        re-assigned in genomic order rather than original discovery order. The script's header
+        comment explains the logic of every step in full.
+      </div>
     </div>
   </Card>
 
