@@ -63,6 +63,13 @@
   --text-h2: 1.25rem;
   --text-h2--line-height: 1.75rem;
   --text-h2--font-weight: 600;
+  /* Lead / standfirst — the one FLUID body step (intro paragraphs under a page or
+     panel heading). Scales ≈15px → 19px with the viewport so prose grows with the
+     canvas instead of staying small in a vast layout. Pairs with `max-w-measure`
+     so the column WIDTH grows with the font while the line-length (measure) holds.
+     `leading` is unitless so it tracks the fluid size. */
+  --text-lead: clamp(0.9375rem, 0.85rem + 0.55vw, 1.1875rem);
+  --text-lead--line-height: 1.6;
   --text-small: 0.875rem;
   --text-small--line-height: 1.25rem;
   --text-caption: 0.75rem;
@@ -80,6 +87,16 @@
 
   /* Layout (§8.4): max-width content container — mirrored in tokens.ts `layout`. */
   --container-content: 90rem;
+
+  /* Reading measure (§8.4) — ONE fluid line-length cap for body prose, so every
+     paragraph (page intros, panel subtitles, About copy) holds a comfortable
+     ~70-character measure instead of locking to an arbitrary rem width or running
+     edge-to-edge across the canvas. Expressed in `ch`: it scales with the element's
+     own (possibly fluid `--text-lead`) font-size, so the pixel COLUMN widens with
+     the text while the character measure stays constant — the coherent-readability
+     invariant (~56ch of Inter renders ≈70 characters per line — the comfortable
+     band). Generates the `max-w-measure` utility (mirrored in tokens.ts). */
+  --container-measure: 56ch;
 }
 
 /* ── Base layer (§8.4): page surface, default font, sensible focus ── */

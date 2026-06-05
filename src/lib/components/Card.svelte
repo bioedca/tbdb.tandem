@@ -26,7 +26,9 @@
     <header class="flex items-start justify-between gap-4 border-b border-hairline px-4 py-3 sm:px-5">
       <div>
         {#if title}<h2 class="text-h2 text-ink">{title}</h2>{/if}
-        {#if subtitle}<p class="text-small text-muted">{subtitle}</p>{/if}
+        <!-- Cap the subtitle at the shared reading measure so long explanatory lines
+             wrap to a comfortable length instead of running the full panel width. -->
+        {#if subtitle}<p class="max-w-measure text-small text-muted">{subtitle}</p>{/if}
       </div>
       {#if actions}<div class="shrink-0">{@render actions()}</div>{/if}
     </header>
