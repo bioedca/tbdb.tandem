@@ -11,8 +11,8 @@
   import { link } from 'svelte-spa-router'
   import { store } from '../lib/stores/filters.svelte'
   import { fitText } from '../lib/actions/fitText'
-  import { fitMeasure } from '../lib/actions/fitMeasure'
   import Card from '../lib/components/Card.svelte'
+  import PageHeader from '../lib/components/PageHeader.svelte'
   import TbdbLink from '../lib/components/TbdbLink.svelte'
   import NoPolarityBanner from '../lib/components/NoPolarityBanner.svelte'
 
@@ -58,18 +58,16 @@
 {/snippet}
 
 <section class="space-y-6">
-  <!-- Banner (PLAN §8 responsive): fitText hero title + full-banner-width lead whose
-       font `fitMeasure` scales to hold a steady reading measure at every screen width. -->
-  <header>
-    <h1 use:fitText={{ minPx: 18 }} class="text-hero text-ink">About &amp; method</h1>
-    <p use:fitMeasure class="mt-1 text-lead text-muted">
+  <!-- Masthead (PLAN §8): shared PageHeader — kicker, fitText hero, measure-capped lead. -->
+  <PageHeader kicker="Method &amp; provenance" title="About &amp; method">
+    <p class="max-w-measure text-lead text-muted">
       How the tandem T-box loci shown here are detected, the caveats behind every view, why the
       similarity map is not a phylogeny, and where the data come from.
     </p>
-  </header>
+  </PageHeader>
 
-  <Card titleClass="text-card-title" title="What this is">
-    <div use:fitMeasure={{ maxPx: 24, targetChars: 88 }} class="space-y-3 leading-relaxed">
+  <Card title="What this is">
+    <div class="max-w-readable space-y-3 text-body leading-relaxed">
       <p>
         A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in the 5′
         leader of a bacterial mRNA. It binds one specific tRNA and senses whether that tRNA is charged
@@ -100,11 +98,10 @@
   </Card>
 
   <Card
-    titleClass="text-card-title"
     title="How the database is built"
     subtitle="From the raw TBDB master table to the loci shown here — every step is deterministic and scriptable."
   >
-    <div use:fitMeasure={{ maxPx: 24, targetChars: 88 }} class="space-y-3 leading-relaxed">
+    <div class="max-w-readable text-body space-y-3 leading-relaxed">
       <p>
         The entire dataset is derived from a <strong class="font-medium text-ink">single public
         source file</strong> — the TBDB master table ({@render code('Master_tboxes.csv')}, ≈23,500
@@ -156,11 +153,10 @@
   </Card>
 
   <Card
-    titleClass="text-card-title"
     title="Reproduce it yourself"
     subtitle="One script, one input file — regenerate the entire dataset from scratch."
   >
-    <div use:fitMeasure={{ maxPx: 24, targetChars: 88 }} class="space-y-4 leading-relaxed">
+    <div class="max-w-readable text-body space-y-4 leading-relaxed">
       <p>
         The whole pipeline above is packaged as a single, self-contained Python script. Point it at
         the public TBDB master table and it regenerates the same loci, elements, pairings, and summary
@@ -249,11 +245,10 @@ python3 reproduce_tandem_tbox_db.py \
   </Card>
 
   <Card
-    titleClass="text-card-title"
     title="Data caveats"
     subtitle="Read these before drawing conclusions from any panel."
   >
-    <div use:fitMeasure={{ maxPx: 24, targetChars: 88 }} class="leading-relaxed">
+    <div class="max-w-readable text-body leading-relaxed">
       <dl class="space-y-4">
         <div>
           <dt class="font-medium text-ink">Contamination is dropped first.</dt>
@@ -294,11 +289,10 @@ python3 reproduce_tandem_tbox_db.py \
   </Card>
 
   <Card
-    titleClass="text-card-title"
     title="The similarity map is not a phylogeny"
     subtitle="A lab standard: no polarity is read from the tips."
   >
-    <div use:fitMeasure={{ maxPx: 24, targetChars: 88 }} class="space-y-3 leading-relaxed">
+    <div class="max-w-readable text-body space-y-3 leading-relaxed">
       <NoPolarityBanner />
       <p>
         The tree on the <a
@@ -338,11 +332,10 @@ python3 reproduce_tandem_tbox_db.py \
   </Card>
 
   <Card
-    titleClass="text-card-title"
     title="RNA secondary-structure diagrams"
     subtitle="Two complementary 2° structure renders on every element, both colored by structural domain."
   >
-    <div use:fitMeasure={{ maxPx: 24, targetChars: 88 }} class="space-y-3 leading-relaxed">
+    <div class="max-w-readable text-body space-y-3 leading-relaxed">
       <p>
         Each element's detail page renders its RNA secondary structure two ways, toggled in place. Both
         color every nucleotide by its structural domain — Stem&nbsp;I, Stem&nbsp;II, Stem&nbsp;IIA/B,
@@ -374,8 +367,8 @@ python3 reproduce_tandem_tbox_db.py \
     </div>
   </Card>
 
-  <Card titleClass="text-card-title" title="Provenance &amp; citation">
-    <div use:fitMeasure={{ maxPx: 24, targetChars: 88 }} class="space-y-3 leading-relaxed">
+  <Card title="Provenance &amp; citation">
+    <div class="max-w-readable text-body space-y-3 leading-relaxed">
       <p>
         All data derive from <TbdbLink href="https://tbdb.io">TBDB (tbdb.io)</TbdbLink>, used under
         the CC-BY license. tbdb.tandem adds only the tandem-level views and layout; the underlying
@@ -396,7 +389,7 @@ python3 reproduce_tandem_tbox_db.py \
     </div>
   </Card>
 
-  <Card titleClass="text-card-title" title="Glossary">
+  <Card title="Glossary">
     <dl class="grid max-w-4xl gap-x-8 gap-y-3 sm:grid-cols-2">
       <div>
         <dt class="font-medium text-ink">Locus / tandem</dt>

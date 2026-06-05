@@ -14,36 +14,33 @@
   import OperonBreakdown from '../lib/components/OperonBreakdown.svelte'
   import PhyloTree from '../lib/components/PhyloTree.svelte'
   import FacetTable from '../lib/components/FacetTable.svelte'
-  import { fitText } from '../lib/actions/fitText'
-  import { fitMeasure } from '../lib/actions/fitMeasure'
+  import PageHeader from '../lib/components/PageHeader.svelte'
 </script>
 
 <section class="space-y-6">
-  <!-- Banner (PLAN §8 responsive): fitText hero title; the two intro leads run the
-       FULL banner width with `fitMeasure` scaling each line's font to a steady reading
-       measure — they fill the band at every width instead of locking to a narrow ribbon. -->
-  <header>
-    <h1 use:fitText={{ minPx: 18 }} class="text-hero text-ink">Dashboard</h1>
-    <div class="mt-2 space-y-2">
-      <p use:fitMeasure class="text-lead text-body">
-        A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in a bacterial
-        mRNA leader that senses whether its cognate tRNA is charged with its amino acid, switching the
-        downstream gene on when that amino acid is scarce. A
-        <strong class="font-medium text-ink">tandem</strong> locus stacks two or more T-box elements in one
-        leader — this explorer covers all 470 such loci.
-      </p>
-      <p use:fitMeasure class="text-lead text-muted">
-        Filter once: every panel and the table update together, so a selection in any chart
-        narrows the whole dashboard live. New here? Start with
-        <a
-          use:link
-          href="/about"
-          class="text-brand underline decoration-brand/30 underline-offset-2 hover:text-brand-strong"
-          >About &amp; method</a
-        > for what a tandem T-box locus is and how these 470 loci were detected.
-      </p>
-    </div>
-  </header>
+  <!-- Masthead (PLAN §8): the shared PageHeader — kicker, fitText hero, then a two-step
+       intro. The first paragraph is the LEAD (the definition); the second is a smaller
+       helper note, so the intro itself reads top-down (lead > helper) and both sit below
+       the section titles that follow. Prose is held to a readable measure, not the band. -->
+  <PageHeader kicker="Overview" title="Dashboard">
+    <p class="max-w-measure text-lead text-body">
+      A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in a bacterial
+      mRNA leader that senses whether its cognate tRNA is charged with its amino acid, switching the
+      downstream gene on when that amino acid is scarce. A
+      <strong class="font-medium text-ink">tandem</strong> locus stacks two or more T-box elements in one
+      leader — this explorer covers all 470 such loci.
+    </p>
+    <p class="mt-3 max-w-measure text-small text-muted">
+      Filter once: every panel and the table update together, so a selection in any chart
+      narrows the whole dashboard live. New here? Start with
+      <a
+        use:link
+        href="/about"
+        class="text-brand underline decoration-brand/30 underline-offset-2 hover:text-brand-strong"
+        >About &amp; method</a
+      > for what a tandem T-box locus is and how these 470 loci were detected.
+    </p>
+  </PageHeader>
 
   <KpiStrip />
 

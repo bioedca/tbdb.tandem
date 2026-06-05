@@ -60,14 +60,13 @@ test.describe('Visual regression', () => {
     // must have rendered so the mask covers real charts, never a leftover spinner.
     await expect(page.locator('.js-plotly-plot')).toHaveCount(5)
     await fontsReady(page)
-    // The banner title (`use:fitText`) and the two intro leads (`use:fitMeasure`) size
-    // themselves with pretext once fonts settle; await their `data-fitted` settle signal
-    // so the snapshot captures the final sizes, never a mid-fit frame (PLAN §8 responsive).
+    // The PageHeader hero (`use:fitText`) sizes itself with pretext once fonts settle; await its
+    // `data-fitted` settle signal so the snapshot captures the final size, never a mid-fit frame.
+    // The intro lead + helper hold a static reading measure (no fit), so fonts-ready covers them.
     await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toHaveAttribute(
       'data-fitted',
       '',
     )
-    await expect(page.locator('section.space-y-6 > header p[data-fitted]')).toHaveCount(2)
     await expect(page).toHaveScreenshot('dashboard.png', {
       fullPage: true,
       mask: [page.locator('.js-plotly-plot'), page.locator('.tv-phylotree')],

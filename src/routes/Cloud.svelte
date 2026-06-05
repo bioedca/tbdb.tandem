@@ -4,12 +4,14 @@
   // viewer, which is lazy (three is dynamically imported; cloud.json is lazy-fetched).
   import SimilarityCloud from '../lib/components/SimilarityCloud.svelte'
   import NoPolarityBanner from '../lib/components/NoPolarityBanner.svelte'
+  import PageHeader from '../lib/components/PageHeader.svelte'
 </script>
 
-<section class="space-y-4">
-  <header>
-    <h1 class="text-h1 text-ink">Similarity cloud</h1>
-    <p class="mt-1 max-w-measure text-lead text-muted">
+<section class="space-y-6">
+  <!-- Masthead (PLAN §8): shared PageHeader — same hero tier as every other page (this
+       title was previously a smaller `text-h1`, breaking the page-title hierarchy). -->
+  <PageHeader kicker="Sequence similarity · 3D" title="Similarity cloud">
+    <p class="max-w-measure text-lead text-muted">
       A 3D view of the same Stem I sequence-similarity relationships as the 2D map — embedded so that
       points which sit close together have similar Stem I sequences. A flat 2D layout can only show a
       fraction of that structure (the dense Firmicutes core becomes an unreadable hairball precisely
@@ -19,7 +21,7 @@
       carries, and the spread slider to gently de-pile the crowded core for clicking — a navigation
       aid, never a measurement.
     </p>
-  </header>
+  </PageHeader>
 
   <NoPolarityBanner />
 

@@ -11,6 +11,7 @@
   import { swatchBackground } from '../lib/color'
   import { def } from '../lib/glossary'
   import Card from '../lib/components/Card.svelte'
+  import PageHeader from '../lib/components/PageHeader.svelte'
   import InfoTip from '../lib/components/InfoTip.svelte'
   import Badge from '../lib/components/Badge.svelte'
   import Spinner from '../lib/components/Spinner.svelte'
@@ -39,7 +40,7 @@
   }
 </script>
 
-<section class="space-y-5">
+<section class="space-y-6">
   <a use:link href="/browse" class="inline-flex items-center gap-1 text-small text-brand hover:text-brand-strong">
     <svg viewBox="0 0 16 16" class="size-3.5" aria-hidden="true">
       <path d="M10 3.5L5.5 8l4.5 4.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
@@ -55,11 +56,13 @@
       </p>
     </Card>
   {:else}
-    <!-- Header: identity + at-a-glance chips -->
-    <header class="space-y-2">
-      <div class="flex flex-wrap items-center gap-3">
-        <h1 class="text-h1 font-mono text-ink">{locus.tandem_id}</h1>
-        <span class="inline-flex items-center gap-1.5 rounded-sm border border-hairline bg-surface px-2 py-0.5 text-small">
+    <!-- Masthead (PLAN §8): the locus ID is the page title — the same hero tier as every
+         other page, in the mono face. The specifier / confidence / type / element-count
+         chips and the organism line are header meta below it (previously the ID was a small
+         inline `text-h1`, breaking the page-title hierarchy). -->
+    <PageHeader kicker="Tandem locus" title={locus.tandem_id} mono titleMinPx={22}>
+      <div class="flex flex-wrap items-center gap-2 text-small">
+        <span class="inline-flex items-center gap-1.5 rounded-sm border border-hairline bg-surface px-2 py-0.5">
           <span
             class="size-3 rounded-sm ring-1 ring-ink/10"
             style:background={swatchBackground(locus.specifier_aa)}
@@ -76,23 +79,23 @@
           <Badge variant={locus.confidence === 'high' ? 'high' : 'low'} />
         {/if}
         <span
-          class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-small text-muted"
+          class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-muted"
           title={def('regulation_type')}
         >
           {locus.type}
         </span>
         <span
-          class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-small text-muted"
+          class="rounded-sm border border-hairline bg-surface px-2 py-0.5 text-muted"
           title="Number of T-box elements in this tandem locus."
         >
           {locus.n_cores} elements
         </span>
       </div>
-      <p class="text-body text-body">
-        {locus.organism ?? '—'}
+      <p class="mt-2.5 text-lead text-body">
+        <em class="font-medium text-ink">{locus.organism ?? '—'}</em>
         {#if locus.phylum}<span class="text-muted"> · {locus.phylum}</span>{/if}
       </p>
-    </header>
+    </PageHeader>
 
     <!-- Locus key fields -->
     <Card title="Locus">
