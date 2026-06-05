@@ -51,6 +51,7 @@ export const type = {
   display: ['clamp(1.6rem, 1.1rem + 2.2vw, 2.25rem)', '2.5rem'], // ≈26→36 / 40 — page hero
   h1: ['clamp(1.3rem, 1.15rem + 0.9vw, 1.5rem)', '2rem'], // ≈21→24 / 32
   h2: ['1.25rem', '1.75rem'], // 20/28
+  lead: ['clamp(0.9375rem, 0.85rem + 0.55vw, 1.1875rem)', '1.6'], // ≈15→19 — fluid intro/lead prose
   body: ['1rem', '1.5rem'], // 16/24 — base default
   small: ['0.875rem', '1.25rem'], // 14/20
   caption: ['0.75rem', '1rem'], // 12/16
@@ -86,4 +87,5 @@ export const motion = {
 export const layout = {
   maxWidth: '90rem', // 1440px content container
   gutter: '1.5rem', // 24px grid gutter
+  measure: '56ch', // fluid reading measure for body prose (→ `max-w-measure`)
 } as const

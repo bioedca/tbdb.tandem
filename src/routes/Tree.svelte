@@ -9,7 +9,7 @@
 <section class="space-y-4">
   <header>
     <h1 class="text-h1 text-ink">Similarity map</h1>
-    <p class="mt-1 max-w-3xl text-small text-muted">
+    <p class="mt-1 max-w-measure text-lead text-muted">
       An unrooted map that groups the tandem T-box riboswitches by how alike their Stem I sequences are —
       Stem I being the part of the RNA that carries the specifier codon, which base-pairs the cognate
       tRNA's anticodon to set the amino acid the riboswitch senses. It has no time axis and no outgroup,

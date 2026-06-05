@@ -169,7 +169,7 @@ export const PHYLUM_COUNT_RAMP: [number, string][] = [
  */
 export const FUNC_CLASS_SHADE: Record<FuncClass, string> = {
   aaRS: '#4767ad', // muted blue
-  biosynthesis: '#34685f', // deep muted teal-green (the most common class → also the bar-legend backdrop)
+  biosynthesis: '#34685f', // deep muted teal-green (the most common class)
   transporter: '#cdb07a', // muted sand/gold (light)
   oxidoreductase: '#8a5285', // muted plum
   unknown: '#c4ccd6', // quiet cool grey (light)

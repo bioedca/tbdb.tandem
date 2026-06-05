@@ -7,7 +7,7 @@
 <section class="space-y-5">
   <header>
     <h1 class="text-h1 text-ink">Browse</h1>
-    <p class="mt-1 text-small text-muted">
+    <p class="mt-1 max-w-measure text-lead text-muted">
       All 470 tandem T-box loci — sort any column, stack facet filters, search, and export the
       current selection as CSV. Click a row for its locus detail.
     </p>
