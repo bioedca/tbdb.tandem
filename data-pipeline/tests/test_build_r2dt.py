@@ -341,16 +341,22 @@ def test_ladder_hairpin_rejects_multiloop_and_empty():
     assert br._ladder_hairpin("..........") is None
 
 
-def test_graft_member_antiterminator_renders_as_straight_ladder():
+def test_graft_member_antiterminator_renders_as_straight_overlap_free_ladder():
     # End to end (no ViennaRNA): graft a member whose antiterminator is the canonical
-    # hairpin, then assert the FINAL committed coordinates keep the rails collinear /
-    # parallel, the bulge spread, and the backbone continuous.
-    wa = "." * 19 + _CANONICAL_AT + "." * 6  # AT occupies residues 20..54 of a 60-nt leader
-    member = {"whole_antiterm_structure": wa, "stems": [{"key": "at", "start": 20, "end": 54}]}
+    # hairpin, then assert the FINAL committed coordinates render it as a recognisable,
+    # OVERLAP-FREE straight ladder. graft folds the AT into a collinear ladder; the declash
+    # pass then resolves any glyph collisions. declash anchors paired (helix) residues hard,
+    # so a normal AT (with the structured flanks every real leader has) stays crisp -- only
+    # the unanchored single strands flow apart. (The corpus-wide guarantee -- 0 hard clashes,
+    # median helix-rail deviation ~0.1 of a step -- is enforced by the build over all 792
+    # members; this test pins the mechanism end to end on one element.)
+    wa = "..." + _CANONICAL_AT + "..."  # AT with short structured-like flanks (not a long free tail)
+    n = len(wa)
+    member = {"whole_antiterm_structure": wa, "stems": [{"key": "at", "start": 4, "end": 3 + len(_CANONICAL_AT)}]}
     raw = {
-        "seq": "ACGU" * 15,
-        "x": [float(i * 12) for i in range(60)],
-        "y": [0.0] * 60,
+        "seq": ("ACGU" * (n // 4 + 1))[:n],
+        "x": [float(i * 12) for i in range(n)],
+        "y": [0.0] * n,
         "pairs": [],
         "template": "T-box",
         "source": "Rfam",
@@ -358,17 +364,63 @@ def test_graft_member_antiterminator_renders_as_straight_ladder():
     out = br.graft_member(raw, member)
     assert out is not None
     xs, ys = out["x"], out["y"]
-    xy = {i: (xs[i - 1], ys[i - 1]) for i in range(1, 61)}
+    xy = {i: (xs[i - 1], ys[i - 1]) for i in range(1, n + 1)}
     pt = br._pair_table(wa)
-    five = [i for i in range(20, 55) if 0 < i < pt[i]]
+    five = [i for i in range(4, 4 + len(_CANONICAL_AT)) if 0 < i < pt[i]]
     three = [pt[i] for i in five]
     step = br._median_step([0.0] + xs, [0.0] + ys)
 
     r5, a5 = _rail(xy, five)
     r3, a3 = _rail(xy, three)
-    assert r5 < 0.05 * step and r3 < 0.05 * step
-    assert _parallel_deg(a5, a3) < 2.0
+    assert r5 < 0.15 * step and r3 < 0.15 * step  # rails stay (approximately) straight under declash
+    assert _parallel_deg(a5, a3) < 3.0  # and parallel
+    # declash leaves NO glyph-on-glyph overlap: every non-adjacent pair is >= ~half a step apart
+    mind = min(
+        math.hypot(xs[i - 1] - xs[j - 1], ys[i - 1] - ys[j - 1]) / step
+        for i in range(1, n + 1)
+        for j in range(i + 2, n + 1)
+    )
+    assert mind >= 0.5
     assert _max_step_ratio(out) < br.GRAFT_MAX_STEP_RATIO  # continuous backbone
+
+
+def test_declash_separates_overlap_and_keeps_helix_rigid():
+    # declash must (a) push apart two non-adjacent residues dropped on top of each other and
+    # (b) leave a base-paired helix essentially straight (paired residues are anchored hard).
+    n = 12
+    xs = [0.0] + [float(i * 10) for i in range(n)]  # 1-based, even 10u backbone
+    ys = [0.0] + [0.0] * n
+    xs[8], ys[8] = xs[2], ys[2]  # collapse residue 8 onto residue 2 (non-adjacent, unpaired)
+    pairs = [(3, 11), (4, 10)]  # a little 2-bp helix
+    dx, dy = br._declash(xs, ys, pairs, n)
+    step = br._median_step(dx, dy)
+    assert math.hypot(dx[2] - dx[8], dy[2] - dy[8]) >= 0.5 * step  # overlap resolved
+    assert all(math.isfinite(v) for v in dx[1 : n + 1] + dy[1 : n + 1])
+    assert not br._has_hard_clash(dx, dy, n)  # no residual glyph-on-glyph overlap
+
+
+def test_has_hard_clash_flags_only_real_overlap():
+    n = 6
+    xs = [0.0] + [float(i * 10) for i in range(n)]
+    ys = [0.0] + [0.0] * n
+    assert not br._has_hard_clash(xs, ys, n)  # evenly spaced -> no clash
+    xs[5], ys[5] = xs[1], ys[1]  # residue 5 onto residue 1 (non-adjacent)
+    assert br._has_hard_clash(xs, ys, n)
+
+
+def test_aspect_matches_bounding_box():
+    # points (0,0), (40,0), (40,10) -> a 40x10 bounding box -> aspect 4.0
+    xs = [0.0, 0.0, 40.0, 40.0]  # 1-based [1..3]
+    ys = [0.0, 0.0, 0.0, 10.0]
+    assert br._aspect(xs, ys, 3) == pytest.approx(4.0)
+
+
+def test_fill_is_disc_coverage_of_bbox():
+    # 3 residues, 10u backbone step, in a 10x10 box -> three r=0.44*10 discs over area 100.
+    # _fill is the wasteful-layout signal that routes a sprawled diagram to NAView.
+    xs = [0.0, 0.0, 10.0, 10.0]  # 1-based [1..3]; steps 10,10 -> median 10
+    ys = [0.0, 0.0, 0.0, 10.0]
+    assert br._fill(xs, ys, 3) == pytest.approx(3 * math.pi * (0.44 * 10) ** 2 / (10 * 10), rel=1e-6)
 
 
 def test_place_tail_preserves_curve_shape():

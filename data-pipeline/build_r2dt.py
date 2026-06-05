@@ -54,6 +54,8 @@ import math
 import sys
 from pathlib import Path
 
+import numpy as np
+
 #: RNA nucleotide alphabet R2DT emits (drops the ``5'``/``3'`` end-marker entries).
 _NT = frozenset("ACGU")
 
@@ -63,6 +65,25 @@ _NT = frozenset("ACGU")
 #: empirically: the standard T-box helix-junction kink is ~3.5-4x; the pathological
 #: big-circle layouts are >=5x. See PROGRESS (graft step).
 GRAFT_MAX_STEP_RATIO = 5.0
+
+#: A grafted+declashed diagram whose aspect ratio reaches this is re-laid on a compact
+#: NAView layout instead of keeping R2DT's arrangement. Past ~2.3 the far-flung template
+#: graft (antiterminator radiated outward + a long reflowed connector) wastes most of the
+#: drawing box and shrinks every glyph below readable size EVEN THOUGH declash removed the
+#: overlaps; a fresh NAView layout (same base pairs, so the stem-colour overlay still
+#: indexes correctly) packs the molecule compactly. Set from a visual-judge panel that
+#: preferred declash 18/19 but flipped to NAView exactly on the elongated tail; only ~1.5%
+#: of members clear this gate. See PROGRESS (declash step).
+ASPECT_RELAYOUT = 2.3
+
+#: ...and a diagram whose declashed FILL (ink-disc area / bounding-box area) drops to this is
+#: ALSO re-laid on NAView. A low fill is the signature of the other unreadable failure mode:
+#: a layout that is not especially elongated (so it slips under ASPECT_RELAYOUT) but is sprayed
+#: across the box -- two clusters joined by a long single-strand connector, most of the box
+#: empty -- so every glyph still renders tiny (e.g. T0324.m2: aspect 1.36 but fill 0.043).
+#: ~bottom 2% of the declashed fill distribution (median ~0.067); with ASPECT_RELAYOUT this
+#: routes ~4% of members to the compact NAView layout.
+FILL_RELAYOUT = 0.045
 
 
 def to_rna(seq: str) -> str:
@@ -444,6 +465,176 @@ def _naview_hairpin(subdot: str) -> tuple[list[float], list[float]]:
     return [co[k].X for k in range(len(subdot))], [co[k].Y for k in range(len(subdot))]
 
 
+# --- overlap resolution (declash) -------------------------------------------
+#
+# R2DT's base Stem I/II/III coordinates are kept verbatim by `graft`, and the AT graft +
+# single-strand reflow place each region by LOCAL rules (radiate outward, bow away from the
+# centroid) with no GLOBAL collision check -- so non-adjacent residues routinely land on top
+# of each other (measured: hard glyph-on-glyph clashes in 85.6% of the raw committed
+# diagrams). `_declash` resolves that with a position-based relaxation: a few hundred passes
+# of (1) pairwise repulsion that pushes any two non-bonded residues closer than ~one glyph
+# diameter apart, (2) hard distance constraints that hold the backbone step and every
+# base-pair RUNG at its rest length (so helices stay rigid -- this is what keeps the
+# recognisable shape, unlike a force layout), and (3) a gentle pull back toward the input
+# coordinates (the shape anchor). Run over the whole corpus it takes 85.6% -> 0 hard clashes
+# while leaving the aspect ratio essentially unchanged.
+
+
+def _declash(
+    xs: list[float],
+    ys: list[float],
+    pairs: list,
+    n: int,
+    *,
+    anchor_paired: float = 0.7,
+    anchor_unpaired: float = 0.0,
+    iters: int = 200,
+    dmin_factor: float = 1.12,
+    final_spread: int = 40,
+) -> tuple[list[float], list[float]]:
+    """Separate colliding nucleotides while holding the backbone + base-pair rungs rigid.
+
+    Position-based dynamics on 1-based ``xs``/``ys`` (``[1..n]``; index 0 unused, matching
+    ``graft_member``). ``dmin_factor`` is the minimum non-bonded centre spacing in units of
+    the median backbone step (~one glyph diameter); ``final_spread`` extra passes at a
+    slightly larger radius clear the last stubborn clashes. Returns new 1-based lists.
+
+    The shape anchor is PER RESIDUE: base-paired (helix) residues are pulled hard toward
+    their input position (``anchor_paired`` ~0.7) while unpaired residues (loops / single
+    strands) are free (``anchor_unpaired`` ~0). A helix therefore moves as a near-rigid body
+    -- it TRANSLATES out of a collision (the loops that tether it flex) but does not BEND, so
+    the recognisable straight ladders R2DT / the graft drew stay crisp. (Tuned over the
+    corpus: 0 hard clashes with helix-rail deviation back down to ~0.1 of a backbone step.)
+    """
+    P = np.array([[xs[i], ys[i]] for i in range(1, n + 1)], dtype=float)
+    O = P.copy()
+    L = _median_step(xs, ys)
+    dmin = dmin_factor * L
+    # bonded = backbone neighbours + base pairs: pairs that are SUPPOSED to be close, so
+    # repulsion skips them and the distance constraints hold them at their rest length.
+    bonded = np.zeros((n, n), dtype=bool)
+    for i in range(n - 1):
+        bonded[i, i + 1] = bonded[i + 1, i] = True
+    is_paired = np.zeros(n, dtype=bool)
+    rest = []  # (i0, j0, rung_rest_length)
+    for a, b in pairs:
+        i, j = (a - 1, b - 1) if a < b else (b - 1, a - 1)
+        bonded[i, j] = bonded[j, i] = True
+        is_paired[i] = is_paired[j] = True
+        rest.append((i, j, math.hypot(xs[a] - xs[b], ys[a] - ys[b]) or L))
+    aw = np.where(is_paired, anchor_paired, anchor_unpaired)[:, None]  # per-residue anchor
+    nb_i, nb_j = np.where(np.triu(~bonded, k=1))  # non-bonded pairs (each once)
+    bb_i = np.arange(n - 1)
+    bb_j = np.arange(1, n)
+    rp = np.array([(i, j) for i, j, _ in rest]) if rest else np.zeros((0, 2), dtype=int)
+    rr = np.array([r for _, _, r in rest]) if rest else np.zeros(0)
+
+    def _pass(dm: float) -> None:
+        nonlocal P
+        # (1) repulsion: push apart any non-bonded pair closer than dm
+        d = P[nb_j] - P[nb_i]
+        dist = np.hypot(d[:, 0], d[:, 1])
+        m = dist < dm
+        if m.any():
+            mi, mj, dd = nb_i[m], nb_j[m], d[m]
+            di = dist[m].copy()
+            di[di < 1e-6] = 1e-6  # coincident -> nudge along an arbitrary axis next pass
+            push = ((dm - di) / di * 0.5)[:, None] * dd
+            np.add.at(P, mi, -push)
+            np.add.at(P, mj, push)
+        # (2) distance constraints (two sub-passes): backbone step -> L, rungs -> rest length
+        for _ in range(2):
+            d = P[bb_j] - P[bb_i]
+            di = np.hypot(d[:, 0], d[:, 1])
+            di[di < 1e-6] = 1e-6
+            c = ((di - L) / di * 0.5)[:, None] * d
+            np.add.at(P, bb_i, c)
+            np.add.at(P, bb_j, -c)
+            if len(rp):
+                d = P[rp[:, 1]] - P[rp[:, 0]]
+                di = np.hypot(d[:, 0], d[:, 1])
+                di[di < 1e-6] = 1e-6
+                c = ((di - rr) / di * 0.5)[:, None] * d
+                np.add.at(P, rp[:, 0], c)
+                np.add.at(P, rp[:, 1], -c)
+        # (3) per-residue shape anchor: helices pulled hard toward input (stay straight),
+        # loops/single strands free to flow apart.
+        P += (O - P) * aw
+
+    for _ in range(iters):
+        _pass(dmin)
+    for _ in range(final_spread):
+        _pass(dmin * 1.18)
+    out_x = [0.0] + [float(P[i, 0]) for i in range(n)]
+    out_y = [0.0] + [float(P[i, 1]) for i in range(n)]
+    return out_x, out_y
+
+
+def _aspect(xs: list[float], ys: list[float], n: int) -> float:
+    """Bounding-box aspect ratio (long side / short side) of 1-based ``xs``/``ys[1..n]``."""
+    bw = max(xs[1 : n + 1]) - min(xs[1 : n + 1])
+    bh = max(ys[1 : n + 1]) - min(ys[1 : n + 1])
+    return max(bw, bh) / (min(bw, bh) or 1.0)
+
+
+def _fill(xs: list[float], ys: list[float], n: int) -> float:
+    """Fraction of the bounding box covered by the nucleotide discs (each drawn ~0.44 of the
+    median step in radius). Low fill = a sparse, space-wasting layout where glyphs render
+    tiny no matter the figure size. 1-based ``xs``/``ys[1..n]``."""
+    bw = max(xs[1 : n + 1]) - min(xs[1 : n + 1])
+    bh = max(ys[1 : n + 1]) - min(ys[1 : n + 1])
+    r = 0.44 * _median_step(xs, ys)
+    return n * math.pi * r * r / ((bw * bh) or 1.0)
+
+
+def _has_hard_clash(xs: list[float], ys: list[float], n: int) -> bool:
+    """True if any two NON-adjacent nucleotides sit closer than half a backbone step.
+
+    A glyph is drawn ~0.44 steps in radius, so centres < 0.5 step apart overlap visibly.
+    Strong helix anchoring keeps ladders crisp but can leave a residual clash on a couple of
+    members where a rigid arm could not fully translate clear; those route to NAView instead
+    (which lays the whole molecule out fresh and overlap-free). 1-based ``xs``/``ys[1..n]``.
+    """
+    if n < 3:
+        return False
+    P = np.array([[xs[i], ys[i]] for i in range(1, n + 1)], dtype=float)
+    L = _median_step(xs, ys)
+    d = np.hypot(P[:, 0, None] - P[None, :, 0], P[:, 1, None] - P[None, :, 1])
+    return bool((d[np.triu_indices(n, k=2)] < 0.5 * L).any())
+
+
+def _naview_relayout(
+    xs: list[float], ys: list[float], pairs: list, n: int
+) -> tuple[list[float], list[float]] | None:
+    """Re-lay a too-elongated diagram on a compact NAView layout, then declash.
+
+    Builds the (nested) dot-bracket from the grafted ``pairs`` and lays the WHOLE molecule
+    out with ViennaRNA's NAView (lazy import; the existing graft dependency). Because the
+    base pairs are unchanged, the leader-relative stem spans still index the new coordinates,
+    so the client-side stem-colour overlay stays aligned. Returns new 1-based ``(xs, ys)``,
+    or ``None`` on any layout failure (a pseudoknotted pair set, a NAView error) so the
+    caller keeps the declashed R2DT layout.
+    """
+    try:
+        import RNA  # build-time-only dependency; never imported by the frontend/runtime
+
+        dot = ["."] * n
+        for a, b in pairs:
+            i, j = (a, b) if a < b else (b, a)
+            dot[i - 1] = "("
+            dot[j - 1] = ")"
+        co = RNA.naview_xy_coordinates("".join(dot))
+        nx = [0.0] + [float(co[k].X) for k in range(n)]
+        ny = [0.0] + [float(co[k].Y) for k in range(n)]
+        if any(not math.isfinite(v) for v in nx[1:] + ny[1:]):
+            return None
+        # NAView already lays straight helices; declash (helices anchored) clears any
+        # residual loop crowding without bending them.
+        return _declash(nx, ny, pairs, n, iters=160, final_spread=30)
+    except Exception:
+        return None
+
+
 def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP_RATIO) -> dict | None:
     """Graft a real antiterminator hairpin onto one raw R2DT compact diagram.
 
@@ -556,6 +747,22 @@ def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP
     final = sorted(math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(2, n + 1))
     fmed = final[len(final) // 2] if final else 1.0
     if final and final[-1] / (fmed or 1.0) >= max_step_ratio:
+        return None
+
+    # Resolve glyph-on-glyph overlaps (the graft keeps R2DT's base layout + reflows single
+    # strands by local rules, so non-adjacent residues collide); declash holds helices rigid
+    # and preserves the recognisable shape. A handful of members stay so elongated that even
+    # the clash-free layout is unreadable -- re-lay just those on a compact NAView layout.
+    xs, ys = _declash(xs, ys, pairs, n)
+    if (
+        _aspect(xs, ys, n) >= ASPECT_RELAYOUT
+        or _fill(xs, ys, n) <= FILL_RELAYOUT
+        or _has_hard_clash(xs, ys, n)
+    ):
+        relaid = _naview_relayout(xs, ys, pairs, n)
+        if relaid is not None:
+            xs, ys = relaid
+    if any(not math.isfinite(v) for v in xs[1 : n + 1] + ys[1 : n + 1]):
         return None
 
     return {

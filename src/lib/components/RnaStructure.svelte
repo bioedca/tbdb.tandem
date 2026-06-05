@@ -36,7 +36,7 @@
   } from '../color'
   import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
-  import R2dtDiagram from './R2dtDiagram.svelte'
+  import R2dtViewport from './R2dtViewport.svelte'
   import { leaderRnaModel, terminatorRnaModel, varnaLink, type RnaModel } from '../rna'
   import { overlayFeatures } from '../sequence'
   import { loadFornac, type FornaContainerCtor } from '../fornac'
@@ -283,7 +283,8 @@
   // zoom only cancels the page-scroll default for wheel-down, so wheel-up zooms AND
   // scrolls the window. Cancel the default ourselves in BOTH directions with a
   // non-passive listener — fornac still zooms; only the page scroll is suppressed.
-  // (The R2DT diagram is a static SVG and does not capture the wheel.)
+  // (The R2DT viewer manages its own wheel-zoom + page-scroll suppression in
+  // R2dtViewport, so this lockWheel applies only to the fornac host.)
   function lockWheel(node: HTMLElement) {
     const onWheel = (e: WheelEvent) => e.preventDefault()
     node.addEventListener('wheel', onWheel, { passive: false })
@@ -416,7 +417,7 @@
       {#if view === 'r2dt'}
         {#if showR2dt && r2dtData}
           <div class="h-full w-full p-2">
-            <R2dtDiagram
+            <R2dtViewport
               diagram={r2dtData}
               stems={member.stems}
               {features}

@@ -30,6 +30,8 @@
     stems = [],
     features = [],
     variant = 'antiterm',
+    viewBoxOverride = null,
+    lettersOverride = null,
   }: {
     diagram: R2dtDiagram
     stems?: MemberStem[]
@@ -37,6 +39,14 @@
     /** 'antiterm' = the RF00230 stems + motif overlay; 'terminator' = the standalone
      *  terminator hairpin, coloured purely by its own pairing (no stems/motifs apply). */
     variant?: 'antiterm' | 'terminator'
+    /** Optional SVG `viewBox` string. When set (by R2dtViewport's zoom/pan), it
+     *  replaces the auto full-extent box so the wrapper controls the visible window;
+     *  glyph sizes stay in diagram units, so zooming in enlarges them on screen. */
+    viewBoxOverride?: string | null
+    /** Optional override for letter visibility. When set (by R2dtViewport's
+     *  container-aware sizing) it wins over the length heuristic, so letters appear
+     *  whenever the on-screen glyph is large enough — at any molecule length. */
+    lettersOverride?: boolean | null
   } = $props()
 
   const n = $derived(diagram.seq.length)
@@ -50,7 +60,8 @@
   const featureSet = $derived(
     variant === 'terminator' ? new Set<number>() : featurePositions(stems, n, features),
   )
-  const viewBox = $derived(diagramViewBox(diagram))
+  // Full-extent box by default; R2dtViewport may pass a zoomed/panned window instead.
+  const viewBox = $derived(viewBoxOverride ?? diagramViewBox(diagram).join(' '))
   const spacing = $derived(nucleotideSpacing(diagram))
 
   // Glyph/stroke scale derived from the template's own nucleotide spacing so the
@@ -71,14 +82,15 @@
     return segs
   })
 
-  // A readable label: letters only when the fitted glyphs won't be vanishingly
-  // small (long molecules rely on color + shape; tiny letters just add noise).
-  const showLetters = $derived(n <= 360)
+  // A readable label: letters only when the fitted glyphs won't be vanishingly small.
+  // R2dtViewport measures the real on-screen glyph size and passes `lettersOverride`;
+  // standalone (no wrapper), fall back to the molecule-length heuristic.
+  const showLetters = $derived(lettersOverride ?? n <= 360)
 </script>
 
 <svg
   class="h-full w-full"
-  viewBox={viewBox.join(' ')}
+  viewBox={viewBox}
   preserveAspectRatio="xMidYMid meet"
   role="img"
   aria-label="RNA secondary structure (R2DT, canonical T-box template)"
