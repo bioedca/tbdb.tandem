@@ -281,8 +281,11 @@
     border: none;
     background: var(--color-surface);
   }
+  /* Column-label row: a soft palette-blue highlight (brand-subtle) — NOT the cream
+     page background — so the header reads as part of the blue UI chrome and stands
+     clear of the white data rows. Ink text on brand-subtle stays AA-legible. */
   :global(.tv-table .tabulator .tabulator-header) {
-    background: var(--color-surface-subtle);
+    background: var(--color-brand-subtle);
     border-bottom: 1px solid var(--color-hairline);
     color: var(--color-ink);
     font-weight: 600;

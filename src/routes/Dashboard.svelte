@@ -19,23 +19,30 @@
 <section class="space-y-6">
   <header>
     <h1 class="text-h1 text-ink">Dashboard</h1>
-    <p class="mt-2 max-w-3xl text-small text-body">
-      A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in a bacterial
-      mRNA leader that senses whether its cognate tRNA is charged with its amino acid, switching the
-      downstream gene on when that amino acid is scarce. A
-      <strong class="font-medium text-ink">tandem</strong> locus stacks two or more T-box elements in one
-      leader — this explorer covers all 470 such loci.
-    </p>
-    <p class="mt-1.5 max-w-3xl text-small text-muted">
-      Filter once: every panel and the table update together, so a selection in any chart
-      narrows the whole dashboard live. New here? Start with
-      <a
-        use:link
-        href="/about"
-        class="text-brand underline decoration-brand/30 underline-offset-2 hover:text-brand-strong"
-        >About &amp; method</a
-      > for what a tandem T-box locus is and how these 470 loci were detected.
-    </p>
+    <!-- Intro reads as a fluid LEAD (text-lead scales ≈15→19px) capped at the shared
+         reading measure, so each column holds a comfortable line-length and WIDENS
+         with the font instead of locking to an arbitrary 768px. On wide screens the
+         two paragraphs sit side by side to use the horizontal canvas; they stack
+         below xl. (Coherent-readability system — see app.css `--container-measure`.) -->
+    <div class="mt-2 grid gap-x-10 gap-y-2 xl:grid-cols-2">
+      <p class="max-w-measure text-lead text-body">
+        A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in a bacterial
+        mRNA leader that senses whether its cognate tRNA is charged with its amino acid, switching the
+        downstream gene on when that amino acid is scarce. A
+        <strong class="font-medium text-ink">tandem</strong> locus stacks two or more T-box elements in one
+        leader — this explorer covers all 470 such loci.
+      </p>
+      <p class="max-w-measure text-lead text-muted">
+        Filter once: every panel and the table update together, so a selection in any chart
+        narrows the whole dashboard live. New here? Start with
+        <a
+          use:link
+          href="/about"
+          class="text-brand underline decoration-brand/30 underline-offset-2 hover:text-brand-strong"
+          >About &amp; method</a
+        > for what a tandem T-box locus is and how these 470 loci were detected.
+      </p>
+    </div>
   </header>
 
   <KpiStrip />

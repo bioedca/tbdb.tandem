@@ -13,7 +13,7 @@
 
 <div
   role="note"
-  class="flex items-center gap-2 rounded-md border border-hairline bg-surface-subtle px-3 py-2 text-small text-muted"
+  class="flex items-center gap-2 rounded-md border border-hairline bg-surface px-3 py-2 text-small text-muted"
 >
   <svg viewBox="0 0 16 16" class="size-4 shrink-0 text-brand" aria-hidden="true">
     <circle cx="8" cy="8" r="6.75" stroke="currentColor" stroke-width="1.3" fill="none" />

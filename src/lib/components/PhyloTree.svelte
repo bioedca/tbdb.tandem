@@ -470,7 +470,7 @@
         outer ring = phylum (a separate neutral scale; tips with a different ring are the non-Firmicutes minority)
       </span>
     </div>
-    <p class="mt-2 text-caption text-muted">
+    <p class="mt-2 max-w-measure text-caption text-muted">
       An exploratory sequence-similarity map, displayed unrooted — branch positions reflect sequence
       similarity, not ancestry. A long branch is a sequence markedly different from the rest (often a
       non-Firmicutes locus); the dense centre holds many similar ones. Scroll or drag to zoom and pan;

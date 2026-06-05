@@ -5,8 +5,9 @@
   // (text-inferred*) · dotted (no annotation) (§5.3); ② a specifier → func_class
   // SANKEY exposing the observed couplings (TRP→biosynthesis, THR→aaRS, ILE/LEU→
   // biosynthesis); and ③ the regulation `type` shown as CHIPS, never a toggle
-  // (§2.2/§9③). Bar colors + Sankey func_class nodes use the neutral FUNC_CLASS
-  // chrome ramp (never a specifier hue, §8.2); specifier nodes use the data palette.
+  // (§2.2/§9③). Bar colors + Sankey func_class nodes use the muted FUNC_CLASS
+  // categorical chrome palette (distinct hues but low-saturation, kept clear of the
+  // specifier data palette by §8.2); specifier nodes use the data palette.
   //
   // The bars/chips render their COUNTS from `store.selected` (and the Sankey its
   // flows), so the whole panel narrows live with the dashboard (S2.6); the bar AXIS
@@ -49,12 +50,35 @@
   const empty = $derived(store.status === 'ready' && store.selected.length === 0)
 
   // func_source tiers → bar traces (provenance via PATTERN; §5.3). Solid (EC) /
-  // hatched (text-inferred*) / dotted (no annotation).
-  const TIERS: { key: FuncSource; name: string; shape: string }[] = [
-    { key: 'EC', name: 'EC-backed', shape: '' },
-    { key: 'text', name: 'text-inferred*', shape: '/' },
-    { key: 'none', name: 'no annotation', shape: '.' },
-  ]
+  // hatched (text-inferred*) / dotted (no annotation). `kind` keys the custom HTML
+  // legend swatch (Plotly's own legend can't render per-point patterned bars — it
+  // drew the hatch/dot swatches white-on-transparent, i.e. invisible).
+  const TIERS: { key: FuncSource; name: string; shape: string; kind: 'solid' | 'hatched' | 'dotted' }[] =
+    [
+      { key: 'EC', name: 'EC-backed', shape: '', kind: 'solid' },
+      { key: 'text', name: 'text-inferred*', shape: '/', kind: 'hatched' },
+      { key: 'none', name: 'no annotation', shape: '.', kind: 'dotted' },
+    ]
+
+  // Inline background for a legend swatch: the provenance pattern (white fg) over a
+  // neutral slate, so the solid/hatched/dotted SHAPE reads clearly regardless of the
+  // per-func_class bar colors it overlays. Built inline (not a scoped CSS class) so
+  // Svelte can't prune the dynamically-named selector.
+  function swatchStyle(kind: 'solid' | 'hatched' | 'dotted'): string {
+    const base =
+      `display:inline-block;width:24px;height:12px;border-radius:2px;` +
+      `border:1px solid ${neutral.hairline};background-color:${neutral.muted};`
+    if (kind === 'hatched') {
+      return (
+        base +
+        `background-image:repeating-linear-gradient(45deg, transparent 0 2px, ${neutral.surface} 2px 3.5px);`
+      )
+    }
+    if (kind === 'dotted') {
+      return base + `background-image:radial-gradient(${neutral.surface} 0.9px, transparent 1.1px);background-size:4px 4px;`
+    }
+    return base
+  }
 
   // ── Plotly (dynamically imported; §7.1) ─────────────────────────────────────────
   let plotly = $state<PlotlyStatic | null>(null)
@@ -114,6 +138,9 @@
       marker: {
         color: colors,
         line: { color: neutral.surface, width: 1 },
+        // fgcolor is intentionally the surface tone: Plotly drives the per-point bar
+        // pattern color from `marker.color`, so this only ever styled the (now custom)
+        // legend; the bars carry the func_class hue with hatch/dot gaps showing through.
         pattern: tier.shape
           ? { shape: tier.shape, fgcolor: neutral.surface, size: 7, solidity: 0.32 }
           : { shape: '' },
@@ -150,13 +177,10 @@
         tickfont: { family: fontFamily.mono, size: tickPx },
         fixedrange: true,
       },
-      showlegend: true,
-      legend: {
-        orientation: 'h',
-        x: 0,
-        y: 1.16,
-        font: { family: fontFamily.sans, size: 11, color: neutral.muted },
-      },
+      // The provenance key is a custom HTML legend above the chart (see the template):
+      // Plotly's own legend can't render the per-point patterned bars — it drew the
+      // hatch/dot swatches white-on-transparent (invisible). Disable it here.
+      showlegend: false,
     }
     void plotly.react(barEl, data, layout, CONFIG).then(() => {
       if (!barBound) {
@@ -274,10 +298,22 @@
         oxidation–reduction (redox) enzyme · unknown = no annotation.
       </p>
       <p class="mb-2 text-caption text-muted">
-        Classification source — solid = backed by an EC (Enzyme Commission) number · hatched = inferred
-        from the gene's text annotation (<span class="font-mono">*</span>lower confidence) · dotted = no
-        annotation. Click a bar to cross-filter.
+        Classification source — backed by an EC (Enzyme Commission) number · inferred from the gene's
+        text annotation (<span class="font-mono">*</span>lower confidence) · or no annotation. Click a
+        bar to cross-filter.
       </p>
+      <!-- Provenance key (custom HTML — Plotly's own legend renders the per-point
+           patterned bars white-on-transparent, i.e. invisible). The neutral swatches
+           show the solid/hatched/dotted SHAPE; the bars carry the same shapes, tinted
+           per func_class. -->
+      <div class="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-muted">
+        {#each TIERS as tier (tier.key)}
+          <span class="inline-flex items-center gap-1.5">
+            <span style={swatchStyle(tier.kind)} aria-hidden="true"></span>
+            {tier.name}
+          </span>
+        {/each}
+      </div>
       <div class="relative h-[clamp(14rem,34vh,18rem)] w-full">
         <div bind:this={barEl} class="h-full w-full"></div>
         {#if store.status !== 'ready'}
@@ -297,8 +333,8 @@
       <h3 class="mb-1 text-small font-medium text-ink">Specifier → function coupling</h3>
       <p class="mb-2 text-caption text-muted">
         Each band counts the loci whose specifier amino acid (left, colored by amino acid) regulates a
-        given function class (right, neutral grey). Width = number of loci — an observed association, not a
-        cause.
+        given function class (right, in muted function-class colors). Width = number of loci — an observed
+        association, not a cause.
       </p>
       <div class="relative h-[clamp(20rem,50vh,30rem)] w-full">
         <div bind:this={sankeyEl} class="h-full w-full"></div>

@@ -40,14 +40,17 @@
 </script>
 
 {#snippet code(text: string)}
-  <code class="rounded bg-surface-subtle px-1 py-0.5 font-mono text-[0.85em] text-ink"
+  <!-- White inline code (no longer cream); a hairline ring keeps it legible as code
+       on the white card without adding layout-shifting border box. -->
+  <code
+    class="rounded bg-surface px-1 py-0.5 font-mono text-[0.85em] text-ink ring-1 ring-hairline ring-inset"
     >{text}</code
   >
 {/snippet}
 
 {#snippet stat(value: string | number, label: string)}
   <div
-    class="flex flex-col rounded-md border border-hairline bg-surface-subtle px-3 py-2 text-center"
+    class="flex flex-col rounded-md border border-hairline bg-surface px-3 py-2 text-center"
   >
     <span
       use:fitText={{ minPx: 12 }}
@@ -60,14 +63,14 @@
 <section class="space-y-6">
   <header>
     <h1 class="text-h1 text-ink">About &amp; method</h1>
-    <p class="mt-1 max-w-3xl text-small text-muted">
+    <p class="mt-1 max-w-measure text-lead text-muted">
       How the tandem T-box loci shown here are detected, the caveats behind every view, why the
       similarity map is not a phylogeny, and where the data come from.
     </p>
   </header>
 
   <Card title="What this is">
-    <div class="max-w-3xl space-y-3">
+    <div class="max-w-measure space-y-3">
       <p>
         A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in the 5′
         leader of a bacterial mRNA. It binds one specific tRNA and senses whether that tRNA is charged
@@ -101,7 +104,7 @@
     title="How the database is built"
     subtitle="From the raw TBDB master table to the loci shown here — every step is deterministic and scriptable."
   >
-    <div class="max-w-3xl space-y-3">
+    <div class="max-w-measure space-y-3">
       <p>
         The entire dataset is derived from a <strong class="font-medium text-ink">single public
         source file</strong> — the TBDB master table ({@render code('Master_tboxes.csv')}, ≈23,500
@@ -157,7 +160,7 @@
     title="Reproduce it yourself"
     subtitle="One script, one input file — regenerate the entire dataset from scratch."
   >
-    <div class="max-w-3xl space-y-4">
+    <div class="max-w-measure space-y-4">
       <p>
         The whole pipeline above is packaged as a single, self-contained Python script. Point it at
         the public TBDB master table and it regenerates the same loci, elements, pairings, and summary
@@ -183,7 +186,7 @@
         </a>
         <TbdbLink href={scriptUrl} title="View the script source in a new tab">View source</TbdbLink>
       </div>
-      <div class="rounded-md border border-hairline bg-surface-subtle px-4 py-3">
+      <div class="rounded-md border border-hairline bg-surface px-4 py-3">
         <p class="text-small text-muted">
           <span class="font-medium text-ink">Prefer the finished table?</span> Download the
           member-level base table directly — one row per T-box element, every per-element field plus the
@@ -215,7 +218,7 @@
           run:
         </p>
         <pre
-          class="overflow-x-auto rounded-md border border-hairline bg-surface-subtle px-4 py-3 font-mono text-[0.72rem] leading-relaxed text-ink sm:text-[0.8rem]"><code
+          class="overflow-x-auto rounded-md border border-hairline bg-surface px-4 py-3 font-mono text-[0.72rem] leading-relaxed text-ink sm:text-[0.8rem]"><code
             >pip install "pandas&gt;=2.0" "biopython&gt;=1.81"
 
 python3 reproduce_tandem_tbox_db.py \
@@ -233,7 +236,7 @@ python3 reproduce_tandem_tbox_db.py \
           )}.
         </p>
       </div>
-      <div class="rounded-md border border-hairline bg-surface-subtle px-4 py-3 text-small text-muted">
+      <div class="rounded-md border border-hairline bg-surface px-4 py-3 text-small text-muted">
         <span class="font-medium text-ink">Faithful to the published dataset.</span> The
         {s ? s.counts.loci : 470}&nbsp;/&nbsp;{s ? s.counts.members : 949}&nbsp;/&nbsp;{s
           ? s.counts.intra_locus_pairs
@@ -252,7 +255,7 @@ python3 reproduce_tandem_tbox_db.py \
     title="Data caveats"
     subtitle="Read these before drawing conclusions from any panel."
   >
-    <div class="max-w-3xl">
+    <div class="max-w-measure">
       <dl class="space-y-4">
         <div>
           <dt class="font-medium text-ink">Contamination is dropped first.</dt>
@@ -296,7 +299,7 @@ python3 reproduce_tandem_tbox_db.py \
     title="The similarity map is not a phylogeny"
     subtitle="A lab standard: no polarity is read from the tips."
   >
-    <div class="max-w-3xl space-y-3">
+    <div class="max-w-measure space-y-3">
       <NoPolarityBanner />
       <p>
         The tree on the <a
@@ -339,7 +342,7 @@ python3 reproduce_tandem_tbox_db.py \
     title="RNA secondary-structure diagrams"
     subtitle="Two complementary 2° structure renders on every element, both colored by structural domain."
   >
-    <div class="max-w-3xl space-y-3">
+    <div class="max-w-measure space-y-3">
       <p>
         Each element's detail page renders its RNA secondary structure two ways, toggled in place. Both
         color every nucleotide by which structural domain it sits in — Stem&nbsp;I, Stem&nbsp;II,
@@ -370,13 +373,13 @@ python3 reproduce_tandem_tbox_db.py \
   </Card>
 
   <Card title="Provenance &amp; citation">
-    <div class="max-w-3xl space-y-3">
+    <div class="max-w-measure space-y-3">
       <p>
         All data derive from <TbdbLink href="https://tbdb.io">TBDB (tbdb.io)</TbdbLink>, used under
         the CC-BY license. tbdb.tandem adds only the tandem-level views and layout; the underlying
         annotations are TBDB's.
       </p>
-      <p class="rounded-md border border-hairline bg-surface-subtle px-4 py-3 text-small">
+      <p class="rounded-md border border-hairline bg-surface px-4 py-3 text-small">
         Marchand, Pierson Smela, Jordan, Narasimhan &amp; Church (2021). <em
           >TBDB: a database of structurally annotated T-box riboswitch:tRNA pairs.</em
         >

@@ -73,9 +73,10 @@ export const UNKNOWN_SPECIFIER_COLOR = '#9ca3af' // gray-400
  * stem it is. This is its OWN categorical axis — like `PHYLUM_COLORS`, it is NOT
  * part of the chrome⟂specifier disjointness proof. A cool, muted register that
  * harmonizes with the chrome palette and reads distinctly from the saturated 20-AA
- * specifier hues (the two only co-occur as a small per-element tab swatch beside
- * the structure). Keyed by the `stems[].key` the build emits (build_json.py
- * `derive_stems`); ordered biological 5′→3′ through the leader.
+ * specifier hues. These stem colors are ALSO the fill for the feature-highlighted
+ * member sequences (MemberSequence.svelte / sequence.ts), so the sequence view and the
+ * 2D structure read the SAME stem coloring base-for-base. Keyed by the `stems[].key`
+ * the build emits (build_json.py `derive_stems`); ordered biological 5′→3′ through the leader.
  */
 export type StemKey = 'i' | 'ii' | 'iiab' | 'iii' | 'at'
 
@@ -153,18 +154,25 @@ export const PHYLUM_COUNT_RAMP: [number, string][] = [
 ]
 
 /**
- * Regulated-`func_class` CHROME shades (§8.2) — a neutral slate ramp, NEVER a
- * specifier hue, so the downstream-function encoding can never read as a data
- * swatch. Single source of truth: the architecture diagram's downstream-ORF arrow
- * (S2.1) and the operon breakdown's bars + Sankey func_class nodes (S2.5) both read
- * from here, so the same function class is the same shade everywhere.
+ * Regulated-`func_class` CHROME colors (§8.2) — a MUTED categorical palette: five
+ * distinct hues so the function classes are readable at a glance (bars, ORF arrow,
+ * Sankey nodes), but deliberately LOW-saturation (S ≤ ~0.45) so they stay clear of
+ * the vivid 20-AA specifier data palette (S ≥ 0.64) and can never read as a data
+ * swatch. They remain part of the chrome⟂data proof below — `assertChromeDataDisjoint`
+ * gates them less-saturated than every specifier (a saturation, not a hue, margin),
+ * so the func-class encoding is still chrome, just no longer grey. Single source of
+ * truth: the architecture diagram's downstream-ORF arrow (S2.1) and the operon
+ * breakdown's bars + Sankey func_class nodes (S2.5) both read from here, so the same
+ * function class is the same color everywhere. Lightness splits the set into "dark"
+ * (white ORF label: aaRS / biosynthesis / oxidoreductase) and "light" (ink label:
+ * transporter / unknown) — see ArchitectureDiagram `orfDark`.
  */
 export const FUNC_CLASS_SHADE: Record<FuncClass, string> = {
-  aaRS: '#475569', // slate-600
-  biosynthesis: '#64748b', // slate-500
-  transporter: '#94a3b8', // slate-400
-  oxidoreductase: '#334155', // slate-700
-  unknown: '#cbd5e1', // slate-300
+  aaRS: '#4767ad', // muted blue
+  biosynthesis: '#34685f', // deep muted teal-green (the most common class)
+  transporter: '#cdb07a', // muted sand/gold (light)
+  oxidoreductase: '#8a5285', // muted plum
+  unknown: '#c4ccd6', // quiet cool grey (light)
 }
 
 const AA_SET = new Set(Object.keys(SPECIFIER_COLORS))
@@ -293,8 +301,11 @@ export function withAlpha(hex: string, alpha: number): string {
 const BRAND_ACCENTS: string[] = [brand.accent, brand.accentStrong, brand.accentSubtle, brand.onDark]
 
 /**
- * The ink/slate NEUTRAL chrome. Separated from data by being less saturated than
- * ANY specifier — the §8.2 "ink/slate neutral base" vs the chromatic data palette.
+ * The low-saturation chrome set: the ink/slate neutral base PLUS the muted
+ * func_class categorical hues. Every member is separated from data by being less
+ * saturated than ANY specifier — the §8.2 "neutral/muted base stays clear of the
+ * chromatic data palette". (The func_class colors carry hue but, capped well below
+ * the least-saturated specifier, still read as chrome rather than a data swatch.)
  */
 const CHROME_NEUTRALS: string[] = [
   neutral.ink,
@@ -303,9 +314,9 @@ const CHROME_NEUTRALS: string[] = [
   neutral.hairline,
   neutral.surface,
   neutral.surfaceSubtle,
-  // The func_class slate ramp (S2.5) is chrome too — prove it disjoint from data
+  // The muted func_class palette (S2.5) is chrome too — prove it disjoint from data
   // alongside the brand/neutral chrome, so a future edit can't drift a func_class
-  // shade into a specifier hue without tripping the dev-time assertion.
+  // color up into specifier saturation without tripping the dev-time assertion.
   ...Object.values(FUNC_CLASS_SHADE),
 ]
 
