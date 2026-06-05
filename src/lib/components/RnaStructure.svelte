@@ -5,9 +5,11 @@
   // from the SAME color.ts palette, and both backed by the guaranteed tbdb.io
   // VARNA deep-link:
   //
-  //   • R2DT      — the canonical RF00230 / T-box template layout (the recognizable,
-  //                 reproducible textbook shape), pre-generated offline and committed
-  //                 under public/data/r2dt/ (data-pipeline/build_r2dt.py), fetched on
+  //   • R2DT      — the RF00230 / T-box template layout (the recognizable, reproducible
+  //                 textbook shape) with a real antiterminator hairpin folded in. The
+  //                 template alone leaves the antiterminator unpaired, so build_r2dt.py's
+  //                 `graft` stage folds it (and reflows the inter-stem single strands)
+  //                 offline; assets are committed under public/data/r2dt/, fetched on
   //                 demand and drawn by R2dtDiagram.svelte. Default when available.
   //   • Fornac    — the legacy 2016 force-directed render of the whole-leader
   //                 antiterminator conformation (best-effort; PLAN §13).
@@ -279,7 +281,7 @@
       <button
         type="button"
         aria-pressed={view === 'r2dt'}
-        title="Canonical RF00230 / T-box template layout (R2DT)"
+        title="RF00230 / T-box template layout (R2DT), antiterminator folded in"
         class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
         class:bg-brand-subtle={view === 'r2dt'}
         class:text-ink={view === 'r2dt'}
@@ -374,8 +376,9 @@
       <p class="inline-flex items-center gap-1 text-caption text-muted">
         {#if showR2dt}
           <span>
-            {r2dtTemplate} template (RF00230) · R2DT — the canonical, reproducible layout; nucleotides
-            are colored by structural domain. The tbdb.io VARNA diagram is the reference drawing.
+            {r2dtTemplate} template (RF00230) · R2DT, with the antiterminator folded in (antiterminator
+            conformation); nucleotides are colored by structural domain. The tbdb.io VARNA diagram is
+            the reference drawing.
           </span>
         {:else if view === 'fornac'}
           <span>

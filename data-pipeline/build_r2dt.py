@@ -9,7 +9,7 @@ pipeline (Infernal + a covariance-model template library) that cannot run in the
 browser, so -- exactly like the similarity tree -- the diagrams are generated
 offline once and committed; the static SPA just fetches and colours them.
 
-Two stages, decoupled by the (gated, offline) R2DT run itself:
+Three stages, decoupled by the (gated, offline) R2DT run itself:
 
   1. ``fasta``  -- emit an R2DT input FASTA (one gap-free RNA leader per canonical
      member, header == ``member_id``) to feed a batch R2DT run
@@ -29,6 +29,15 @@ Two stages, decoupled by the (gated, offline) R2DT run itself:
      ``src/lib/color.ts`` ``STEM_COLORS`` palette the fornac overlay uses, so the
      colours are defined in exactly one place and match across both viewers.
 
+     ``ingest`` writes the *raw* R2DT layout. The combined snapshot of that raw
+     output is committed as ``data-pipeline/r2dt_raw.json`` so the next stage is
+     reproducible without re-running the (gated) R2DT pipeline.
+
+  3. ``graft`` -- post-process the raw layout so the **antiterminator** renders as a
+     real hairpin and the variable inter-stem single strands stop breaking the
+     backbone (see the stage-3 banner below). Reads ``r2dt_raw.json``, writes the
+     final served ``public/data/r2dt/`` assets. This is the stage the app serves.
+
 R2DT's ``residueIndex`` is 1-based over the nucleotides (the ``5'``/``3'`` end
 markers are indices 0 and N+1 and are dropped), the SAME frame as members.json's
 leader-relative stem spans -- so the committed coordinates index the stems
@@ -41,11 +50,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
 #: RNA nucleotide alphabet R2DT emits (drops the ``5'``/``3'`` end-marker entries).
 _NT = frozenset("ACGU")
+
+#: A grafted diagram is rejected (member falls back to fornac) when its longest
+#: backbone step exceeds this multiple of the median step -- i.e. R2DT's own base
+#: layout was too distorted (a big exterior loop) for the graft to rescue. Chosen
+#: empirically: the standard T-box helix-junction kink is ~3.5-4x; the pathological
+#: big-circle layouts are >=5x. See PROGRESS (graft step).
+GRAFT_MAX_STEP_RATIO = 5.0
 
 
 def to_rna(seq: str) -> str:
@@ -191,6 +208,290 @@ def ingest(
     return len(manifest), problems
 
 
+# --- stage 3: graft a real antiterminator hairpin onto the R2DT layout ------
+#
+# R2DT draws the canonical RF00230 / T-box *template* conformation. That template
+# does not base-pair the antiterminator (it is the alternative regulatory fold), so
+# R2DT dumps the AT residues into one big unpaired loop and the variable inter-stem
+# single strands stretch into backbone "breaks". This stage keeps R2DT's coordinates
+# for the recognisable Stem I/II/III, but:
+#   * folds the antiterminator span into a real NAView hairpin (ViennaRNA), oriented
+#     to hang off the backbone where R2DT placed it;
+#   * drops R2DT's template pairs that touch the AT span and substitutes the
+#     antiterminator pairs from ``whole_antiterm_structure`` (the SAME fold fornac
+#     shows) -- so one consistent conformation is drawn, with no cross-region rungs;
+#   * reflows the single-stranded connectors/tails (even circular arcs / straight
+#     dangles) so the backbone is continuous instead of broken.
+# Members whose R2DT *base* layout is too distorted to rescue are rejected (the
+# frontend falls those back to fornac). ViennaRNA is a build-time-only dependency.
+
+
+def _pair_table(dot: str) -> list[int]:
+    """1-based partner table for a dot-bracket string (``pt[i]`` = partner or 0)."""
+    pt = [0] * (len(dot) + 1)
+    stack: list[int] = []
+    for i, ch in enumerate(dot, start=1):
+        if ch == "(":
+            stack.append(i)
+        elif ch == ")" and stack:
+            j = stack.pop()
+            pt[i] = j
+            pt[j] = i
+    return pt
+
+
+def _median_step(xs: list[float], ys: list[float]) -> float:
+    """Median nearest-neighbour backbone step over 1-based coords ``xs[1..n]``."""
+    steps = sorted(math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) for i in range(2, len(xs)))
+    return steps[len(steps) // 2] if steps else 1.0
+
+
+def _loop_half_angle(ratio: float, k: int) -> float:
+    """Half-angle of a circular arc of ``k+1`` equal chords with end-to-end/chord == ratio.
+
+    ``f(theta) = sin(theta) / sin(theta/(k+1))`` decreases monotonically from ``k+1``
+    (theta→0, a straight line) toward 0 (theta→pi), so a value above ``ratio`` means
+    the angle is still too small. Bisects accordingly; ``ratio`` is the caller's
+    chord/median-step and must lie in ``(1, k+1)`` for a solution to exist.
+    """
+    lo, hi = 1e-6, math.pi - 1e-6
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if math.sin(mid) / math.sin(mid / (k + 1)) > ratio:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def _place_arc(xs, ys, s, e, lo, hi, med, cen) -> None:
+    """Spread unpaired run ``xs[s..e]`` on an even arc between anchors ``lo``/``hi``.
+
+    Built as a "turtle" polyline of ``k+1`` equal chords of length ``med`` with a
+    constant turn, so consecutive residues stay ~one median step apart (no break)
+    and the run lands exactly on the far anchor. When the chord is too long for the
+    residue count the arc degenerates to a straight line. The turn direction is
+    chosen so the bulge points away from the layout centroid ``cen``. This turtle
+    form is reflex-safe (the arc may sweep >180° when residues are crammed).
+    """
+    k = e - s + 1
+    p0x, p0y, p1x, p1y = xs[lo], ys[lo], xs[hi], ys[hi]
+    chord = math.hypot(p1x - p0x, p1y - p0y)
+    if chord < 1e-6:
+        return
+    if chord / med >= k + 1:  # residues too sparse to bulge → even straight line
+        for t in range(1, k + 1):
+            f = t / (k + 1)
+            xs[s + t - 1] = p0x + f * (p1x - p0x)
+            ys[s + t - 1] = p0y + f * (p1y - p0y)
+        return
+    theta = _loop_half_angle(chord / med, k)
+    delta = 2 * theta / (k + 1)  # turn per interior vertex
+    chord_dir = math.atan2(p1y - p0y, p1x - p0x)
+    launch = delta * k / 2  # start-tangent offset from the chord (symmetric polyline)
+    best = None
+    for sgn in (1, -1):
+        heading = chord_dir + sgn * launch
+        px, py = p0x, p0y
+        pts, cx_acc, cy_acc = [], 0.0, 0.0
+        for _ in range(k):
+            px += med * math.cos(heading)
+            py += med * math.sin(heading)
+            pts.append((px, py))
+            cx_acc += px
+            cy_acc += py
+            heading -= sgn * delta
+        # pick the turn direction whose bulge (point centroid) sits away from cen
+        bulge_dist = math.hypot(cx_acc / k - cen[0], cy_acc / k - cen[1])
+        if best is None or bulge_dist > best[0]:
+            best = (bulge_dist, pts)
+    for t, (px, py) in enumerate(best[1], start=1):
+        xs[s + t - 1] = px
+        ys[s + t - 1] = py
+
+
+def _place_tail(xs, ys, s, e, anchor, med, n, partner, reverse=False) -> None:
+    """Lay a dangling 5'/3' tail straight along the local backbone exit tangent.
+
+    The anchor is a hairpin base residue; its closing-pair partner gives the exterior
+    tangent (oriented along the backbone flow by the graft's handedness), so the tail
+    leaves the hairpin without crossing it.
+    """
+    ax, ay = xs[anchor], ys[anchor]
+    p = partner.get(anchor)
+    if p is not None:
+        dx, dy = ax - xs[p], ay - ys[p]
+    else:
+        prev = anchor - 1 if not reverse else anchor + 1
+        dx, dy = (ax - xs[prev], ay - ys[prev]) if 1 <= prev <= n else (1.0, 0.0)
+    dl = math.hypot(dx, dy) or 1
+    dx, dy = dx / dl, dy / dl
+    seq = range(s, e + 1) if not reverse else range(e, s - 1, -1)
+    for step, idx in enumerate(seq, start=1):
+        xs[idx] = ax + dx * med * step
+        ys[idx] = ay + dy * med * step
+
+
+def _naview_hairpin(subdot: str) -> tuple[list[float], list[float]]:
+    """NAView local coordinates for the antiterminator sub-structure (lazy ViennaRNA)."""
+    import RNA  # build-time-only dependency; never imported by the frontend/runtime
+
+    co = RNA.naview_xy_coordinates(subdot)
+    return [co[k].X for k in range(len(subdot))], [co[k].Y for k in range(len(subdot))]
+
+
+def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP_RATIO) -> dict | None:
+    """Graft a real antiterminator hairpin onto one raw R2DT compact diagram.
+
+    Returns a grafted compact diagram (same schema as ``ingest``), or ``None`` when
+    R2DT's base layout stayed too distorted (longest backbone step >= ``max_step_ratio``
+    x median) or produced non-finite coordinates -- the caller falls the member back
+    to fornac. Members with no antiterminator pairs are still reflowed and returned.
+    """
+    n = len(raw["seq"])
+    xs = [0.0] + [float(v) for v in raw["x"]]  # 1-based, xs[1..n]
+    ys = [0.0] + [float(v) for v in raw["y"]]
+    rpairs = [tuple(p) for p in raw["pairs"]]
+    pairs = list(rpairs)
+    wapt = _pair_table(member.get("whole_antiterm_structure") or "")
+
+    at = next((s for s in member.get("stems", []) if s["key"] == "at"), None)
+    if at and len(wapt) == n + 1:
+        a, b = at["start"], at["end"]
+        at_pairs = [(i, wapt[i]) for i in range(a, b + 1) if i < wapt[i] <= b]
+        if at_pairs:
+            p_lo = min(i for i, _ in at_pairs)
+            p_hi = max(j for _, j in at_pairs)
+            length = p_hi - p_lo + 1
+            sub = ["."] * length
+            for i, j in at_pairs:
+                sub[i - p_lo] = "("
+                sub[j - p_lo] = ")"
+            lx, ly = _naview_hairpin("".join(sub))
+            # scale the local hairpin to the diagram's own nucleotide spacing
+            med = _median_step(xs, ys)
+            lsteps = sorted(math.hypot(lx[k] - lx[k - 1], ly[k] - ly[k - 1]) for k in range(1, length))
+            lstep = lsteps[len(lsteps) // 2] if lsteps else 1.0
+            sc = med / (lstep or 1.0)
+            lx = [v * sc for v in lx]
+            ly = [v * sc for v in ly]
+            # exterior flow at the AT base (from the nearest paired residue before it)
+            anchored = {r for pr in rpairs for r in pr}
+            before = [r for r in anchored if r < p_lo]
+            pa = max(before) if before else max(1, p_lo - 1)
+            fx, fy = xs[p_lo] - xs[pa], ys[p_lo] - ys[pa]
+            fl = math.hypot(fx, fy) or 1
+            fx, fy = fx / fl, fy / fl
+            cx, cy = sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n
+            perp = next(
+                ((px, py) for px, py in ((-fy, fx), (fy, -fx)) if px * (xs[p_lo] - cx) + py * (ys[p_lo] - cy) >= 0),
+                (-fy, fx),
+            )
+            mid0 = ((lx[0] + lx[length - 1]) / 2, (ly[0] + ly[length - 1]) / 2)
+            cen0 = (sum(lx) / length, sum(ly) / length)
+            axis = (cen0[0] - mid0[0], cen0[1] - mid0[1])
+            rot = math.atan2(perp[1], perp[0]) - math.atan2(axis[1], axis[0])
+            cr, srot = math.cos(rot), math.sin(rot)
+            rx = [lx[k] * cr - ly[k] * srot for k in range(length)]
+            ry = [lx[k] * srot + ly[k] * cr for k in range(length)]
+            # handedness: base(5')->base(3') should align with +flow so the tail exits forward
+            if (rx[length - 1] - rx[0]) * fx + (ry[length - 1] - ry[0]) * fy < 0:
+                ux, uy = perp
+                ul = math.hypot(ux, uy) or 1
+                ux, uy = ux / ul, uy / ul
+                for k in range(length):
+                    dd = rx[k] * ux + ry[k] * uy
+                    rx[k] = 2 * dd * ux - rx[k]
+                    ry[k] = 2 * dd * uy - ry[k]
+            dx, dy = xs[p_lo] - rx[0], ys[p_lo] - ry[0]
+            for k in range(length):
+                xs[p_lo + k] = rx[k] + dx
+                ys[p_lo + k] = ry[k] + dy
+            pairs = [(i, j) for i, j in rpairs if not (a <= i <= b or a <= j <= b)] + at_pairs
+
+    # reflow single-stranded runs that carry a (often graft-induced) backbone break
+    med = _median_step(xs, ys)
+    cen = (sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n)
+    partner: dict[int, int] = {}
+    for i, j in pairs:
+        partner[i] = j
+        partner[j] = i
+    anchored = set(partner)
+    i = 1
+    while i <= n:
+        if i in anchored:
+            i += 1
+            continue
+        j = i
+        while j <= n and j not in anchored:
+            j += 1
+        s, e = i, j - 1
+        lo, hi = s - 1, e + 1
+        ha_lo = lo >= 1 and lo in anchored
+        ha_hi = hi <= n and hi in anchored
+        steps = [math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(max(2, lo + 1), min(n, hi) + 1)]
+        if any(st > 2.2 * med for st in steps):
+            if ha_lo and ha_hi:
+                _place_arc(xs, ys, s, e, lo, hi, med, cen)
+            elif ha_lo:
+                _place_tail(xs, ys, s, e, lo, med, n, partner)
+            elif ha_hi:
+                _place_tail(xs, ys, s, e, hi, med, n, partner, reverse=True)
+        i = j
+
+    coords = xs[1 : n + 1] + ys[1 : n + 1]
+    if any(not math.isfinite(v) for v in coords):
+        return None
+    final = sorted(math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(2, n + 1))
+    fmed = final[len(final) // 2] if final else 1.0
+    if final and final[-1] / (fmed or 1.0) >= max_step_ratio:
+        return None
+
+    return {
+        "seq": raw["seq"],
+        "x": [round(xs[k], 1) for k in range(1, n + 1)],
+        "y": [round(ys[k], 1) for k in range(1, n + 1)],
+        "pairs": sorted([min(i, j), max(i, j)] for i, j in pairs),
+        "template": raw.get("template"),
+        "source": raw.get("source"),
+    }
+
+
+def graft(
+    raw_path: Path, members: dict, out_dir: Path, max_step_ratio: float = GRAFT_MAX_STEP_RATIO
+) -> tuple[int, list[str]]:
+    """Graft every raw R2DT diagram in ``raw_path`` -> committed served assets.
+
+    ``raw_path`` is the combined raw snapshot (``data-pipeline/r2dt_raw.json``, the
+    untouched ``ingest`` output, kept committed so this stage is reproducible without
+    re-running R2DT). Clears stale per-member files in ``out_dir`` first, then writes
+    one grafted ``<member_id>.json`` per kept member plus ``manifest.json``. Returns
+    ``(n_written, dropped)`` where ``dropped`` lists members sent back to fornac.
+    """
+    raw = json.loads(raw_path.read_text())
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for stale in out_dir.glob("*.json"):
+        stale.unlink()
+    manifest: dict[str, dict] = {}
+    dropped: list[str] = []
+    for member_id in sorted(raw):
+        member = members.get(member_id)
+        if member is None:
+            dropped.append(f"{member_id}: not in members.json")
+            continue
+        grafted = graft_member(raw[member_id], member, max_step_ratio)
+        if grafted is None:
+            dropped.append(f"{member_id}: R2DT base layout too distorted -> fornac fallback")
+            continue
+        with (out_dir / f"{member_id}.json").open("w", encoding="utf-8") as fh:
+            json.dump(grafted, fh, separators=(",", ":"), ensure_ascii=True)
+        manifest[member_id] = {"template": grafted["template"], "source": grafted["source"]}
+    manifest_obj = {"count": len(manifest), "diagrams": dict(sorted(manifest.items()))}
+    with (out_dir / "manifest.json").open("w", encoding="utf-8") as fh:
+        json.dump(manifest_obj, fh, separators=(",", ":"), ensure_ascii=True)
+    return len(manifest), dropped
+
+
 # --- CLI --------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
@@ -211,12 +512,28 @@ def main(argv: list[str] | None = None) -> int:
     p_ing.add_argument("--metadata", type=Path, default=None, help="R2DT metadata.tsv (optional)")
     p_ing.add_argument("--out", type=Path, default=default_out, help="public/data/r2dt output dir")
 
+    default_raw = repo / "data-pipeline" / "r2dt_raw.json"
+    p_graft = sub.add_parser("graft", help="fold a real antiterminator hairpin into each R2DT diagram")
+    p_graft.add_argument("--raw", type=Path, default=default_raw, help="combined raw R2DT snapshot")
+    p_graft.add_argument("--members", type=Path, default=default_members)
+    p_graft.add_argument("--out", type=Path, default=default_out, help="public/data/r2dt output dir")
+    p_graft.add_argument("--max-step-ratio", type=float, default=GRAFT_MAX_STEP_RATIO)
+
     args = parser.parse_args(argv)
     members = load_members(args.members)
 
     if args.cmd == "fasta":
         n = write_input_fasta(members, args.out)
         print(f"wrote {n} records -> {args.out}")
+        return 0
+
+    if args.cmd == "graft":
+        n, dropped = graft(args.raw, members, args.out, args.max_step_ratio)
+        print(f"wrote {n} grafted R2DT diagrams + manifest.json -> {args.out}")
+        for d in dropped:
+            print(f"  DROPPED {d}")
+        if dropped:
+            print(f"{len(dropped)} member(s) fall back to fornac (see above).")
         return 0
 
     n, problems = ingest(args.results, members, args.out, args.metadata)
