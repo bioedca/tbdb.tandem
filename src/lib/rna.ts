@@ -76,6 +76,31 @@ export function leaderRnaModel(member: Member): RnaModel | null {
   }
 }
 
+/** Build the in-app render model for a member's TERMINATOR conformation — the gene-OFF
+ *  hairpin over its own `term_sequence` + `term_structure` (the alternative fold to
+ *  `leaderRnaModel`'s antiterminator). Returns null when the member has no drawable
+ *  terminator: missing/length-mismatched/unbalanced, OR pairless (a terminator is a
+ *  hairpin, so a structure with zero base pairs is not one). This matches the build's
+ *  `terminator_member` gate EXACTLY — so `hasTerminator` agrees with the committed
+ *  `r2dt/term/` set (922 renderable; 14 lack a sequence, 13 are balanced-but-pairless).
+ *  The conformation toggle disables the 27 that yield null here. */
+export function terminatorRnaModel(member: Member): RnaModel | null {
+  const dot = member.term_structure
+  const seq = member.term_sequence
+  if (!dot || !seq) return null
+  if (dot.length !== seq.length) return null
+  if (!isBalancedDotBracket(dot)) return null
+  let pairs = 0
+  for (const ch of dot) if (ch === '(') pairs++
+  if (pairs === 0) return null // pairless ⇒ no hairpin to draw (the build skips it too)
+  return {
+    sequence: toRna(seq),
+    structure: dot,
+    source: 'Terminator conformation · terminator hairpin',
+    pairs,
+  }
+}
+
 /** The guaranteed structure deep-link (PLAN §9): tbdb.io renders each element's
  *  secondary structure with VARNA on its `tboxes/<unique_name>.html` page. Falls
  *  back to the NCBI coordinate record when the member has no `unique_name`/

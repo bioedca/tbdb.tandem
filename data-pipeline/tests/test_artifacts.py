@@ -12,14 +12,20 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from pathlib import Path
 
 import pytest
 
 import build_json as bj
+import build_r2dt as br
 from wuss import is_balanced
 
 DATA = Path(__file__).resolve().parents[2] / "public" / "data"
+
+#: Committed standalone terminator R2DT diagrams (PLAN section 9; build_r2dt.py
+#: terminator stage). 949 − 14 (no term_sequence) − 13 (balanced but pairless) = 922.
+N_TERMINATOR = 922
 
 # Load-bearing counts (PLAN section 3.1, 5.4; CLAUDE.md section 2). The main-tree
 # tip count is the value the S0.6 build emitted and PROGRESS.md recorded -- never
@@ -132,6 +138,42 @@ def test_members_csv_feature_windows_match_what_viewers_highlight(members_csv, m
             assert got == _frontend_window(window, feat, length), f"{mid} {feat}: {got}"
         ts = row[idx["term_sequence"]] or None
         assert ts == member["term_sequence"], f"{mid} term_sequence CSV != members.json"
+
+
+def _to_rna(seq: str | None) -> str:
+    return (seq or "").upper().replace("T", "U")
+
+
+def test_terminator_manifest_matches_committed_diagrams():
+    """The committed term/manifest.json count == the number of committed term/<id>.json
+    files == N_TERMINATOR. Guards against the terminator data being untracked / partially
+    staged (a fresh checkout would otherwise ship a dead terminator R2DT viewer)."""
+    term = DATA / "r2dt" / "term"
+    manifest = json.loads((term / "manifest.json").read_text())
+    files = {p.stem for p in term.glob("*.json")} - {"manifest"}
+    assert manifest["count"] == N_TERMINATOR
+    assert len(files) == N_TERMINATOR
+    assert set(manifest["diagrams"]) == files
+
+
+def test_terminator_diagrams_current_and_consistent(members):
+    """Every committed terminator diagram is internally consistent AND current vs
+    members.json: seq == toRna(term_sequence), pairs == the term_structure pair table,
+    equal-length finite coords, and never pairless. Catches a stale committed set."""
+    term = DATA / "r2dt" / "term"
+    for p in term.glob("*.json"):
+        if p.stem == "manifest":
+            continue
+        mid = p.stem
+        d = json.loads(p.read_text())
+        n = len(d["seq"])
+        assert len(d["x"]) == n and len(d["y"]) == n
+        assert all(math.isfinite(v) for v in d["x"] + d["y"])
+        assert d["seq"] == _to_rna(members[mid]["term_sequence"])  # current, not stale
+        pt = br._pair_table(members[mid]["term_structure"])
+        expected = [[min(i, pt[i]), max(i, pt[i])] for i in range(1, n + 1) if i < pt[i]]
+        assert d["pairs"] == sorted(expected)  # pairs reproduce term_structure exactly
+        assert d["pairs"], f"{mid}: a terminator diagram must have >= 1 base pair"
 
 
 def test_members_csv_drops_off_3prime_term_like_the_viewers(members_csv, members):

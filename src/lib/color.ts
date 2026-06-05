@@ -100,6 +100,34 @@ export const STEM_COLORS: Record<StemKey, string> = STEM_META.reduce(
 /** Nucleotides outside any labelled stem (linkers / single strand) — quiet grey. */
 export const STEM_LINKER_COLOR = '#cbd3d8'
 
+/**
+ * The TERMINATOR conformation hue (PLAN §9) — the gene-OFF hairpin, the alternative fold
+ * to the antiterminator. Its own categorical axis (like {@link STEM_COLORS}, NOT part of
+ * the chrome⟂data proof): a muted brick-red that reads as "the OFF switch" and stays
+ * distinct from the warm-coral antiterminator and the saturated specifier reds.
+ */
+export const TERMINATOR_COLOR = '#b3635a'
+
+/**
+ * Per-nucleotide colors for a TERMINATOR diagram: the base-paired residues (the terminator
+ * stem) take {@link TERMINATOR_COLOR}, everything else (the loop + the 5'/3' single
+ * strands) the quiet {@link STEM_LINKER_COLOR}. The terminator is the alternative
+ * conformation, so the antiterminator Stem I/II/III + the motif overlay do NOT apply — it
+ * is coloured purely by its own pairing. `pairs` are 1-based `[lo, hi]` index pairs.
+ */
+export function buildTerminatorColorMap(
+  pairs: [number, number][],
+  length: number,
+): Record<number, string> {
+  const colors: Record<number, string> = {}
+  for (let i = 1; i <= length; i++) colors[i] = STEM_LINKER_COLOR
+  for (const [lo, hi] of pairs) {
+    if (lo >= 1 && lo <= length) colors[lo] = TERMINATOR_COLOR
+    if (hi >= 1 && hi <= length) colors[hi] = TERMINATOR_COLOR
+  }
+  return colors
+}
+
 // ── Conserved-motif overlay (a sub-region emphasis WITHIN a stem) ───────────────
 /**
  * The two conserved T-box motifs emphasised inside their parent stem (PLAN §9):

@@ -15,6 +15,8 @@ export type { R2dtDiagram, R2dtManifest }
 
 let manifestPromise: Promise<R2dtManifest | null> | null = null
 const diagramCache = new Map<string, Promise<R2dtDiagram | null>>()
+let termManifestPromise: Promise<R2dtManifest | null> | null = null
+const termDiagramCache = new Map<string, Promise<R2dtDiagram | null>>()
 
 /** Fetch the R2DT availability manifest once (cached). Resolves null if absent
  *  (e.g. diagrams not yet generated) so the UI degrades to fornac-only. Only a
@@ -44,6 +46,36 @@ export function loadR2dtDiagram(memberId: string): Promise<R2dtDiagram | null> {
   diagramCache.set(memberId, p)
   void p.then((v) => {
     if (v == null) diagramCache.delete(memberId)
+  })
+  return p
+}
+
+/** Fetch the TERMINATOR diagram availability manifest once (cached). Same contract as
+ *  {@link loadR2dtManifest} for the committed `r2dt/term/` assets — null → the
+ *  conformation toggle has no terminator R2DT diagrams (degrades to fornac). */
+export function loadTerminatorManifest(): Promise<R2dtManifest | null> {
+  if (termManifestPromise) return termManifestPromise
+  const p = fetch(dataUrl('r2dt/term/manifest.json'))
+    .then((res) => (res.ok ? (res.json() as Promise<R2dtManifest>) : null))
+    .catch(() => null)
+  termManifestPromise = p
+  void p.then((v) => {
+    if (v == null) termManifestPromise = null
+  })
+  return p
+}
+
+/** Fetch one member's committed TERMINATOR diagram (cached per member). Same contract as
+ *  {@link loadR2dtDiagram} for the `r2dt/term/` assets; null when absent / on failure. */
+export function loadTerminatorDiagram(memberId: string): Promise<R2dtDiagram | null> {
+  const cached = termDiagramCache.get(memberId)
+  if (cached) return cached
+  const p = fetch(dataUrl(`r2dt/term/${memberId}.json`))
+    .then((res) => (res.ok ? (res.json() as Promise<R2dtDiagram>) : null))
+    .catch(() => null)
+  termDiagramCache.set(memberId, p)
+  void p.then((v) => {
+    if (v == null) termDiagramCache.delete(memberId)
   })
   return p
 }
