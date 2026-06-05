@@ -79,6 +79,7 @@
   const maxZoom = $derived(fitScale > 0 ? clamp(TARGET_NT_PX / (spacing * fitScale), 1, 40) : 1)
   const canZoom = $derived(maxZoom > 1.02)
 
+  /** Constrain `v` to the inclusive range [lo, hi]. */
   function clamp(v: number, lo: number, hi: number): number {
     return Math.min(hi, Math.max(lo, v))
   }
@@ -115,15 +116,16 @@
     }
   }
 
+  /** Return the view to fit-the-whole-molecule (zoom 1, centred on the bounding box). */
   function reset(): void {
     zoom = 1
     cxv = box[0] + box[2] / 2
     cyv = box[1] + box[3] / 2
   }
 
-  // Measure the host's CSS pixel box via a guarded ResizeObserver (absent under jsdom/SSR,
-  // exactly like lib/actions/fitText.ts): when it can't measure, cw/ch stay 0 and the view
-  // degrades to a plain full-fit with heuristic letters — no throw, tests stay green.
+  /** Action: track the host's CSS pixel box (cw/ch) via a guarded ResizeObserver — absent
+   *  under jsdom/SSR, exactly like lib/actions/fitText.ts, so when it can't measure, cw/ch
+   *  stay 0 and the view degrades to a plain full-fit with heuristic letters (no throw). */
   function measure(node: HTMLElement) {
     const update = () => {
       cw = node.clientWidth
@@ -140,9 +142,9 @@
     }
   }
 
-  // Wheel zoom — a non-passive listener so the page never scrolls while zooming (Svelte's
-  // declarative onwheel can't preventDefault reliably). Only active when there's room to
-  // zoom; otherwise the wheel scrolls the page as usual.
+  /** Action: wheel-to-zoom via a non-passive listener so the page never scrolls while
+   *  zooming (Svelte's declarative onwheel can't preventDefault reliably). Only active when
+   *  there is room to zoom; otherwise the wheel scrolls the page as usual. */
   function wheelZoom(node: HTMLElement) {
     const onWheel = (e: WheelEvent) => {
       if (!canZoom) return
@@ -157,6 +159,8 @@
     }
   }
 
+  /** Begin a drag-pan on a primary-button press (only when zoomed in, where panning means
+   *  something); capture the pointer so the drag survives leaving the element. */
   function onPointerDown(e: PointerEvent): void {
     if (e.button !== 0 || zoom <= 1) return
     dragging = true
@@ -164,6 +168,8 @@
     lastY = e.clientY
     host?.setPointerCapture(e.pointerId)
   }
+  /** While dragging, translate the view centre by the pointer delta (converted px→diagram
+   *  units via the current scale); the derived `cx`/`cy` clamp it inside the molecule. */
   function onPointerMove(e: PointerEvent): void {
     if (!dragging || scale <= 0) return
     cxv = cx - (e.clientX - lastX) / scale
@@ -171,14 +177,15 @@
     lastX = e.clientX
     lastY = e.clientY
   }
+  /** End the drag-pan and release the pointer capture. */
   function onPointerUp(e: PointerEvent): void {
     if (!dragging) return
     dragging = false
     host?.releasePointerCapture?.(e.pointerId)
   }
 
-  // Keyboard control (WCAG 2.1 AA: the pointer zoom/pan must have a keyboard equivalent).
-  // +/- zoom, 0 resets, arrows pan. Only active where there is room to zoom.
+  /** Keyboard control (WCAG 2.1 AA: the pointer zoom/pan must have a keyboard equivalent):
+   *  +/- zoom, 0 resets, arrows pan. Only active where there is room to zoom. */
   function onKeyDown(e: KeyboardEvent): void {
     if (!canZoom) return
     const panStep = viewW * 0.12
