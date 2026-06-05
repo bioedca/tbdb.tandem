@@ -127,8 +127,8 @@
       autosize: true,
       margin: { l: 64, r: 14, t: 6, b: 34 },
       font: { family: fontFamily.sans, size: 12, color: neutral.text },
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: 'rgba(0,0,0,0)',
+      paper_bgcolor: neutral.surface,
+      plot_bgcolor: neutral.surface,
       bargap: 0.22,
       xaxis: {
         title: { text: 'loci', font: { size: 11, color: neutral.muted } },
@@ -176,8 +176,8 @@
       autosize: true,
       margin: { l: 52, r: 8, t: 6, b: 52 },
       font: { family: fontFamily.mono, size: 10, color: neutral.text },
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: neutral.surfaceSubtle,
+      paper_bgcolor: neutral.surface,
+      plot_bgcolor: neutral.surface,
       xaxis: {
         side: 'bottom',
         tickangle: -90,
