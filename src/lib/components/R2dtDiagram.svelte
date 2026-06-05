@@ -1,12 +1,19 @@
 <script lang="ts">
-  // R2DT secondary-structure diagram (PLAN §9) — the canonical RF00230 / T-box
-  // template layout, the deterministic complement to fornac's force render. Pure
+  // R2DT secondary-structure diagram (PLAN §9) — the RF00230 / T-box template
+  // layout, the deterministic complement to fornac's force render. Pure
   // presentational SVG: given a member's committed R2DT diagram (coords + base
   // pairs, from public/data/r2dt/) and its stem spans, it draws base-pair rungs, a
   // backbone, and one nucleotide per residue COLORED by structural domain via the
   // shared color.ts `buildStemColorMap` — the exact same palette the fornac overlay
   // uses, so the two viewers color identically. No layout math beyond fitting the
-  // committed coordinates to the box (R2DT already placed every nucleotide).
+  // committed coordinates to the box.
+  //
+  // The committed diagrams are POST-PROCESSED by data-pipeline/build_r2dt.py `graft`:
+  // the RF00230 template does not base-pair the antiterminator, so that stage folds
+  // a real antiterminator hairpin into R2DT's layout and reflows the variable
+  // inter-stem single strands into a continuous backbone (members whose base layout
+  // could not be rescued are dropped from the manifest → fornac fallback). So the
+  // backbone here is continuous by construction; this component draws every segment.
   import type { MemberStem } from '../data/types'
   import type { R2dtDiagram } from '../r2dt'
   import { diagramViewBox, nucleotideSpacing } from '../r2dt'
@@ -25,17 +32,14 @@
   const fontSize = $derived(spacing * 0.62)
   const stroke = $derived(Math.max(0.4, spacing * 0.08))
 
-  // Backbone segments between consecutive nucleotides, skipping the rare long
-  // template jumps (so the chain reads without a diagonal slashing across the map).
+  // Backbone segments between consecutive nucleotides. The grafted layout is
+  // continuous (the build's `graft` stage reflowed the single strands and dropped
+  // any member whose backbone still jumped), so every segment is drawn — no
+  // skip-threshold, which previously turned long template jumps into visible breaks.
   const backbone = $derived.by(() => {
     const segs: { x1: number; y1: number; x2: number; y2: number }[] = []
-    const maxStep = spacing * 2.2
     for (let i = 1; i < n; i++) {
-      const dx = diagram.x[i] - diagram.x[i - 1]
-      const dy = diagram.y[i] - diagram.y[i - 1]
-      if (Math.hypot(dx, dy) <= maxStep) {
-        segs.push({ x1: diagram.x[i - 1], y1: diagram.y[i - 1], x2: diagram.x[i], y2: diagram.y[i] })
-      }
+      segs.push({ x1: diagram.x[i - 1], y1: diagram.y[i - 1], x2: diagram.x[i], y2: diagram.y[i] })
     }
     return segs
   })
