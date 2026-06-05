@@ -125,6 +125,11 @@ export interface Member {
    *  cell). A terminator render MUST gate on `term_sequence != null`, not `term_structure`.
    *  May carry IUPAC ambiguity codes besides A/C/G/T. */
   term_sequence: string | null
+  /** Full-leader TERMINATOR conformation (gene-OFF), dot-bracket — the derived analogue
+   *  of `whole_antiterm_structure`: Stem I/II/III kept, the antiterminator helix replaced
+   *  by the terminator hairpin (PLAN §9). Null for the members with no drawable terminator
+   *  (the conformation toggle's enabled set; 922 non-null on the real data). */
+  whole_term_structure: string | null
   /** Labelled stem spans (Stem I / II / IIA-B / III / antiterminator) indexing the
    *  rendered antiterminator fold, for the in-app RNA color overlay (PLAN §9). */
   stems: MemberStem[]

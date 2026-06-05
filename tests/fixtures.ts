@@ -59,6 +59,7 @@ export function makeMember(o: Partial<Member> & Pick<Member, 'member_id' | 'tand
     whole_antiterm_structure: '((..))',
     term_structure: '((..))',
     term_sequence: 'ACGUAC', // equal-length with term_structure (PR B faithfulness column)
+    whole_term_structure: null, // derived full-leader terminator fold; null = no terminator
     stems: [],
     deltadelta_g: -12.5,
     terminator_energy: -8.0,

@@ -99,8 +99,9 @@ The locus detail page renders each element's RNA 2° structure with **R2DT** on 
 canonical RF00230 / T-box template (alongside the fornac force layout). R2DT is a
 heavyweight templated pipeline (Infernal + a covariance-model template library)
 that can't run in the browser, so — like the tree — the diagrams are generated
-offline once and committed under `public/data/r2dt/`. `build_r2dt.py` has two
-stages, decoupled by the (offline) R2DT run itself:
+offline once and committed under `public/data/r2dt/`. `build_r2dt.py` has four
+stages — `fasta` + `ingest` (decoupled by the offline R2DT run itself), then the
+`graft` + `terminator` post-processing below:
 
 ```bash
 # 1. emit the input FASTA (one RNA leader per member; auto-classifies to RF00230)
@@ -123,6 +124,29 @@ match its member's `fasta_sequence` (which would misalign the stem coloring) —
 only elements R2DT draws faithfully on the full leader are committed (800 of 949;
 the degenerate or R2DT-clipped leaders fall back to the fornac viewer). The app
 colors each nucleotide client-side from `src/lib/color.ts`, not in the assets.
+
+Two further post-processing stages run **offline from the committed raw snapshot**
+(`data-pipeline/r2dt_raw.json`, the untouched `ingest` output kept committed so they
+reproduce without re-running the gated R2DT pipeline):
+
+```bash
+# 4. graft a real ANTITERMINATOR hairpin into each R2DT diagram + reflow the backbone
+python3 data-pipeline/build_r2dt.py graft       # -> public/data/r2dt/ (792 of 949)
+
+# 5. graft the TERMINATOR hairpin onto the SAME Stem I/II/III coords -> the gene-OFF
+#    conformation, full-length (Stem I/II/III pinned, only the 3' hairpin swaps)
+python3 data-pipeline/build_r2dt.py terminator  # -> public/data/r2dt/term/ (789 of 949)
+```
+
+The RF00230 template does not base-pair either regulatory hairpin, so `graft` folds
+the antiterminator (from `whole_antiterm_structure`) onto R2DT's Stem I/II/III layout
+and `terminator` folds the terminator hairpin onto the *same* coordinates — so toggling
+antiterminator ⇄ terminator in the viewer pins the stems and only the 3′ region morphs.
+Both reuse the deterministic straight-ladder (simple hairpins) or NAView (branched), an
+outward orientation, and a single-strand reflow, and drop members whose reflow stays too
+distorted to the fornac fallback (which renders the same conformations from
+`whole_antiterm_structure` / `whole_term_structure`). ViennaRNA is a build-time-only
+dependency (the NAView branch).
 
 > The published assets were generated via the EMBL-EBI R2DT REST service (the lab
 > cluster runs Ubuntu 24.04, which blocks rootless Apptainer; the `build_r2dt.sbatch`

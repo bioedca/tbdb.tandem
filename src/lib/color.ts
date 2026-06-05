@@ -109,19 +109,35 @@ export const STEM_LINKER_COLOR = '#cbd3d8'
 export const TERMINATOR_COLOR = '#b3635a'
 
 /**
- * Per-nucleotide colors for a TERMINATOR diagram: the base-paired residues (the terminator
- * stem) take {@link TERMINATOR_COLOR}, everything else (the loop + the 5'/3' single
- * strands) the quiet {@link STEM_LINKER_COLOR}. The terminator is the alternative
- * conformation, so the antiterminator Stem I/II/III + the motif overlay do NOT apply — it
- * is coloured purely by its own pairing. `pairs` are 1-based `[lo, hi]` index pairs.
+ * Per-nucleotide colors for a FULL-LENGTH TERMINATOR diagram (PLAN §9). The gene-OFF
+ * conformation keeps Stem I/II/IIA-B/III and swaps the antiterminator helix for the
+ * terminator hairpin: Stem I/II/IIA-B/III take their {@link STEM_COLORS} hues (the SAME hues
+ * the antiterminator diagram uses, so the stems read identically across the conformation
+ * toggle), the **terminator-hairpin** residues take {@link TERMINATOR_COLOR}, and everything
+ * else the quiet {@link STEM_LINKER_COLOR}. The antiterminator helix (`at`) is unfolded here,
+ * so it is NOT a domain (excluded). `terminatorPairs` are the hairpin's OWN base pairs (the
+ * pairs new to the terminator fold — see `terminatorHairpinPairs` in `rna.ts`), NOT every
+ * paired residue: passing the same hairpin pairs makes BOTH viewers colour identically, and
+ * painting the hairpin LAST means that where the terminator sequesters bases the
+ * antiterminator fold called a stem (the degenerate Partial leaders), the terminator wins.
+ * 1-based `[lo, hi]` pairs.
  */
-export function buildTerminatorColorMap(
-  pairs: [number, number][],
+export function buildFullTerminatorColorMap(
+  stems: { key: StemKey; start: number; end: number }[],
+  terminatorPairs: [number, number][],
   length: number,
 ): Record<number, string> {
   const colors: Record<number, string> = {}
   for (let i = 1; i <= length; i++) colors[i] = STEM_LINKER_COLOR
-  for (const [lo, hi] of pairs) {
+  // Conserved Stem I/II/IIA-B/III first (the antiterminator helix `at` is unfolded here)…
+  for (const s of stems) {
+    if (s.key === 'at') continue
+    const col = STEM_COLORS[s.key]
+    if (!col) continue
+    for (let p = Math.max(1, s.start); p <= Math.min(length, s.end); p++) colors[p] = col
+  }
+  // …then the terminator hairpin on top (it wins over a sequestered stem span).
+  for (const [lo, hi] of terminatorPairs) {
     if (lo >= 1 && lo <= length) colors[lo] = TERMINATOR_COLOR
     if (hi >= 1 && hi <= length) colors[hi] = TERMINATOR_COLOR
   }

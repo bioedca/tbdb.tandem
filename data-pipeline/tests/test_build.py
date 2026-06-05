@@ -183,9 +183,12 @@ def test_gate6_codon_backcheck_warns_not_fails(built):
 def test_gate7_structures_balanced(built):
     for m in built["members_map"].values():
         assert is_balanced(m["structure"])
-        for col in ("whole_antiterm_structure", "term_structure"):
+        for col in ("whole_antiterm_structure", "term_structure", "whole_term_structure"):
             if m[col] is not None:
                 assert is_balanced(m[col])
+        # the derived terminator conformation, when present, spans the whole leader
+        if m["whole_term_structure"] is not None:
+            assert len(m["whole_term_structure"]) == len(m["fasta_sequence"])
 
 
 def test_structure_is_converted_dotbracket_not_wuss(built):
@@ -337,6 +340,55 @@ def test_derive_stems_degenerate_omits_missing_spans():
     stems = bj.derive_stems(row)
     assert [s["key"] for s in stems] == ["at"]
     assert (stems[0]["start"], stems[0]["end"]) == (60, 95)
+
+
+def test_derive_whole_term_structure_keeps_stems_swaps_in_terminator():
+    # Leader = upstream(10) + terminator(10) + tail(2); the terminator sequence is a unique
+    # substring at [11,20]. The antiterminator fold pairs an upstream stem (3,8) and an AT
+    # helix in [11,14]; the derived terminator keeps (3,8) and folds the terminator hairpin.
+    fasta = "AAGGCCAACC" + "TGCATGCATG" + "AA"
+    # a clean antiterminator fold: an upstream stem (3,8) + an AT helix (11,14)
+    wa = list("." * 22)
+    for a, b in [(3, 8), (11, 14)]:
+        wa[a - 1], wa[b - 1] = "(", ")"
+    whole_antiterm = "".join(wa)
+    stems = [{"key": "i", "start": 2, "end": 9}, {"key": "at", "start": 11, "end": 14}]
+    wts = bj.derive_whole_term_structure(fasta, whole_antiterm, "TGCATGCATG", "(((..))).." , stems)
+    assert wts is not None
+    assert len(wts) == len(fasta)
+    assert is_balanced(wts)
+    pt = bj._pair_table(wts)
+    assert pt[3] == 8 and pt[8] == 3  # upstream stem kept (outside the switch region)
+    assert (pt[11], pt[12], pt[13]) == (18, 17, 16)  # terminator hairpin, in leader coordinates
+    assert pt[14] != 11  # the antiterminator helix (11,14) is gone (the switch swapped it out)
+
+
+def test_derive_whole_term_structure_keeps_stem_between_disjoint_terminator_and_antiterm():
+    # Regression for the union-switch bug (T0396.m2): when the terminator aligns UPSTREAM of
+    # and DISJOINT from the antiterminator helix, with Stem I sitting between them, a single
+    # contiguous [min..max] switch span would swallow Stem I. Each region must be dropped
+    # SEPARATELY so Stem I survives. Leader: term [1,8] | linker | Stem I [11,20] | at [23,30].
+    fasta = "TGCATGCA" + "AA" + "CCGGAATTCG" + "AA" + "GCGCGCGC"  # 30 nt; term is unique at [1,8]
+    whole_antiterm = ".........." + "(((....)))" + ".." + "((....))"  # Stem I (11-20) + at helix (23-30)
+    stems = [{"key": "i", "start": 11, "end": 20}, {"key": "at", "start": 23, "end": 30}]
+    wts = bj.derive_whole_term_structure(fasta, whole_antiterm, "TGCATGCA", "((....))", stems)
+    assert wts is not None and len(wts) == len(fasta)
+    pt = bj._pair_table(wts)
+    # Stem I is preserved verbatim (NOT flattened by a union switch swallowing it)
+    assert (pt[11], pt[12], pt[13]) == (20, 19, 18)
+    assert wts[10:20] == "(((....)))"
+    # the terminator hairpin is folded in at [1,8]; the antiterminator helix [23,30] is gone
+    assert (pt[1], pt[2]) == (8, 7)
+    assert pt[23] == 0
+
+
+def test_derive_whole_term_structure_none_when_no_terminator():
+    fasta = "AAGGCCAACCTGCATGCATGAA"
+    # missing / pairless / length-mismatched / unaligned terminators -> None
+    assert bj.derive_whole_term_structure(fasta, "." * 22, None, None, []) is None
+    assert bj.derive_whole_term_structure(fasta, "." * 22, "TGCATGCATG", "..........", []) is None
+    assert bj.derive_whole_term_structure(fasta, "." * 22, "TGCA", "(((..))).." , []) is None
+    assert bj.derive_whole_term_structure(fasta, "." * 22, "ZZZZZZZZZZ", "(((..))).." , []) is None
 
 
 def test_members_carry_labelled_stems(built):
