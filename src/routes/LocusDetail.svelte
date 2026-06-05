@@ -96,7 +96,7 @@
 
     <!-- Locus key fields -->
     <Card title="Locus">
-      <dl class="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+      <dl class="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4">
         <div>
           <dt class="text-caption uppercase tracking-wide text-muted">Accession</dt>
           <dd class="font-mono text-small text-ink">{locus.accession}</dd>

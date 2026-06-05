@@ -24,8 +24,10 @@
   <!-- Deep-blue chrome header (PLAN §8.2). The two-bar wordmark evokes two stacked
        T-box elements (§8.1); a light palette blue carries the brand mark on the bar. -->
   <header class="bg-chrome text-chrome-fg">
-    <div class="mx-auto flex max-w-content items-center justify-between gap-6 px-6 py-3">
-      <a href="/" use:link class="group flex items-center gap-2.5" aria-label="tbdb.tandem — home">
+    <div
+      class="mx-auto flex max-w-content flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2.5 sm:gap-x-6 sm:px-6 sm:py-3"
+    >
+      <a href="/" use:link class="group flex shrink-0 items-center gap-2.5" aria-label="tbdb.tandem — home">
         <svg viewBox="0 0 24 24" class="size-6 shrink-0" aria-hidden="true">
           <rect x="3" y="6" width="18" height="4.5" rx="2.25" fill="var(--color-chrome-fg)" />
           <rect x="3" y="13.5" width="18" height="4.5" rx="2.25" fill="var(--color-brand-on-dark)" />
@@ -38,12 +40,17 @@
         </span>
       </a>
 
-      <nav class="flex items-center gap-1 text-small" aria-label="Primary">
+      <!-- On phones the nav wraps to its own full-width row and scrolls horizontally
+           (all four labels stay reachable); on ≥sm it sits inline beside the wordmark. -->
+      <nav
+        class="tv-no-scrollbar -mx-1 flex w-full items-center gap-1 overflow-x-auto px-1 text-small sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0"
+        aria-label="Primary"
+      >
         {#each nav as item (item.path)}
           <a
             href={item.path}
             use:link
-            class="border-b-2 px-2 py-1 transition-colors duration-150 ease-standard hover:text-white"
+            class="shrink-0 whitespace-nowrap border-b-2 px-2 py-1 transition-colors duration-150 ease-standard hover:text-white"
             class:border-brand-on-dark={router.location === item.path}
             class:text-white={router.location === item.path}
             class:font-medium={router.location === item.path}
@@ -58,7 +65,7 @@
     </div>
   </header>
 
-  <main class="mx-auto w-full max-w-content flex-1 px-6 py-8">
+  <main class="mx-auto w-full max-w-content flex-1 px-4 py-6 sm:px-6 sm:py-8">
     {#if store.status === 'error'}
       <div
         role="alert"
@@ -79,7 +86,7 @@
   <!-- Per-page attribution footer (PLAN §11.4, §8): Data: TBDB → citing page. -->
   <footer class="bg-chrome text-chrome-fg/70">
     <div
-      class="mx-auto flex max-w-content flex-wrap items-center justify-between gap-2 px-6 py-3 text-caption"
+      class="mx-auto flex max-w-content flex-wrap items-center justify-between gap-2 px-4 py-3 text-caption sm:px-6"
     >
       <span>tbdb.tandem — a companion to <span class="font-mono">tbdb.io</span></span>
       <span>

@@ -23,7 +23,7 @@
   class="rounded-panel border border-hairline bg-surface shadow-sm {klass}"
 >
   {#if title || subtitle || actions}
-    <header class="flex items-start justify-between gap-4 border-b border-hairline px-5 py-3">
+    <header class="flex items-start justify-between gap-4 border-b border-hairline px-4 py-3 sm:px-5">
       <div>
         {#if title}<h2 class="text-h2 text-ink">{title}</h2>{/if}
         {#if subtitle}<p class="text-small text-muted">{subtitle}</p>{/if}
@@ -31,7 +31,7 @@
       {#if actions}<div class="shrink-0">{@render actions()}</div>{/if}
     </header>
   {/if}
-  <div class="px-5 py-4">
+  <div class="px-4 py-4 sm:px-5">
     {@render children?.()}
   </div>
 </section>

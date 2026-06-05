@@ -46,7 +46,7 @@
 
   <OperonBreakdown />
 
-  <PhyloTree selectable height="52vh" />
+  <PhyloTree selectable height="clamp(22rem, 52vh, 40rem)" />
 
-  <FacetTable height="56vh" />
+  <FacetTable height="clamp(24rem, 56vh, 44rem)" />
 </section>

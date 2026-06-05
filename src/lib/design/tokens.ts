@@ -41,10 +41,15 @@ export const neutral = {
  * Type ramp (§8.3): [font-size, line-height]. Components never hard-code sizes.
  * `body` is the BASE default (set in app.css @layer base), not a `text-body`
  * size utility — that class name is the body COLOR (see app.css comment).
+ *
+ * The top of the ramp (display, h1) is FLUID via clamp() so headings/KPI numbers
+ * scale with the viewport (mirrors app.css). This object is REFERENCE-ONLY — it is
+ * never imported at runtime (Plotly/D3 read literal numeric sizes), so the clamp()
+ * strings are safe here; they document the intent and keep the app.css mirror honest.
  */
 export const type = {
-  display: ['2.25rem', '2.5rem'], // 36/40 — page hero
-  h1: ['1.5rem', '2rem'], // 24/32
+  display: ['clamp(1.6rem, 1.1rem + 2.2vw, 2.25rem)', '2.5rem'], // ≈26→36 / 40 — page hero
+  h1: ['clamp(1.3rem, 1.15rem + 0.9vw, 1.5rem)', '2rem'], // ≈21→24 / 32
   h2: ['1.25rem', '1.75rem'], // 20/28
   body: ['1rem', '1.5rem'], // 16/24 — base default
   small: ['0.875rem', '1.25rem'], // 14/20

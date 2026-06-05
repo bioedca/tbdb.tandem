@@ -19,7 +19,7 @@
   import FacetChip from './FacetChip.svelte'
   import Button from './Button.svelte'
 
-  let { height = '70vh' }: { height?: string } = $props()
+  let { height = 'clamp(26rem, 70vh, 54rem)' }: { height?: string } = $props()
 
   // ── Facet UI metadata ─────────────────────────────────────────────────────────
 
@@ -128,7 +128,11 @@
       height,
       columns,
       placeholder: 'No loci match the current filters.',
-      columnDefaults: { headerHozAlign: 'left', resizable: false },
+      // A per-column minimum keeps every column readable: on phones the columns hold
+      // their width and Tabulator's own horizontal scroll engages instead of squeezing
+      // ten columns into 360px; on desktop the min never binds, so `fitColumns` fills
+      // the width exactly as before.
+      columnDefaults: { headerHozAlign: 'left', resizable: false, minWidth: 96 },
       movableColumns: false,
     })
     table.on('tableBuilt', () => {
@@ -170,14 +174,14 @@
 <div class="space-y-4">
   <!-- Filter bar: free-text search + a disclosure per facet (PLAN §2.1, §7.3) -->
   <div class="flex flex-wrap items-start gap-2">
-    <label class="relative">
+    <label class="relative w-full sm:w-auto">
       <span class="sr-only">Search loci</span>
       <input
         type="search"
         placeholder="Search loci…"
         value={store.filter.search}
         oninput={(e) => store.setSearch(e.currentTarget.value)}
-        class="w-64 rounded-md border border-hairline bg-surface px-3 py-1.5 text-small text-ink placeholder:text-muted"
+        class="w-full rounded-md border border-hairline bg-surface px-3 py-1.5 text-small text-ink placeholder:text-muted sm:w-64"
       />
     </label>
 

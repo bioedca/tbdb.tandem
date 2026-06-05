@@ -18,7 +18,8 @@
   import { store } from '../stores/filters.svelte'
   import { PHYLUM_COUNT_RAMP } from '../color'
   import { brand, fontFamily, neutral } from '../design/tokens'
-  import { fitOnResize } from '../plotly'
+  import { fitOnResize, widthTier } from '../plotly'
+  import { naturalWidthPx, truncateToWidth } from '../text/measure'
   import {
     buildSpecPhylumHeatmap,
     PHYLUM_UNASSIGNED,
@@ -37,6 +38,9 @@
   let plotly = $state<PlotlyStatic | null>(null)
   let el: HTMLDivElement
   let bound = false
+  // Live container width (debounced) so the render effect can adapt the left margin,
+  // tick font, and phylum-label truncation to the available space (responsive).
+  let containerW = $state(0)
   // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
   // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
   const CONFIG = { displayModeBar: false }
@@ -100,6 +104,28 @@
   $effect(() => {
     if (!plotly || !el || !grid) return
     const g = grid
+    // Adapt left margin, fonts, and phylum-label truncation to the container width
+    // (responsive). On phones the long phylum names are truncated with pretext (no
+    // mid-word cut) and the freed margin gives the cells more room; the full names
+    // stay on the y data, so hover + cross-filter still read the real phylum.
+    void containerW // re-run on width change
+    const tier = widthTier(containerW || el.clientWidth || 600)
+    const tickPx = tier === 'sm' ? 9 : 10
+    const cellPx = tier === 'sm' ? 8 : 9
+    const labelFont = `${tickPx}px ${fontFamily.mono}`
+    const capL = tier === 'sm' ? 70 : tier === 'md' ? 104 : 128
+    let labelMax = 0
+    for (const p of g.phyla) labelMax = Math.max(labelMax, naturalWidthPx(p, labelFont))
+    // Desktop keeps the original fixed margin (deliberate design); only phone/tablet
+    // tighten it to the measured label width to reclaim cell space.
+    const marginL = tier === 'lg' ? 128 : Math.round(Math.min(labelMax + 10, capL))
+    // The x labels are rotated -90, so the bottom margin (not the width) bounds their
+    // length; keep it full so composite specifiers (e.g. ARG;VAL) aren't clipped. At
+    // phone widths the ~25 specifier columns are inherently dense — the cells, in-cell
+    // counts, and hover carry the data there; the y-axis truncation below is the win.
+    const marginB = 56
+    const yTickVals = g.phyla.map((_, i) => i)
+    const yTickText = g.phyla.map((p) => truncateToWidth(p, labelFont, capL - 12))
     const data: Partial<PlotData>[] = [
       {
         type: 'heatmap',
@@ -108,7 +134,7 @@
         z: g.z,
         text: g.text,
         texttemplate: '%{text}',
-        textfont: { family: fontFamily.mono, size: 9, color: neutral.ink },
+        textfont: { family: fontFamily.mono, size: cellPx, color: neutral.ink },
         xgap: 1.5,
         ygap: 1.5,
         colorscale: PHYLUM_COUNT_RAMP,
@@ -121,14 +147,15 @@
     ]
     const layout = {
       autosize: true,
-      margin: { l: 128, r: 8, t: 6, b: 56 },
-      font: { family: fontFamily.mono, size: 10, color: neutral.text },
+      // Responsive margin/font (this branch) + solid white chart backgrounds (#27).
+      margin: { l: marginL, r: 8, t: 6, b: marginB },
+      font: { family: fontFamily.mono, size: tickPx, color: neutral.text },
       paper_bgcolor: neutral.surface,
       plot_bgcolor: neutral.surface,
       xaxis: {
         side: 'bottom',
         tickangle: -90,
-        tickfont: { family: fontFamily.mono, size: 10 },
+        tickfont: { family: fontFamily.mono, size: tickPx },
         showgrid: false,
         zeroline: false,
         fixedrange: true,
@@ -136,7 +163,11 @@
       },
       yaxis: {
         autorange: 'reversed',
-        tickfont: { family: fontFamily.mono, size: 10 },
+        // Show pretext-truncated names while keeping full phyla as the category data.
+        tickmode: 'array',
+        tickvals: yTickVals,
+        ticktext: yTickText,
+        tickfont: { family: fontFamily.mono, size: tickPx },
         showgrid: false,
         zeroline: false,
         fixedrange: true,
@@ -160,8 +191,26 @@
       plotly = mod.default ?? (mod as unknown as PlotlyStatic)
       teardown = fitOnResize(plotly, [el])
     })
+    // Track the container width (debounced) so a width-tier crossing re-issues the
+    // layout with adapted margins/labels. fitOnResize handles the smooth width refit
+    // in between; this only fires when the discrete tier inputs actually change.
+    containerW = el?.clientWidth ?? 0
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined
+    let ro: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined' && el) {
+      ro = new ResizeObserver((entries) => {
+        const w = entries[0]?.contentRect.width ?? el.clientWidth
+        clearTimeout(resizeTimer)
+        resizeTimer = setTimeout(() => {
+          containerW = w
+        }, 150)
+      })
+      ro.observe(el)
+    }
     return () => {
       disposed = true
+      clearTimeout(resizeTimer)
+      ro?.disconnect()
       teardown?.()
     }
   })
@@ -171,7 +220,7 @@
   title="Specifier × phylum"
   subtitle="Loci by specifier amino acid (the amino acid each T-box senses) and phylum. The dataset is near-monochrome (454/470 Firmicutes) — cells use a neutral grey ramp, so the 16 non-Firmicutes loci stand out. Click a cell to cross-filter."
 >
-  <div class="relative h-[22rem] w-full">
+  <div class="relative h-[clamp(17rem,44vh,24rem)] w-full">
     <div bind:this={el} class="h-full w-full"></div>
     {#if store.status !== 'ready'}
       <div class="absolute inset-0 grid place-items-center">

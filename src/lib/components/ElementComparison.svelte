@@ -65,8 +65,11 @@
 </script>
 
 <div class="space-y-4">
-  <!-- Per-element comparison table -->
-  <div class="overflow-x-auto">
+  <!-- Per-element comparison table. `relative` makes this the containing block for the
+       absolutely-positioned sr-only spans inside the header InfoTips, so on phones
+       (where the table is wider than the viewport and scrolls here) those 1px spans
+       don't resolve against the page and add a phantom horizontal scrollbar. -->
+  <div class="relative overflow-x-auto">
     <table class="w-full border-collapse text-small">
       <thead>
         <tr class="border-b border-hairline text-left text-caption uppercase tracking-wide text-muted">
