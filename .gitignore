@@ -23,6 +23,10 @@ coverage/
 .claude/
 .playwright-mcp/
 
+# local-only Figma plugin scaffold + scratch screenshots (not part of the app)
+figma-plugin/
+r2dt-before-*.png
+
 # OS
 .DS_Store
 

@@ -207,7 +207,7 @@ def test_graft_member_quality_gate_rejects_distorted_layout():
 
 
 def test_graft_member_folds_antiterminator_and_drops_template_pairs():
-    pytest.importorskip("RNA")  # ViennaRNA NAView layout (build-time dependency)
+    # The straight ladder folds every simple hairpin with no ViennaRNA dependency.
     # whole_antiterm folds a hairpin over residues 8..15; R2DT (the template) leaves
     # that span unpaired and instead carries a spurious pair (10,19) crossing into
     # the 3' tail, plus a real upstream stem (2,5).
@@ -284,3 +284,111 @@ def test_graft_driver_drops_low_quality_clears_stale_and_writes_manifest(tmp_pat
     assert manifest["count"] == 1 and list(manifest["diagrams"]) == ["T0001.m1"]
     assert any("T0001.m2" in d for d in dropped)
     assert any("T0001.m4" in d and "sequence" in d for d in dropped)
+
+
+# --- stage 3: the deterministic straight-ladder antiterminator hairpin ---------
+#
+# The canonical antiterminator: an outer 4 bp helix, the conserved 7-nt 5' bulge, an
+# inner 5 bp helix, then a 10-nt apical loop. The ladder must keep both helices
+# collinear / parallel and spread that bulge -- the two failures of the old NAView
+# fold (helices pivoted to a diagonal; bulge crushed to ~0.2x spacing).
+_CANONICAL_AT = "((((.......(((((..........)))))))))"
+
+
+def _rail(coords_xy, idxs):
+    """Perpendicular spread + principal angle of a set of 1-based residues' points."""
+    pts = [coords_xy[i] for i in idxs]
+    mx = sum(p[0] for p in pts) / len(pts)
+    my = sum(p[1] for p in pts) / len(pts)
+    sxx = sum((p[0] - mx) ** 2 for p in pts)
+    syy = sum((p[1] - my) ** 2 for p in pts)
+    sxy = sum((p[0] - mx) * (p[1] - my) for p in pts)
+    ang = 0.5 * math.atan2(2 * sxy, sxx - syy)
+    nx, ny = -math.sin(ang), math.cos(ang)
+    resid = max(abs((p[0] - mx) * nx + (p[1] - my) * ny) for p in pts)
+    return resid, ang
+
+
+def _parallel_deg(a5: float, a3: float) -> float:
+    d = abs((a5 - a3 + math.pi) % math.pi)
+    return math.degrees(min(d, math.pi - d))
+
+
+def test_ladder_hairpin_collinear_helices_and_spread_bulge():
+    lx, ly = br._ladder_hairpin(_CANONICAL_AT)
+    assert len(lx) == len(_CANONICAL_AT)
+    xy = {i: (lx[i - 1], ly[i - 1]) for i in range(1, len(_CANONICAL_AT) + 1)}
+    pt = br._pair_table(_CANONICAL_AT)
+    five = [i for i in range(1, len(_CANONICAL_AT) + 1) if 0 < i < pt[i]]  # 5' rail
+    three = [pt[i] for i in five]  # 3' rail
+    step = br._median_step([0.0] + lx, [0.0] + ly)
+
+    r5, a5 = _rail(xy, five)
+    r3, a3 = _rail(xy, three)
+    assert r5 < 0.05 * step and r3 < 0.05 * step  # each rail is straight (collinear)
+    assert _parallel_deg(a5, a3) < 2.0  # the two rails are parallel
+
+    paired = set(five) | set(three)
+    bulge = [i for i in range(min(five) + 1, max(three)) if i not in paired]
+    bsteps = [math.hypot(lx[i - 1] - lx[i - 2], ly[i - 1] - ly[i - 2]) for i in bulge]
+    assert min(bsteps) >= 0.8 * step  # no NAView-style collapse: every base ~1 step apart
+
+
+def test_ladder_hairpin_rejects_multiloop_and_empty():
+    # Two side-by-side hairpin loops (a branch / multiloop) and a pair-less run both
+    # decline the ladder so graft_member can fall back to NAView.
+    assert br._ladder_hairpin("((..))((..))") is None
+    assert br._ladder_hairpin("..........") is None
+
+
+def test_graft_member_antiterminator_renders_as_straight_ladder():
+    # End to end (no ViennaRNA): graft a member whose antiterminator is the canonical
+    # hairpin, then assert the FINAL committed coordinates keep the rails collinear /
+    # parallel, the bulge spread, and the backbone continuous.
+    wa = "." * 19 + _CANONICAL_AT + "." * 6  # AT occupies residues 20..54 of a 60-nt leader
+    member = {"whole_antiterm_structure": wa, "stems": [{"key": "at", "start": 20, "end": 54}]}
+    raw = {
+        "seq": "ACGU" * 15,
+        "x": [float(i * 12) for i in range(60)],
+        "y": [0.0] * 60,
+        "pairs": [],
+        "template": "T-box",
+        "source": "Rfam",
+    }
+    out = br.graft_member(raw, member)
+    assert out is not None
+    xs, ys = out["x"], out["y"]
+    xy = {i: (xs[i - 1], ys[i - 1]) for i in range(1, 61)}
+    pt = br._pair_table(wa)
+    five = [i for i in range(20, 55) if 0 < i < pt[i]]
+    three = [pt[i] for i in five]
+    step = br._median_step([0.0] + xs, [0.0] + ys)
+
+    r5, a5 = _rail(xy, five)
+    r3, a3 = _rail(xy, three)
+    assert r5 < 0.05 * step and r3 < 0.05 * step
+    assert _parallel_deg(a5, a3) < 2.0
+    assert _max_step_ratio(out) < br.GRAFT_MAX_STEP_RATIO  # continuous backbone
+
+
+def test_place_tail_preserves_curve_shape():
+    # A tail keeps R2DT's curve (its per-step headings), it is NOT flattened into a
+    # straight ray: an L-bend in the original stays a right angle after reattachment.
+    xs = [0.0, 0.0, 10.0, 20.0, 20.0, 20.0]  # 1-based; idx 1 = anchor, idx 2..5 = tail
+    ys = [0.0, 0.0, 0.0, 0.0, 10.0, 20.0]
+    br._place_tail(xs, ys, 2, 5, 1, med=10.0, n=5, partner={})
+    v1 = (xs[3] - xs[2], ys[3] - ys[2])  # first tail segment
+    v2 = (xs[5] - xs[4], ys[5] - ys[4])  # last tail segment (was ⟂ to the first)
+    assert abs(v1[0] * v2[0] + v1[1] * v2[1]) < 1e-6  # right angle preserved (shape kept)
+
+
+def test_place_tail_closes_interior_break():
+    # If R2DT's tail carries an interior jump (here a 3x-median step between idx 3 and
+    # 4), retracing its headings at an even median step removes the discontinuity --
+    # the reflow exists to make the backbone continuous, so no interior break may
+    # survive in the served run (PR A review finding).
+    xs = [0.0, 0.0, 10.0, 20.0, 50.0, 60.0]  # 1-based; anchor idx 1; tail 2..5; jump 3→4
+    ys = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    br._place_tail(xs, ys, 2, 5, 1, med=10.0, n=5, partner={})
+    steps = [math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) for i in range(2, 6)]
+    assert max(steps) <= 1.2 * 10.0  # every tail step ~one median apart (no 3x jump left)
