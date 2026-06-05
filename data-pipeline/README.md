@@ -73,6 +73,41 @@ ssh two sbatch data-pipeline/build_tree.sbatch   # poll with squeue / sacct
 
 `build_tree.sbatch` and the post-processing script land in Track B (SB.1+).
 
+## Build the R2DT structure diagrams
+
+The locus detail page renders each element's RNA 2° structure with **R2DT** on the
+canonical RF00230 / T-box template (alongside the fornac force layout). R2DT is a
+heavyweight templated pipeline (Infernal + a covariance-model template library)
+that can't run in the browser, so — like the tree — the diagrams are generated
+offline once and committed under `public/data/r2dt/`. `build_r2dt.py` has two
+stages, decoupled by the (offline) R2DT run itself:
+
+```bash
+# 1. emit the input FASTA (one RNA leader per member; auto-classifies to RF00230)
+python3 data-pipeline/build_r2dt.py fasta --out /tmp/r2dt_input.fasta
+
+# 2. run R2DT however is available — the EMBL-EBI R2DT web service, local Docker,
+#    or the cluster (Singularity/Apptainer), e.g. Docker (image rnacentral/r2dt):
+#    docker run -v /tmp:/work rnacentral/r2dt r2dt.py draw /work/r2dt_input.fasta /work/r2dt_out
+
+# 3. ingest R2DT's RNA-2D-JSON output -> compact committed assets + manifest
+python3 data-pipeline/build_r2dt.py ingest \
+  --results /tmp/r2dt_out/results/json \
+  --metadata /tmp/r2dt_out/results/metadata.tsv \
+  --out public/data/r2dt
+```
+
+`ingest` writes one compact `<member_id>.json` (per-nucleotide coordinates + base
+pairs) plus `manifest.json`, and **skips** any diagram whose sequence does not
+match its member's `fasta_sequence` (which would misalign the stem coloring) — so
+only elements R2DT draws faithfully on the full leader are committed (800 of 949;
+the degenerate or R2DT-clipped leaders fall back to the fornac viewer). The app
+colors each nucleotide client-side from `src/lib/color.ts`, not in the assets.
+
+> The published assets were generated via the EMBL-EBI R2DT REST service (the lab
+> cluster runs Ubuntu 24.04, which blocks rootless Apptainer; the `build_r2dt.sbatch`
+> job is kept for clusters that allow it).
+
 ## Run the tests
 
 The pipeline test suite (PLAN §10.1) runs from this directory:
@@ -83,4 +118,5 @@ cd data-pipeline && pytest            # or, from the repo root:  pytest data-pip
 
 - `tests/test_wuss.py` — WUSS→dot-bracket converter golden + balance tests.
 - `tests/test_build.py` — build gates 1–10 + golden values on a fixture subset (S0.7).
-- `tests/test_artifacts.py` — integrity checks over the committed `public/data/*.json` (S0.7).
+- `tests/test_artifacts.py` — integrity checks over the committed `public/data/*.json` + `members.csv` (S0.7).
+- `tests/test_build_r2dt.py` — R2DT compact extraction + ingest (sequence-match guard, manifest).
