@@ -36,4 +36,6 @@ export function resetStore(): void {
   store.newickMain = null
   store.newickFallback = null
   store.treesStatus = 'idle'
+  store.cloud = null
+  store.cloudStatus = 'idle'
 }
