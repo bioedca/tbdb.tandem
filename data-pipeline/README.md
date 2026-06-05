@@ -39,8 +39,9 @@ pip install -r data-pipeline/requirements.txt
 ## Run the data build
 
 `build_json.py` (lands across S0.3–S0.6) reads the two sources and writes
-`summary.json`, `loci.json`, `members.json`, `identity.json`, and
-`tree_input.fasta` to `public/data/`:
+`summary.json`, `loci.json`, `members.json`, `identity.json`, `members.csv`
+(the member-level base table — every per-member field plus the component-stem
+colour spans flattened into columns), and `tree_input.fasta` to `public/data/`:
 
 ```bash
 python3 data-pipeline/build_json.py \

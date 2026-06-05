@@ -27,6 +27,9 @@ artifacts the web app loads:
     members.json    949 canonical member (element) records
     identity.json   488 intra-locus pairwise %-identity values
     summary.json    KPI + distribution rollups
+    members.csv     949 members as one flat base table -- every per-member field
+                    plus the component-stem colour spans (Stem I / II / IIA-B /
+                    III / antiterminator) the web app colours the structure by
     tree_input.fasta        one leader per length-gated member (-> the tree build)
     antiterm_fallback.fasta antiterminator cores of the length-gated-out members
     tandem_loci.tsv         (optional) a human-readable per-locus table
@@ -147,6 +150,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import csv
 import json
 import re
 import sys
@@ -181,6 +185,10 @@ COLLAPSE_BP = 60
 
 #: Minimum native Stem-I span (bp) to seed the main similarity tree (step 8).
 STEMI_MIN_SPAN = 50
+
+#: Component-stem keys, biological 5'->3' order. The frontend maps each to a
+#: label + colour; members.csv flattens each into a start/end column pair (step 6).
+_STEM_KEYS = ("i", "ii", "iiab", "iii", "at")
 
 #: Master columns needed for detection + member resolution.
 _DETECT_COLS = [
@@ -816,6 +824,82 @@ def _write_json(path: Path, obj) -> None:
         json.dump(obj, fh, separators=(",", ":"), ensure_ascii=True)
 
 
+# =============================================================================
+# Member-level base table (members.csv) -- the same database as one flat row per
+# element, with the component-stem spans (step 6) flattened into fixed columns so
+# the stem identity lives IN the main table (not only inside members.json). The
+# stem start/end values are 1-based, inclusive, leader-relative -- the EXACT spans
+# the web app colours the RNA secondary structure by. Blank cell == stem absent.
+# =============================================================================
+
+#: Scalar member + locus-context columns, in header order, that precede the stems.
+_MEMBER_CSV_LEAD = [
+    "member_id", "tandem_id", "ordinal",
+    "accession", "strand", "organism", "phylum",
+    "unique_name", "specifier_aa", "specifier_codon",
+    "type", "completeness", "trna",
+    "deltadelta_g", "terminator_energy",
+    "func_class", "func_source", "downstream_protein", "downstream_id", "downstream_ec",
+    "leader_length",
+]
+#: One ``start``/``end`` column pair per stem key (Stem I / II / IIA-B / III / antiterm).
+_STEM_CSV_COLS = [f"stem_{key}_{end}" for key in _STEM_KEYS for end in ("start", "end")]
+#: Full members.csv header: lead columns -> stem span pairs -> the two deep-link URLs.
+_MEMBER_CSV_HEADER = _MEMBER_CSV_LEAD + _STEM_CSV_COLS + ["tbdb_url", "ncbi_url"]
+
+
+def _member_csv_row(member: dict, locus: dict) -> list:
+    """Flatten one member (+ its locus context) into a members.csv row."""
+    spans = {s["key"]: (s["start"], s["end"]) for s in member.get("stems", [])}
+    spec = member.get("specifier") or {}
+    down = member.get("downstream") or {}
+    lead = {
+        "member_id": member["member_id"],
+        "tandem_id": member["tandem_id"],
+        "ordinal": member["ordinal"],
+        "accession": locus.get("accession"),
+        "strand": locus.get("strand"),
+        "organism": locus.get("organism"),
+        "phylum": locus.get("phylum"),
+        "unique_name": member.get("unique_name"),
+        "specifier_aa": spec.get("aa"),
+        "specifier_codon": spec.get("codon"),
+        "type": member.get("type"),
+        "completeness": member.get("completeness"),
+        "trna": member.get("trna"),
+        "deltadelta_g": member.get("deltadelta_g"),
+        "terminator_energy": member.get("terminator_energy"),
+        "func_class": down.get("func_class"),
+        "func_source": down.get("func_source"),
+        "downstream_protein": down.get("protein"),
+        "downstream_id": down.get("id"),
+        "downstream_ec": down.get("ec"),
+        "leader_length": len(member.get("fasta_sequence") or ""),
+    }
+    row = [lead[col] for col in _MEMBER_CSV_LEAD]
+    for key in _STEM_KEYS:
+        lo, hi = spans.get(key, (None, None))
+        row.extend([lo, hi])
+    row.extend([member.get("tbdb_url"), member.get("ncbi_url")])
+    return row
+
+
+def write_members_csv(locus_objs: list, members_map: dict, out_dir: Path) -> int:
+    """Write members.csv -- the member-level base table with flattened stem spans.
+
+    One row per canonical member (members.json order); locus context (accession,
+    strand, organism, phylum) is joined per member from ``locus_objs``. Returns the
+    number of data rows written.
+    """
+    loc_by_member = {mid: loc for loc in locus_objs for mid in loc["member_ids"]}
+    with (out_dir / "members.csv").open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.writer(fh, lineterminator="\n")
+        writer.writerow(_MEMBER_CSV_HEADER)
+        for member_id, member in members_map.items():
+            writer.writerow(_member_csv_row(member, loc_by_member[member_id]))
+    return len(members_map)
+
+
 def write_table(path: Path, locus_objs: list[dict], members_map: dict[str, dict]) -> None:
     """Optional human-readable per-locus table (tab-separated)."""
     cols = ["tandem_id", "accession", "strand", "organism", "phylum", "tax_id",
@@ -900,6 +984,7 @@ def main(argv: list[str] | None = None) -> int:
     _write_json(args.out / "members.json", members_map)
     _write_json(args.out / "identity.json", pairs)
     _write_json(args.out / "summary.json", summary)
+    n_members_csv = write_members_csv(locus_objs, members_map, args.out)
     main_tips, fallback = write_tree_fastas(members_map, args.out)
     if args.emit_table:
         write_table(args.out / "tandem_loci.tsv", locus_objs, members_map)
@@ -911,6 +996,7 @@ def main(argv: list[str] | None = None) -> int:
         f"  identity.json    {len(pairs)} intra-locus pairs\n"
         f"  summary.json     ({summary['confidence']['high']} high / "
         f"{summary['confidence']['low']} low confidence)\n"
+        f"  members.csv      {n_members_csv} members (flat base table incl. stem spans)\n"
         f"  tree_input.fasta {main_tips} length-gated members (+ {fallback} in the fallback)\n"
         + (f"  tandem_loci.tsv  {len(locus_objs)} rows\n" if args.emit_table else "")
         + "All invariants passed (470 / 949 / 488, balanced structures, golden CP045927)."
