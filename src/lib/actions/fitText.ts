@@ -35,14 +35,20 @@ export function fitText(node: HTMLElement, params: FitTextParams = {}) {
   }
 
   function fit() {
+    // When the MAX is the element's own (possibly fluid `clamp()`) CSS size, clear our
+    // prior inline px first so we re-read the true CSS max — otherwise the inline value
+    // from a previous fit masquerades as the max and the text could only ever SHRINK,
+    // never grow back as the viewport widens (page-banner heroes must do both).
+    if (maxPxOverride == null) node.style.fontSize = ''
     const maxPx = maxPxOverride ?? (parseFloat(getComputedStyle(node).fontSize) || 16)
     // Width is layout-driven (block element fills its box) and independent of our
-    // font-size change, so we can read it without first resetting the size.
+    // font-size change, so reading it after the reset above is still correct.
     const boxW = node.clientWidth
     if (boxW <= 0) return
     lastWidth = boxW
     const size = fitFontSizePx(node.textContent ?? '', fontAt(maxPx), boxW, { minPx, maxPx })
     node.style.fontSize = `${size}px`
+    node.dataset.fitted = '' // settle signal: lets the visual suite await a stable size
   }
 
   function schedule() {
@@ -70,7 +76,11 @@ export function fitText(node: HTMLElement, params: FitTextParams = {}) {
 
   return {
     update(next: FitTextParams = {}) {
-      minPx = next.minPx ?? 12
+      const nextMin = next.minPx ?? 12
+      // Svelte rebinds a fresh object literal on every parent render; only re-fit when a
+      // value actually changed, so unrelated re-renders don't queue redundant measure cycles.
+      if (nextMin === minPx && next.maxPx === maxPxOverride) return
+      minPx = nextMin
       maxPxOverride = next.maxPx
       lastWidth = -1
       schedule()

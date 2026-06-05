@@ -60,11 +60,14 @@ function graphemes(text: string): string[] {
  */
 export function naturalWidthPx(text: string, font: string): number {
   if (!text) return 0
-  if (!CAN_MEASURE) return text.length * FALLBACK_EM * sizeOf(font)
+  // Count by GRAPHEME clusters, not UTF-16 code units, so the fallback estimate stays
+  // consistent with callers that reason per-grapheme (fitMeasureFontPx, truncateToWidth) —
+  // a ZWJ emoji is one glyph box, not its ~25 code units. Keeps the off-canvas maths honest.
+  if (!CAN_MEASURE) return graphemes(text).length * FALLBACK_EM * sizeOf(font)
   try {
     return measureNaturalWidth(prepareWithSegments(text, font))
   } catch {
-    return text.length * FALLBACK_EM * sizeOf(font)
+    return graphemes(text).length * FALLBACK_EM * sizeOf(font)
   }
 }
 
@@ -86,6 +89,41 @@ export function fitFontSizePx(
   if (natural <= 0 || natural <= boxWidthPx) return maxPx
   const scaled = (maxPx * boxWidthPx) / natural
   return Math.max(minPx, Math.min(maxPx, scaled))
+}
+
+/**
+ * Font-size (px) at which full-width, WRAPPING prose holds ~`targetChars` characters per
+ * line inside a `boxWidthPx` column, clamped to [minPx, maxPx]. Where `fitFontSizePx`
+ * shrinks ONE line to fit, this sizes a multi-line paragraph so the column can run the
+ * full banner width while the per-line character count — the real readability invariant —
+ * stays put: the font scales UP on a wide screen (bigger text, same measure) and DOWN on a
+ * phone, instead of capping the column to a narrow ribbon and leaving the banner empty.
+ *
+ * The size is analytic, not iterative: one pretext measurement of the whole text gives the
+ * font's TRUE average glyph advance for THIS copy (≈0.5em for Inter, but exact per string),
+ * and a full line of `targetChars` such glyphs is set equal to `boxWidthPx`. `fontAtProbe`
+ * must be the CSS font shorthand at `probePx` (e.g. "400 24px Inter"). Reflow-free; falls
+ * back to a glyph-count estimate off-canvas (jsdom/SSR).
+ */
+export function fitMeasureFontPx(
+  text: string,
+  fontAtProbe: string,
+  probePx: number,
+  boxWidthPx: number,
+  opts: { minPx: number; maxPx: number; targetChars: number },
+): number {
+  const { minPx, maxPx, targetChars } = opts
+  if (!text || boxWidthPx <= 0 || targetChars <= 0 || probePx <= 0) return maxPx
+  const count = graphemes(text).length
+  if (count <= 0) return maxPx
+  // Natural one-line width of the whole copy at the probe size → average glyph advance per
+  // 1px of font-size. Width scales linearly with font-size, so this is size-independent.
+  const natural = naturalWidthPx(text, fontAtProbe)
+  const advancePerCharPerPx = natural / (probePx * count)
+  if (advancePerCharPerPx <= 0) return maxPx
+  // Solve advancePerCharPerPx · size · targetChars = boxWidthPx for `size`.
+  const size = boxWidthPx / (advancePerCharPerPx * targetChars)
+  return Math.max(minPx, Math.min(maxPx, size))
 }
 
 /**
