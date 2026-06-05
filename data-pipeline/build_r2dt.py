@@ -241,9 +241,13 @@ def _pair_table(dot: str) -> list[int]:
 
 
 def _median_step(xs: list[float], ys: list[float]) -> float:
-    """Median nearest-neighbour backbone step over 1-based coords ``xs[1..n]``."""
+    """Median nearest-neighbour backbone step over 1-based coords ``xs[1..n]``.
+
+    Floored to a small positive value so a degenerate diagram (coincident
+    coordinates → median 0) can never make a downstream divisor zero.
+    """
     steps = sorted(math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) for i in range(2, len(xs)))
-    return steps[len(steps) // 2] if steps else 1.0
+    return max(steps[len(steps) // 2], 1e-6) if steps else 1.0
 
 
 def _loop_half_angle(ratio: float, k: int) -> float:
@@ -478,6 +482,16 @@ def graft(
         member = members.get(member_id)
         if member is None:
             dropped.append(f"{member_id}: not in members.json")
+            continue
+        # Re-assert the ingest sequence guard: the snapshot must still match
+        # members.json (T->U), else the stem-colour overlay would misalign if
+        # members.json changed after the raw snapshot was committed.
+        expected = to_rna(member.get("fasta_sequence") or "")
+        if raw[member_id].get("seq") != expected:
+            dropped.append(
+                f"{member_id}: raw sequence != fasta_sequence "
+                f"(len {len(raw[member_id].get('seq', ''))} vs {len(expected)}) -- colour overlay would misalign"
+            )
             continue
         grafted = graft_member(raw[member_id], member, max_step_ratio)
         if grafted is None:

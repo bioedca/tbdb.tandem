@@ -236,9 +236,10 @@ def test_graft_member_folds_antiterminator_and_drops_template_pairs():
 
 def test_graft_driver_drops_low_quality_clears_stale_and_writes_manifest(tmp_path: Path):
     members = {
-        "T0001.m1": {"whole_antiterm_structure": "..........", "stems": []},  # clean
-        "T0001.m2": {"whole_antiterm_structure": "(())", "stems": []},        # distorted → drop
-        "T0001.m3": {"whole_antiterm_structure": "....", "stems": []},        # not in raw snapshot
+        "T0001.m1": {"fasta_sequence": "ACGTACGTAC", "whole_antiterm_structure": "..........", "stems": []},  # clean
+        "T0001.m2": {"fasta_sequence": "ACGT", "whole_antiterm_structure": "(())", "stems": []},  # distorted → drop
+        "T0001.m4": {"fasta_sequence": "ACGT", "whole_antiterm_structure": "....", "stems": []},  # raw seq mismatch → drop
+        "T0001.m3": {"fasta_sequence": "ACGT", "whole_antiterm_structure": "....", "stems": []},  # not in raw snapshot
     }
     raw_snapshot = {
         "T0001.m1": {
@@ -257,6 +258,14 @@ def test_graft_driver_drops_low_quality_clears_stale_and_writes_manifest(tmp_pat
             "template": "T-box",
             "source": "Rfam",
         },
+        "T0001.m4": {
+            "seq": "AAAA",  # != member fasta_sequence (ACGT → ACGU) — must be rejected
+            "x": [0.0, 10.0, 20.0, 30.0],
+            "y": [0.0, 0.0, 0.0, 0.0],
+            "pairs": [],
+            "template": "T-box",
+            "source": "Rfam",
+        },
     }
     raw_path = tmp_path / "r2dt_raw.json"
     raw_path.write_text(json.dumps(raw_snapshot))
@@ -269,7 +278,9 @@ def test_graft_driver_drops_low_quality_clears_stale_and_writes_manifest(tmp_pat
     assert n == 1
     assert (out / "T0001.m1.json").exists()
     assert not (out / "T0001.m2.json").exists()  # distorted → fornac fallback
+    assert not (out / "T0001.m4.json").exists()  # raw/fasta sequence mismatch → rejected
     assert not (out / "STALE.m9.json").exists()  # stale file cleared
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["count"] == 1 and list(manifest["diagrams"]) == ["T0001.m1"]
     assert any("T0001.m2" in d for d in dropped)
+    assert any("T0001.m4" in d and "sequence" in d for d in dropped)
