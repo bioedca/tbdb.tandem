@@ -10,6 +10,7 @@
     { path: '/', label: 'Dashboard' },
     { path: '/browse', label: 'Browse' },
     { path: '/tree', label: 'Similarity map' },
+    { path: '/cloud', label: '3D cloud' },
     { path: '/about', label: 'About & method' },
   ]
 

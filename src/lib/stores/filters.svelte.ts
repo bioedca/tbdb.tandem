@@ -10,9 +10,11 @@
 // The pure helpers (`matchesFilters`, `filterLoci`, …) are framework-agnostic and
 // unit-tested at S1.6 (PLAN §10.2); the class wires them to reactive state.
 
+import type { CloudData } from '../cloud/types'
 import {
   buildIdentityMap,
   buildMemberMap,
+  loadCloud,
   loadCore,
   loadIdentity,
   loadMembers,
@@ -131,6 +133,10 @@ export class TandemStore {
   newickFallback = $state<string | null>(null)
   treesStatus = $state<LoadStatus>('idle')
 
+  // Lazy data (the 3D similarity-cloud embedding, on /cloud).
+  cloud = $state<CloudData | null>(null)
+  cloudStatus = $state<LoadStatus>('idle')
+
   // Filter state + the cross-filtered selection.
   filter = $state<FilterState>(emptyFilterState())
 
@@ -155,6 +161,7 @@ export class TandemStore {
   // Promise guards so a lazy artifact is fetched at most once.
   #identityPromise: Promise<Map<string, IdentityFile>> | null = null
   #treesPromise: Promise<void> | null = null
+  #cloudPromise: Promise<void> | null = null
 
   /** Boot: fetch the core pair (loci + summary); kick members off in parallel
    *  (PLAN §7.3). Idempotent — safe to call from App's mount effect. */
@@ -234,6 +241,26 @@ export class TandemStore {
         })
     }
     return this.#treesPromise
+  }
+
+  /** Lazily load `cloud.json` (the `/cloud` 3D embedding; PLAN /cloud §6.2). A failed
+   *  load sets `cloudStatus = 'error'` (the view shows a fallback) and clears the guard
+   *  so a later visit can retry — never an unhandled rejection. Centralizing it here (as
+   *  with `ensureTrees`) keeps the dashboard cross-filter wired to one store. */
+  ensureCloud(): Promise<void> {
+    if (!this.#cloudPromise) {
+      this.cloudStatus = 'loading'
+      this.#cloudPromise = loadCloud()
+        .then((data) => {
+          this.cloud = data
+          this.cloudStatus = 'ready'
+        })
+        .catch(() => {
+          this.cloudStatus = 'error'
+          this.#cloudPromise = null
+        })
+    }
+    return this.#cloudPromise
   }
 
   // ── Facet mutators (immutable Set replacement so `$derived` re-runs) ──────────
