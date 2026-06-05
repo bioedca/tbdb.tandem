@@ -23,7 +23,8 @@ under `public/data/` are committed.
 
 - **Python 3.12+** (CI pins 3.12; see `.github/workflows/ci.yml`).
 - Dependencies pinned in [`requirements.txt`](./requirements.txt): `pandas==3.0.0`,
-  `biopython==1.85` (pairwise %-identity), and `pytest` (test runner).
+  `biopython==1.85` (pairwise %-identity), `numpy` (PCoA for `build_cloud.py`), and
+  `pytest` (test runner).
 
 ## Setup
 
@@ -73,6 +74,25 @@ ssh two sbatch data-pipeline/build_tree.sbatch   # poll with squeue / sacct
 
 `build_tree.sbatch` and the post-processing script land in Track B (SB.1+).
 
+## Build the 3D similarity cloud (`/cloud`)
+
+`build_cloud.py` turns the **already-committed** trees + metadata into
+`public/data/cloud.json`, the single artifact the lazy `/cloud` route renders. It
+reads `tree.nwk` / `tree_fallback.nwk`, computes each tree's patristic distance
+matrix with a small pure-Python parser + per-leaf walk (no `dendropy` — the matrix
+is rooting-independent, so no ancestry is read), embeds it in 3D by classical MDS /
+PCoA (`numpy`), and joins each leaf to its per-element / per-locus metadata:
+
+```bash
+python3 data-pipeline/build_cloud.py --out public/data   # defaults read public/data/*
+```
+
+The embedding is byte-deterministic (each eigenvector axis's sign is fixed so the
+largest-magnitude coordinate is positive); only `meta.generated` is wall-clock —
+pass `--generated <iso8601>` for a byte-exact rebuild. The 3 PCoA axes capture ~41%
+of the main tree's pairwise distance (a flat 2D layout: ~32%); the `/cloud` view
+surfaces that caveat. Run **after** the data build + tree artifacts exist.
+
 ## Build the R2DT structure diagrams
 
 The locus detail page renders each element's RNA 2° structure with **R2DT** on the
@@ -120,3 +140,4 @@ cd data-pipeline && pytest            # or, from the repo root:  pytest data-pip
 - `tests/test_build.py` — build gates 1–10 + golden values on a fixture subset (S0.7).
 - `tests/test_artifacts.py` — integrity checks over the committed `public/data/*.json` + `members.csv` (S0.7).
 - `tests/test_build_r2dt.py` — R2DT compact extraction + ingest (sequence-match guard, manifest).
+- `tests/test_build_cloud.py` — PCoA embedding on a fixture tree (patristic ordering, deterministic sign convention, k-NN dedup) + committed `cloud.json` integrity.

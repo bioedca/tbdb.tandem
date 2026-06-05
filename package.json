@@ -24,7 +24,8 @@
     "phylotree": "^2.0.0",
     "plotly.js-dist-min": "^3.0.0",
     "svelte-spa-router": "^5.0.0",
-    "tabulator-tables": "^6.0.0"
+    "tabulator-tables": "^6.0.0",
+    "three": "0.184.0"
   },
   "devDependencies": {
     "@playwright/test": "1.60.0",
@@ -35,6 +36,7 @@
     "@testing-library/svelte": "^5.3.1",
     "@tsconfig/svelte": "^5.0.0",
     "@types/tabulator-tables": "^6.3.3",
+    "@types/three": "0.184.0",
     "jsdom": "^26.1.0",
     "svelte": "^5.20.0",
     "svelte-check": "^4.0.0",

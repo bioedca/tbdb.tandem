@@ -424,6 +424,77 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+// ── /cloud encoding axes (separate categorical scales; NOT in the chrome⟂data proof) ──
+//
+// The 3D similarity cloud (`/cloud`) lets a user color points by several per-locus
+// metadata axes beyond the primary specifier hue. Each is its OWN categorical scale —
+// like {@link PHYLUM_COLORS} and {@link STEM_COLORS} — kept deliberately muted (a cool/
+// warm chrome register) so it never competes with the saturated 20-AA specifier
+// palette. These axes are intentionally NOT part of `assertChromeDataDisjoint()` below
+// (only the brand accents + neutral/func chrome are): they are alternative DATA
+// encodings, shown one at a time, never alongside the specifier hues. Each 2-class axis
+// uses a blue↔amber split (the most colour-vision-deficiency-safe pairing); the `/cloud`
+// view never relies on colour alone for emphasis (it also varies point size).
+
+/**
+ * `func_class` colors for the cloud's "Function" preset. Aliased to the existing
+ * {@link FUNC_CLASS_SHADE} so a function class is the SAME color here as on the
+ * architecture diagram and operon breakdown (the app-wide single-source invariant) —
+ * the cloud does not introduce a second, divergent func_class palette.
+ */
+export const FUNC_CLASS_COLORS: Record<FuncClass, string> = FUNC_CLASS_SHADE
+
+/** Regulation-mode colors (cloud "type" axis): a muted steel-blue ↔ amber split. */
+export const TYPE_COLORS: Record<string, string> = {
+  Transcriptional: '#4f87a6', // muted steel blue
+  Translational: '#cf9350', // muted amber
+}
+
+/** Locus-confidence colors (cloud "QC / confidence" preset): confident teal ↔ flagged amber. */
+export const CONFIDENCE_COLORS: Record<string, string> = {
+  high: '#4a9d8e', // muted teal — confident
+  low: '#d98c4a', // muted orange — kept-and-flagged
+}
+
+/** Neutral fallback for an unknown categorical value on a cloud encoding axis. */
+export const CLOUD_NEUTRAL_COLOR = '#9aa6b2' // cool grey, distinct from the `?`-specifier grey
+
+/** ΔΔG diverging-ramp domain (kcal/mol): clamped; more-negative = stronger switch. */
+export const DDG_DOMAIN: readonly [number, number] = [-25, -5]
+
+/** ΔΔG diverging-ramp stops: blue (strong/very-negative) → neutral → red (weak/positive). */
+export const DDG_STOPS = {
+  strong: '#2c6fb0', // blue — strongest switch (ΔΔG ≤ −25)
+  neutral: '#e6e3da', // warm light grey — mid (harmonizes with the cream surface)
+  weak: '#c0563b', // red — weakest / positive switch (ΔΔG ≥ −5)
+} as const
+
+/** Linear RGB interpolation between two hex colors at `t ∈ [0,1]` → `#rrggbb`. */
+function lerpHex(a: string, b: string, t: number): string {
+  const x = hexToRgb(a)
+  const y = hexToRgb(b)
+  const mix = (p: number, q: number) => Math.round(p + (q - p) * t)
+  const hx = (v: number) => v.toString(16).padStart(2, '0')
+  return `#${hx(mix(x.r, y.r))}${hx(mix(x.g, y.g))}${hx(mix(x.b, y.b))}`
+}
+
+/**
+ * Continuous diverging color for a member's ΔΔG (the antiterminator↔terminator switch
+ * strength; PLAN §9①). The value is clamped to {@link DDG_DOMAIN} and mapped
+ * blue→neutral→red, with the BLUE end at the most-negative (strongest-switch) value and
+ * the RED end at the weakest/positive — the cloud's "Switch strength" preset reads
+ * this. A null ΔΔG (codon-less partials etc.) returns the neutral unknown grey, matching
+ * how the specifier axis treats `?`.
+ */
+export function ddgDivergingColor(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return UNKNOWN_SPECIFIER_COLOR
+  const [lo, hi] = DDG_DOMAIN
+  const t = Math.min(1, Math.max(0, (v - lo) / (hi - lo))) // 0 at lo(−25)=blue, 1 at hi(−5)=red
+  return t <= 0.5
+    ? lerpHex(DDG_STOPS.strong, DDG_STOPS.neutral, t / 0.5)
+    : lerpHex(DDG_STOPS.neutral, DDG_STOPS.weak, (t - 0.5) / 0.5)
+}
+
 // ── Chrome ⟂ data disjointness proof (§8.2 invariant; S1.2 exit criterion) ──────
 
 /**
