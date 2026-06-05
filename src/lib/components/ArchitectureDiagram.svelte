@@ -104,9 +104,9 @@
     return { points, cx: (x0 + x1) / 2, x0, x1 }
   })
 
-  // Downstream ORF fill — NEUTRAL chrome shades keyed by func_class, never a
-  // specifier hue (§8.2 chrome⟂data invariant). Shared with the operon breakdown
-  // (S2.5) via `FUNC_CLASS_SHADE` in color.ts. Labels carry the class name.
+  // Downstream ORF fill — the muted func_class chrome colors (low-saturation, kept
+  // clear of the specifier data palette; §8.2 chrome⟂data invariant). Shared with the
+  // operon breakdown (S2.5) via `FUNC_CLASS_SHADE` in color.ts. Labels carry the class name.
   const orfFill = $derived(FUNC_CLASS_SHADE[funcClass])
   const orfDark = $derived(funcClass !== 'unknown' && funcClass !== 'transporter')
 

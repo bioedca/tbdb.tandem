@@ -5,8 +5,9 @@
   // (text-inferred*) · dotted (no annotation) (§5.3); ② a specifier → func_class
   // SANKEY exposing the observed couplings (TRP→biosynthesis, THR→aaRS, ILE/LEU→
   // biosynthesis); and ③ the regulation `type` shown as CHIPS, never a toggle
-  // (§2.2/§9③). Bar colors + Sankey func_class nodes use the neutral FUNC_CLASS
-  // chrome ramp (never a specifier hue, §8.2); specifier nodes use the data palette.
+  // (§2.2/§9③). Bar colors + Sankey func_class nodes use the muted FUNC_CLASS
+  // categorical chrome palette (distinct hues but low-saturation, kept clear of the
+  // specifier data palette by §8.2); specifier nodes use the data palette.
   //
   // The bars/chips render their COUNTS from `store.selected` (and the Sankey its
   // flows), so the whole panel narrows live with the dashboard (S2.6); the bar AXIS
@@ -155,7 +156,11 @@
         orientation: 'h',
         x: 0,
         y: 1.16,
-        font: { family: fontFamily.sans, size: 11, color: neutral.muted },
+        // Darker, larger label text (was muted/11px → body/12px) so the provenance
+        // key reads cleanly; the swatches now sit on the colored func_class bars, so
+        // the solid/hatched/dotted pattern is legible too.
+        font: { family: fontFamily.sans, size: 12, color: neutral.text },
+        itemsizing: 'constant',
       },
     }
     void plotly.react(barEl, data, layout, CONFIG).then(() => {
@@ -297,8 +302,8 @@
       <h3 class="mb-1 text-small font-medium text-ink">Specifier → function coupling</h3>
       <p class="mb-2 text-caption text-muted">
         Each band counts the loci whose specifier amino acid (left, colored by amino acid) regulates a
-        given function class (right, neutral grey). Width = number of loci — an observed association, not a
-        cause.
+        given function class (right, in muted function-class colors). Width = number of loci — an observed
+        association, not a cause.
       </p>
       <div class="relative h-[clamp(20rem,50vh,30rem)] w-full">
         <div bind:this={sankeyEl} class="h-full w-full"></div>
