@@ -1,23 +1,25 @@
 <script lang="ts">
   // Feature-highlighted member sequences (PLAN §9 detail flow, after the element
   // comparison). Each member's gap-free leader (`fasta_sequence`) is rendered in
-  // mono with its Stem-I, specifier codon, antiterminator, terminator, and
-  // discriminator spans highlighted. The visual language mirrors the architecture
-  // diagram (§9①), so it inherits the already-cleared §8.2 chrome⟂data invariant:
-  //   • Stem-I / specifier-codon "fill" = the element's OWN specifier hue (data
-  //     colour, exactly like the diagram body tint), the codon stronger + bold;
-  //   • the 3′ regulatory features use NEUTRAL chrome only — terminator a solid ink
-  //     rule, discriminator a dotted muted rule, antiterminator a dashed muted
-  //     underline (matching the diagram's hairpin = ink, discrim/antiterm = muted).
-  // The pure segmentation lives in `sequence.ts` (unit-tested at S2.7).
-  import type { Member } from '../data/types'
-  import { aaColor, withAlpha } from '../color'
+  // mono with its STEM CLASSIFICATION painted as the background fill — the SAME
+  // `member.stems` + `STEM_COLORS` the in-app RNA (RnaStructure) uses, so the
+  // sequence and the 2D structure read the same color language base-for-base:
+  //   • Stem I / II / IIA-B / III / antiterminator "fill" = the stem's overlay tint
+  //     (a quiet, muted register; linkers stay unfilled = white);
+  //   • the specifier codon (which sits inside Stem-I) is bolded over a deeper tint;
+  //   • the 3′ regulatory features that are NOT stems stay NEUTRAL chrome rules — the
+  //     terminator a solid ink bottom-rule, the discriminator a dotted muted one.
+  // The per-element identity swatch keeps the specifier (amino-acid) data hue, exactly
+  // like the RNA viewer's element tabs. The pure segmentation lives in `sequence.ts`.
+  import type { Member, StemKey } from '../data/types'
+  import { aaColor, STEM_COLORS, STEM_META, withAlpha } from '../color'
   import { neutral } from '../design/tokens'
   import {
     buildSequenceSegments,
-    presentFeatures,
+    presentMarkers,
     FEATURE_LABEL,
-    type HighlightFeature,
+    MARKER_FEATURES,
+    type MarkerFeature,
     type SeqSegment,
   } from '../sequence'
 
@@ -31,58 +33,81 @@
     return `mid (${ordinal})`
   }
 
-  /** Inline style for one segment: specifier-tint fill (data) + neutral chrome rules. */
-  function segStyle(seg: SeqSegment, tint: string): string {
+  /** Inline style for one segment: the stem tint (matching the in-app RNA), with the
+   *  codon bolded over a deeper tint and the 3′ rules as neutral bottom-borders. */
+  function segStyle(seg: SeqSegment): string {
     const parts: string[] = []
-    if (seg.fill === 'codon') parts.push(`background:${withAlpha(tint, 0.45)}`, 'font-weight:700')
-    else if (seg.fill === 's1') parts.push(`background:${withAlpha(tint, 0.13)}`)
+    if (seg.codon) {
+      // The codon sits inside Stem-I → a deeper version of its stem tint (ink tint if
+      // a degenerate element carries the codon window but no stem), bold, and an ink
+      // ring so it reads as a discrete mark over the lighter stem fill (echoing the
+      // architecture diagram's ink codon tick), not just a slightly darker patch.
+      const base = seg.stem ? STEM_COLORS[seg.stem] : neutral.ink
+      parts.push(
+        `background:${withAlpha(base, seg.stem ? 0.85 : 0.22)}`,
+        'font-weight:700',
+        `box-shadow:inset 0 0 0 1px ${withAlpha(neutral.ink, 0.55)}`,
+        'border-radius:2px',
+      )
+    } else if (seg.stem) {
+      parts.push(`background:${withAlpha(STEM_COLORS[seg.stem], 0.55)}`)
+    }
     if (seg.rule === 'term') parts.push(`border-bottom:2px solid ${neutral.ink}`)
     else if (seg.rule === 'discrim') parts.push(`border-bottom:2px dotted ${neutral.muted}`)
-    if (seg.underline === 'antiterm') {
-      parts.push(
-        `text-decoration:underline dashed ${neutral.muted}`,
-        'text-underline-offset:3px',
-      )
-    }
     return parts.join(';')
   }
 
   interface MemberView {
     member: Member
     segments: SeqSegment[]
-    present: HighlightFeature[]
     tint: string
   }
   const views = $derived<MemberView[]>(
     els.map((member) => ({
       member,
       segments: buildSequenceSegments(member),
-      present: presentFeatures(member),
       tint: aaColor(member.specifier.aa),
     })),
   )
 
-  // Legend rows shown once for the section (the fill samples are tinted per element
-  // at render; here a neutral placeholder conveys the style, not a specifier).
-  const LEGEND: { feature: HighlightFeature; sample: string }[] = [
-    { feature: 's1', sample: `background:${withAlpha(neutral.muted, 0.18)}` },
-    { feature: 'codon', sample: `background:${withAlpha(neutral.muted, 0.42)};font-weight:700` },
-    { feature: 'antiterm', sample: `text-decoration:underline dashed ${neutral.muted};text-underline-offset:3px` },
-    { feature: 'term', sample: `border-bottom:2px solid ${neutral.ink}` },
-    { feature: 'discrim', sample: `border-bottom:2px dotted ${neutral.muted}` },
-  ]
+  // Section legend = the UNION of stems + markers actually present across the
+  // elements, in canonical 5′→3′ order — the same stem color key the RNA viewer shows.
+  const legendStems = $derived.by(() => {
+    const present = new Set<StemKey>()
+    for (const m of els) for (const s of m.stems ?? []) present.add(s.key)
+    return STEM_META.filter((s) => present.has(s.key))
+  })
+  const legendMarkers = $derived.by(() => {
+    const present = new Set<MarkerFeature>()
+    for (const m of els) for (const f of presentMarkers(m)) present.add(f)
+    return MARKER_FEATURES.filter((f) => present.has(f))
+  })
+
+  /** Inline sample style for a marker legend chip (mirrors `segStyle`). */
+  const MARKER_SAMPLE: Record<MarkerFeature, string> = {
+    codon: `background:${withAlpha(STEM_COLORS.i, 0.85)};font-weight:700;box-shadow:inset 0 0 0 1px ${withAlpha(neutral.ink, 0.55)};border-radius:2px`,
+    term: `border-bottom:2px solid ${neutral.ink}`,
+    discrim: `border-bottom:2px dotted ${neutral.muted}`,
+  }
 </script>
 
 <div class="space-y-4">
-  <!-- Legend (style → feature). Fill samples are specifier-tinted per element. -->
+  <!-- Legend (color → feature) — the stem color key (matching the RNA viewer) plus
+       the codon / terminator / discriminator markers actually present. -->
   <ul class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-muted">
-    {#each LEGEND as item (item.feature)}
+    {#each legendStems as s (s.key)}
       <li class="inline-flex items-center gap-1.5">
-        <span class="font-mono text-ink" style={item.sample}>ACGT</span>
-        <span>{FEATURE_LABEL[item.feature]}</span>
+        <span class="size-2.5 rounded-sm ring-1 ring-ink/10" style:background={s.color} aria-hidden="true"></span>
+        <span>{s.label}</span>
       </li>
     {/each}
-    <li class="text-muted">· fill tinted by specifier</li>
+    {#each legendMarkers as f (f)}
+      <li class="inline-flex items-center gap-1.5">
+        <span class="rounded-xs px-0.5 font-mono text-ink" style={MARKER_SAMPLE[f]}>ACG</span>
+        <span>{FEATURE_LABEL[f]}</span>
+      </li>
+    {/each}
+    <li class="text-muted">· stems colored as in the RNA structure</li>
   </ul>
 
   {#each views as v (v.member.member_id)}
@@ -105,13 +130,13 @@
       </div>
 
       <!-- The leader, segmented and highlighted (wraps; mono so the bases align). -->
-      <p class="tv-seq rounded-md border border-hairline bg-surface-subtle p-2.5">
+      <p class="tv-seq rounded-md border border-hairline bg-surface p-2.5">
         {#each v.segments as seg (seg.start)}<span
-            style={segStyle(seg, v.tint)}
+            style={segStyle(seg)}
             title={[
-              seg.fill === 'codon' ? FEATURE_LABEL.codon : seg.fill === 's1' ? FEATURE_LABEL.s1 : null,
+              seg.stem ? STEM_META.find((s) => s.key === seg.stem)?.label : null,
+              seg.codon ? FEATURE_LABEL.codon : null,
               seg.rule ? FEATURE_LABEL[seg.rule] : null,
-              seg.underline ? FEATURE_LABEL.antiterm : null,
             ]
               .filter(Boolean)
               .join(' · ') || undefined}>{seg.text}</span
