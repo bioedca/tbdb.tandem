@@ -1,17 +1,13 @@
 <script lang="ts">
-  // /about — the method note (PLAN §7.2 /about route, §14, §2/§3.1, §6, §11.4/§8;
-  // a Phase-3 deliverable, S3.3).
-  // Documents how the tandem T-box database is built (the full Master_tboxes.csv →
-  // loci pipeline) and offers a self-contained Python script that reproduces it
-  // (public/reproduce_tandem_tbox_db.py, downloaded from the Pages base path), the
-  // data caveats (contamination drop, corrupt-codon specifier source, kept-and-flagged
-  // low-confidence loci, near-monochrome taxonomy), the no-polarity disclaimer for
-  // the similarity map (§6 — the tree is NOT a phylogeny / ancestral-state
-  // reconstruction), the offline cluster build, and the TBDB provenance + citation
-  // (CC-BY). The per-page "Data: TBDB" footer (§11.4/§8) is app-wide in App.svelte.
+  // /about — the method note: how the tandem T-box database is built (the
+  // Master_tboxes.csv → loci pipeline), the self-contained Python script that
+  // reproduces it (public/reproduce_tandem_tbox_db.py), the data caveats, the
+  // no-polarity disclaimer for the similarity map, the offline structure/tree
+  // builds, and the TBDB provenance + citation (CC-BY).
   //
-  // NO-POLARITY (§6/§13, a ship gate): nothing here may imply evolutionary
-  // direction — no ancestral / redeployed / abandoned / gained / lost language.
+  // NO-POLARITY (a ship gate): nothing here may imply evolutionary direction —
+  // no ancestral / redeployed / abandoned / gained / lost language. The figures
+  // are bound live from store.summary so the prose never drifts from the build.
   import { link } from 'svelte-spa-router'
   import { store } from '../lib/stores/filters.svelte'
   import { fitText } from '../lib/actions/fitText'
@@ -84,11 +80,11 @@
         or operon.
       </p>
       <p>
-        tbdb.tandem is a companion to {@render code('tbdb.io')} that owns the
-        <em>tandem-level</em> story of T-box riboswitches — stacked-element architecture, specifier–tRNA
-        pairing, shared-operon regulation, and a sequence-similarity map. It never re-implements
-        the single-element views in tbdb.io; instead every element deep-links back to its canonical
-        tbdb.io entry for the structure render, genome browser, and tRNA pairing.
+        tbdb.tandem is a companion to {@render code('tbdb.io')} focused on the
+        <em>tandem-level</em> view of T-box riboswitches — stacked-element architecture, specifier–tRNA
+        pairing, shared-operon regulation, and a sequence-similarity map. It does not duplicate the
+        single-element views in tbdb.io; every element deep-links back to its canonical tbdb.io entry
+        for the structure render, genome browser, and tRNA pairing.
       </p>
       {#if s}
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -113,8 +109,7 @@
         The entire dataset is derived from a <strong class="font-medium text-ink">single public
         source file</strong> — the TBDB master table ({@render code('Master_tboxes.csv')}, ≈23,500
         annotated T-box rows). A deterministic pipeline turns it into the loci, elements, and pairings
-        on every panel. The resulting count agrees with the ≈470 tandem estimate of
-        Vitreschak et&nbsp;al. (2008).
+        on every panel.
       </p>
       <ol class="list-decimal space-y-2 pl-5 marker:font-medium marker:text-muted">
         <li>
@@ -136,7 +131,7 @@
           <strong class="font-medium text-ink">Collapse redundant annotations.</strong> The same
           physical T-box is often annotated by several pipelines; cores within 60&nbsp;bp are one
           physical core, and the best representative row is kept (complete &gt; has a called codon &gt;
-          has a {@render code('unique_name')} &gt; lowest E-value).
+          carries a TBDB id &gt; lowest E-value).
         </li>
         <li>
           <strong class="font-medium text-ink">Keep the tandems.</strong> A window with ≥2 physical
@@ -235,10 +230,8 @@ python3 reproduce_tandem_tbox_db.py \
             >github.com/mpiersonsmela/tbox</TbdbLink
           >. The script writes {@render code('loci.json')}, {@render code('members.json')},
           {@render code('identity.json')}, {@render code('summary.json')}, {@render code('members.csv')}
-          (the member-level base table, with the component-stem spans flattened into columns), the
-          tree-input FASTAs, and (with {@render code('--emit-table')}) a readable {@render code(
-            'tandem_loci.tsv',
-          )}.
+          (above), the tree-input FASTAs, and — with {@render code('--emit-table')} — a readable
+          {@render code('tandem_loci.tsv')}.
         </p>
       </div>
       <div class="rounded-md border border-hairline bg-surface px-4 py-3 text-small text-muted">
@@ -247,11 +240,10 @@ python3 reproduce_tandem_tbox_db.py \
           ? s.counts.intra_locus_pairs
           : 488} counts, the
         {#if s}{s.confidence.high}&nbsp;/&nbsp;{s.confidence.low}{:else}high&nbsp;/&nbsp;low{/if}
-        confidence split, and every specifier and phylum distribution reproduce exactly; 943 of 949
-        element records are byte-identical. The few differences are documented curatorial edge cases —
-        a handful of physical cores carry several redundant source annotations, and locus IDs are
-        re-assigned in genomic order rather than original discovery order. The script's header
-        comment explains the logic of every step in full.
+        confidence split, and every specifier and phylum distribution reproduce exactly, and 943 of 949
+        element records are byte-identical. The few differences are curatorial edge cases — a handful of
+        physical cores carry redundant source annotations, and locus IDs follow genomic order rather than
+        original discovery order. The script's header comment documents every step.
       </div>
     </div>
   </Card>
@@ -266,8 +258,8 @@ python3 reproduce_tandem_tbox_db.py \
         <div>
           <dt class="font-medium text-ink">Contamination is dropped first.</dt>
           <dd class="mt-0.5 text-muted">
-            24 confirmed non-bacterial rows (phyla Arthropoda, Ascomycota, Nematoda, Streptophyta) are
-            removed before the join, so they never reach a view.
+            The 24 confirmed non-bacterial (eukaryotic) rows removed in step 1 of the build never reach a
+            view.
           </dd>
         </div>
         <div>
@@ -315,8 +307,8 @@ python3 reproduce_tandem_tbox_db.py \
           class="text-brand underline decoration-brand/30 underline-offset-2">Similarity map</a
         >
         is an exploratory sequence-similarity map for visual grouping. It is <strong>not</strong> an
-        ancestral-state reconstruction, and it is decoupled from any formal rooted analysis. Several
-        method choices keep it a map rather than a polarity instrument:
+        ancestral-state reconstruction. Several method choices keep it a map rather than a polarity
+        instrument:
       </p>
       <ul class="list-disc space-y-1.5 pl-5 marker:text-muted">
         <li>
@@ -353,9 +345,10 @@ python3 reproduce_tandem_tbox_db.py \
     <div use:fitMeasure={{ maxPx: 24, targetChars: 88 }} class="space-y-3 leading-relaxed">
       <p>
         Each element's detail page renders its RNA secondary structure two ways, toggled in place. Both
-        color every nucleotide by which structural domain it sits in — Stem&nbsp;I, Stem&nbsp;II,
-        Stem&nbsp;IIA/B, Stem&nbsp;III, and the antiterminator — from one shared palette, and both also
-        offer the canonical tbdb.io VARNA drawing.
+        color every nucleotide by its structural domain — Stem&nbsp;I, Stem&nbsp;II, Stem&nbsp;IIA/B,
+        Stem&nbsp;III, and the antiterminator — from one shared palette, and a link to the element's
+        canonical tbdb.io VARNA drawing always sits alongside. Either render can also be switched between
+        the gene-on antiterminator fold and the gene-off terminator hairpin.
       </p>
       <ul class="list-disc space-y-1.5 pl-5 marker:text-muted">
         <li>
@@ -412,7 +405,7 @@ python3 reproduce_tandem_tbox_db.py \
         <dt class="font-medium text-ink">Element (also member)</dt>
         <dd class="text-muted">
           One complete T-box unit — Stem I plus its antiterminator/terminator decision module — within a
-          locus (the 949 total). Also called a member.
+          locus (the 949 total).
         </dd>
       </div>
       <div>
