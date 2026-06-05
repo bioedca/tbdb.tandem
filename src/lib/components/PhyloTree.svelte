@@ -435,7 +435,7 @@
 
     <!-- Tree canvas -->
     <div
-      class="relative mt-3 min-h-[28rem] w-full overflow-hidden rounded-md border border-hairline bg-surface-subtle"
+      class="relative mt-3 min-h-[28rem] w-full overflow-hidden rounded-md border border-hairline bg-surface"
       style:height
     >
       <div bind:this={containerEl} class="tv-phylotree h-full w-full"></div>

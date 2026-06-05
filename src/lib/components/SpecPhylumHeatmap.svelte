@@ -147,10 +147,11 @@
     ]
     const layout = {
       autosize: true,
+      // Responsive margin/font (this branch) + solid white chart backgrounds (#27).
       margin: { l: marginL, r: 8, t: 6, b: marginB },
       font: { family: fontFamily.mono, size: tickPx, color: neutral.text },
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: neutral.surfaceSubtle,
+      paper_bgcolor: neutral.surface,
+      plot_bgcolor: neutral.surface,
       xaxis: {
         side: 'bottom',
         tickangle: -90,
