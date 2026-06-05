@@ -23,9 +23,14 @@ from wuss import is_balanced
 
 DATA = Path(__file__).resolve().parents[2] / "public" / "data"
 
-#: Committed standalone terminator R2DT diagrams (PLAN section 9; build_r2dt.py
-#: terminator stage). 949 − 14 (no term_sequence) − 13 (balanced but pairless) = 922.
+#: Members the conformation toggle enables = non-null ``whole_term_structure`` (PLAN
+#: section 9). 949 - 14 (no term_sequence) - 13 (balanced but pairless) = 922.
 N_TERMINATOR = 922
+#: Committed FULL-LENGTH terminator R2DT diagrams (build_r2dt.py terminator graft): the
+#: members with both raw R2DT coords AND a drawable terminator whose reflow passes the
+#: quality gate. The rest of the 922 fall back to fornac (also full-length). A regen that
+#: moves this must update the constant consciously (CLAUDE.md section 2).
+N_TERMINATOR_R2DT = 789
 
 # Load-bearing counts (PLAN section 3.1, 5.4; CLAUDE.md section 2). The main-tree
 # tip count is the value the S0.6 build emitted and PROGRESS.md recorded -- never
@@ -146,34 +151,94 @@ def _to_rna(seq: str | None) -> str:
 
 def test_terminator_manifest_matches_committed_diagrams():
     """The committed term/manifest.json count == the number of committed term/<id>.json
-    files == N_TERMINATOR. Guards against the terminator data being untracked / partially
-    staged (a fresh checkout would otherwise ship a dead terminator R2DT viewer)."""
+    files == N_TERMINATOR_R2DT. Guards against the terminator data being untracked /
+    partially staged (a fresh checkout would otherwise ship a dead terminator R2DT viewer)."""
     term = DATA / "r2dt" / "term"
     manifest = json.loads((term / "manifest.json").read_text())
     files = {p.stem for p in term.glob("*.json")} - {"manifest"}
-    assert manifest["count"] == N_TERMINATOR
-    assert len(files) == N_TERMINATOR
+    assert manifest["count"] == N_TERMINATOR_R2DT
+    assert len(files) == N_TERMINATOR_R2DT
     assert set(manifest["diagrams"]) == files
+    # the terminator graft uses the same raw coords as the antiterminator graft, so almost
+    # every term diagram is also an antiterm diagram (a few differ where one graft's quality
+    # gate dropped the member and the other's did not).
+    antiterm = set(json.loads((DATA / "r2dt" / "manifest.json").read_text())["diagrams"])
+    assert len(files - antiterm) <= 5  # only a handful of term-only diagrams
 
 
-def test_terminator_diagrams_current_and_consistent(members):
-    """Every committed terminator diagram is internally consistent AND current vs
-    members.json: seq == toRna(term_sequence), pairs == the term_structure pair table,
-    equal-length finite coords, and never pairless. Catches a stale committed set."""
+def test_terminator_diagrams_full_length_current_and_consistent(members):
+    """Every committed terminator diagram is the FULL-LENGTH conformation, internally
+    consistent AND current vs members.json: seq == toRna(fasta_sequence) (the whole leader,
+    not the hairpin), the terminator-hairpin pairs (term_structure shifted into leader
+    coordinates) are all present, equal-length finite coords, never pairless."""
     term = DATA / "r2dt" / "term"
     for p in term.glob("*.json"):
         if p.stem == "manifest":
             continue
         mid = p.stem
+        m = members[mid]
         d = json.loads(p.read_text())
         n = len(d["seq"])
         assert len(d["x"]) == n and len(d["y"]) == n
         assert all(math.isfinite(v) for v in d["x"] + d["y"])
-        assert d["seq"] == _to_rna(members[mid]["term_sequence"])  # current, not stale
-        pt = br._pair_table(members[mid]["term_structure"])
-        expected = [[min(i, pt[i]), max(i, pt[i])] for i in range(1, n + 1) if i < pt[i]]
-        assert d["pairs"] == sorted(expected)  # pairs reproduce term_structure exactly
+        assert d["seq"] == _to_rna(m["fasta_sequence"])  # FULL leader, current (not stale)
+        # the terminator hairpin pairs, shifted into leader coordinates, are all drawn
+        t0 = _to_rna(m["fasta_sequence"]).find(_to_rna(m["term_sequence"]))
+        assert t0 >= 0, f"{mid}: term_sequence must align into the leader"
+        pt = br._pair_table(m["term_structure"])
+        want = {(i + t0, pt[i] + t0) for i in range(1, len(m["term_structure"]) + 1) if i < pt[i]}
+        drawn = {tuple(pr) for pr in d["pairs"]}
+        assert want <= drawn, f"{mid}: terminator pairs missing from the diagram"
         assert d["pairs"], f"{mid}: a terminator diagram must have >= 1 base pair"
+
+
+def test_terminator_diagrams_pin_stems_across_the_toggle(members):
+    """The headline guarantee on the COMMITTED data: a member's terminator diagram shares the
+    antiterminator diagram's Stem I/II/III coordinates (only the 3' hairpin swaps). For every
+    member drawn in BOTH r2dt/ and r2dt/term/, the residues paired in both (the kept stems)
+    must have identical coords -- except a handful of degenerate Partial leaders whose
+    terminator spans almost the whole molecule (those legitimately refold)."""
+    at_dir, tm_dir = DATA / "r2dt", DATA / "r2dt" / "term"
+    at_ids = {p.stem for p in at_dir.glob("*.json")} - {"manifest"}
+    tm_ids = {p.stem for p in tm_dir.glob("*.json")} - {"manifest"}
+    both = sorted(at_ids & tm_ids)
+    assert len(both) > 700  # the bulk of the committed terminator set is drawn in both
+    mismatched = []
+    for mid in both:
+        a = json.loads((at_dir / f"{mid}.json").read_text())
+        t = json.loads((tm_dir / f"{mid}.json").read_text())
+        a_res = {i for pr in a["pairs"] for i in pr}
+        t_res = {i for pr in t["pairs"] for i in pr}
+        stem_res = {
+            p for s in members[mid]["stems"] if s["key"] != "at"
+            for p in range(s["start"], s["end"] + 1)
+        }
+        cmp_res = [r for r in stem_res if r in a_res and r in t_res]
+        if cmp_res and not all(
+            abs(a["x"][r - 1] - t["x"][r - 1]) <= 0.1 and abs(a["y"][r - 1] - t["y"][r - 1]) <= 0.1
+            for r in cmp_res
+        ):
+            mismatched.append(mid)
+    # the only members whose stems move are degenerate Partial leaders (terminator ≈ whole leader)
+    assert all(members[mid]["completeness"] == "Partial" for mid in mismatched), mismatched
+    assert len(mismatched) <= 20, f"too many members with non-pinned stems: {mismatched}"
+
+
+def test_whole_term_structure_current_balanced_and_counted(members):
+    """The committed members.json ``whole_term_structure`` is current (re-derivable from the
+    same member fields by the build), balanced, leader-length, and non-null for exactly
+    N_TERMINATOR members -- the conformation toggle's enabled set."""
+    nonnull = 0
+    for mid, m in members.items():
+        wts = bj.derive_whole_term_structure(
+            m["fasta_sequence"], m["whole_antiterm_structure"],
+            m["term_sequence"], m["term_structure"], m["stems"],
+        )
+        assert m["whole_term_structure"] == wts, f"{mid}: committed whole_term_structure is stale"
+        if wts is not None:
+            nonnull += 1
+            assert is_balanced(wts) and len(wts) == len(m["fasta_sequence"])
+    assert nonnull == N_TERMINATOR
 
 
 def test_members_csv_drops_off_3prime_term_like_the_viewers(members_csv, members):

@@ -10,9 +10,11 @@ import {
   SPECIFIER_COLORS,
   STEM_COLORS,
   STEM_LINKER_COLOR,
+  TERMINATOR_COLOR,
   UNKNOWN_SPECIFIER_COLOR,
   aaColor,
   assertChromeDataDisjoint,
+  buildFullTerminatorColorMap,
   buildStemColorMap,
   featurePositions,
   featureShade,
@@ -219,6 +221,44 @@ describe('hslToHex / featureShade (conserved-motif overlay, PLAN §9)', () => {
       expect(f.color).toBe(featureShade(STEM_COLORS[FEATURE_PARENT[f.key]]))
     }
     expect(FEATURE_OVERLAY_META.map((f) => f.key).sort()).toEqual(['discrim', 's1_loop'])
+  })
+})
+
+describe('buildFullTerminatorColorMap (full-length terminator, PLAN §9)', () => {
+  // A 14-nt full-length terminator: Stem I span [1,4], the terminator HAIRPIN pairs
+  // (8,13)(9,12) (the pairs new to the terminator fold — what terminatorHairpinPairs returns),
+  // and the (unfolded) antiterminator span [6,7] which must NOT be coloured as a domain.
+  const stems = [
+    { key: 'i' as const, start: 1, end: 4 },
+    { key: 'at' as const, start: 6, end: 7 },
+  ]
+  const termPairs: [number, number][] = [[8, 13], [9, 12]] // the terminator hairpin only
+
+  test('Stem I keeps its hue; the terminator hairpin is terminator-coloured; rest grey', () => {
+    const m = buildFullTerminatorColorMap(stems, termPairs, 14)
+    expect(m[1]).toBe(STEM_COLORS.i) // Stem I span keeps its hue (same as antiterm)
+    expect(m[4]).toBe(STEM_COLORS.i)
+    expect(m[8]).toBe(TERMINATOR_COLOR) // terminator hairpin → terminator hue
+    expect(m[13]).toBe(TERMINATOR_COLOR)
+    expect(m[5]).toBe(STEM_LINKER_COLOR) // linker between Stem I and the hairpin → grey
+    expect(m[10]).toBe(STEM_LINKER_COLOR) // terminator loop (unpaired) → grey
+  })
+
+  test('the unfolded antiterminator (`at`) is not coloured as a domain', () => {
+    const m = buildFullTerminatorColorMap(stems, termPairs, 14)
+    // positions 6-7 (the `at` span) are unpaired here → grey, never an `at` hue
+    expect(m[6]).toBe(STEM_LINKER_COLOR)
+    expect(m[7]).toBe(STEM_LINKER_COLOR)
+    expect(m[6]).not.toBe(STEM_COLORS.at)
+  })
+
+  test('the terminator hairpin wins over a stem span it sequesters (degenerate Partial leaders)', () => {
+    // a terminator pair (3,4) lands inside the Stem I span [1,4] → those residues read
+    // terminator (the stem is unfolded there), not Stem I — painted last so it wins.
+    const m = buildFullTerminatorColorMap([{ key: 'i' as const, start: 1, end: 4 }], [[3, 4]], 6)
+    expect(m[1]).toBe(STEM_COLORS.i) // stem residue with no terminator pair → stays Stem I
+    expect(m[3]).toBe(TERMINATOR_COLOR) // sequestered by the terminator → terminator wins
+    expect(m[4]).toBe(TERMINATOR_COLOR)
   })
 })
 

@@ -539,6 +539,111 @@ def derive_stems(row: object) -> list[dict]:
     return [{"key": key, "start": lo, "end": hi} for key, (lo, hi) in stems]
 
 
+def _pair_table(dot: str) -> list[int]:
+    """1-based partner table for a round-bracket dot-bracket (``pt[i]`` = partner or 0)."""
+    pt = [0] * (len(dot) + 1)
+    stack: list[int] = []
+    for i, ch in enumerate(dot, start=1):
+        if ch == "(":
+            stack.append(i)
+        elif ch == ")" and stack:
+            j = stack.pop()
+            pt[i] = j
+            pt[j] = i
+    return pt
+
+
+def derive_whole_term_structure(
+    fasta_sequence: str | None,
+    whole_antiterm_structure: str | None,
+    term_sequence: str | None,
+    term_structure: str | None,
+    stems: list[dict],
+) -> str | None:
+    """Full-leader TERMINATOR-conformation dot-bracket -- the analogue of
+    ``whole_antiterm_structure`` for the gene-OFF fold (PLAN section 9).
+
+    The terminator hairpin (``term_structure`` over ``term_sequence``) is a sub-sequence
+    of the leader, not a whole-leader fold; tbdb draws the terminator full-length (Stem
+    I/II/III unchanged, only the 3' region swapping antiterminator helix -> terminator
+    hairpin). This rebuilds that conformation over the gap-free leader so both in-app
+    viewers render it full-length and toggling antiterm<->term keeps the stems fixed:
+
+      * locate the terminator within the leader -- ``term_sequence`` (T->U) is an exact,
+        unique substring of ``fasta_sequence`` (T->U) for every renderable terminator;
+      * keep the ``whole_antiterm_structure`` base pairs that lie ENTIRELY OUTSIDE the
+        switch region ``[min(antiterm_start, term_start) .. max(antiterm_end, term_end)]``
+        -- i.e. Stem I / II / IIA-B / III (and any other upstream structure) are preserved
+        byte-for-byte from the antiterminator fold;
+      * add the terminator-hairpin pairs (from ``term_structure``) shifted into leader
+        coordinates.
+
+    Returns the leader-length dot-bracket, or ``None`` when the member has no drawable
+    terminator (missing / length-mismatched / unbalanced / pairless ``term_*``, or a
+    terminator that does not align cleanly into the leader). The non-null set is exactly
+    the members the conformation toggle enables -- it matches ``build_r2dt.py``'s
+    renderability gate and the frontend ``terminatorRnaModel``. Pure (no pandas) so the
+    reproduce script mirrors it verbatim and unit tests call it directly.
+    """
+    if not fasta_sequence or not term_sequence or not term_structure:
+        return None
+    if len(term_sequence) != len(term_structure):
+        return None
+    if not is_balanced(term_structure) or "(" not in term_structure:
+        return None
+    leader = fasta_sequence.upper().replace("T", "U")
+    tseq = term_sequence.upper().replace("T", "U")
+    t0 = leader.find(tseq)
+    if t0 < 0 or leader.find(tseq, t0 + 1) >= 0:
+        return None  # terminator absent, or not a UNIQUE substring -> can't place it unambiguously
+    n = len(leader)
+    tlo, thi = t0 + 1, t0 + len(tseq)  # 1-based, inclusive
+
+    # Drop antiterminator pairs that touch the antiterminator-helix span OR the terminator
+    # span (each region SEPARATELY -- NOT their contiguous union: when the terminator aligns
+    # upstream of and disjoint from the antiterminator helix, a single [min..max] span would
+    # swallow a stem sitting between them, e.g. T0396.m2's Stem I). Everything else -- Stem
+    # I/II/IIA-B/III -- is kept identical to the antiterminator conformation. Defensive on a
+    # missing/length-mismatched whole_antiterm_structure -> no upstream stems kept.
+    at = next((s for s in stems if s.get("key") == "at"), None)
+
+    def _in_switch(p: int) -> bool:
+        return (tlo <= p <= thi) or (at is not None and at["start"] <= p <= at["end"])
+
+    kept: list[tuple[int, int]] = []
+    if whole_antiterm_structure and len(whole_antiterm_structure) == n:
+        apt = _pair_table(whole_antiterm_structure)
+        for i in range(1, n + 1):
+            j = apt[i]
+            if j and i < j and not (_in_switch(i) or _in_switch(j)):
+                kept.append((i, j))
+
+    # Terminator-hairpin pairs, shifted into leader coordinates.
+    tpt = _pair_table(term_structure)
+    term_pairs = [(i + t0, tpt[i] + t0) for i in range(1, len(term_structure) + 1) if i < tpt[i]]
+
+    all_pairs = kept + term_pairs
+    arr = ["."] * (n + 1)  # 1-based working buffer
+    occupied = [False] * (n + 1)
+    for i, j in all_pairs:
+        if occupied[i] or occupied[j]:
+            return None  # a residue paired twice (defensive; never on the real data)
+        occupied[i] = occupied[j] = True
+        arr[i], arr[j] = "(", ")"
+    whole_term = "".join(arr[1:])
+
+    # The assembled string must be a valid, non-crossing dot-bracket whose own pair table
+    # reproduces our pair set -- this rejects any pseudoknot/crossing (none on the real
+    # data) that the flat buffer above would otherwise have written silently.
+    if not is_balanced(whole_term):
+        return None
+    vpt = _pair_table(whole_term)
+    recovered = {(min(i, vpt[i]), max(i, vpt[i])) for i in range(1, n + 1) if vpt[i]}
+    if recovered != {(min(a, b), max(a, b)) for a, b in all_pairs}:
+        return None
+    return whole_term
+
+
 def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) -> dict:
     """Build one ``members.json`` object from its resolved Master row (PLAN 5.2).
 
@@ -570,6 +675,14 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
     protein = _s(row["downstream_protein"])
     func_class, func_source = classify_func(ec, protein)
 
+    # Structure/sequence cells the terminator conformation derives from (kept as locals
+    # so derive_whole_term_structure reads the SAME assembled values the dict emits).
+    fasta_sequence = _s(row["FASTA_sequence"])
+    whole_antiterm_structure = _s(row["whole_antiterm_structure"])
+    term_structure = _s(row["term_structure"])
+    term_sequence = _s(row["term_sequence"])
+    stems = derive_stems(row)
+
     return {
         "member_id": member["member_id"],
         "tandem_id": member["tandem_id"],
@@ -584,21 +697,28 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
             "genome": genome,
         },
         # Gap-free leader (DNA); len == |locus_end - locus_start| + 1 (gate #5).
-        "fasta_sequence": _s(row["FASTA_sequence"]),
+        "fasta_sequence": fasta_sequence,
         # Gapped Stem-I aligned RNA + converted Stem-I structure, kept together;
         # NOT genome-indexable (PLAN section 5.2). structure converts WUSS only.
         "aligned_sequence": _s(row["Sequence"]),
         "structure": wuss_to_dotbracket(str(row["Structure"])),
         # Already dot-bracket -> pass through, never converted (PLAN section 3.1).
-        "whole_antiterm_structure": _s(row["whole_antiterm_structure"]),
-        "term_structure": _s(row["term_structure"]),
+        "whole_antiterm_structure": whole_antiterm_structure,
+        "term_structure": term_structure,
         # Terminator-hairpin sequence; pairs 1:1 with term_structure WHERE PRESENT (equal
         # length). Independent source cell -> can be null even when term_structure is not
         # (e.g. T0360.m2), so the terminator render gates on term_sequence, not _structure.
-        "term_sequence": _s(row["term_sequence"]),
+        "term_sequence": term_sequence,
+        # Full-leader TERMINATOR conformation (gene-OFF) -- derived, the analogue of
+        # whole_antiterm_structure: Stem I/II/III kept, the antiterminator helix replaced
+        # by the terminator hairpin (PLAN section 9). Null for members with no drawable
+        # terminator (the conformation toggle's non-null set).
+        "whole_term_structure": derive_whole_term_structure(
+            fasta_sequence, whole_antiterm_structure, term_sequence, term_structure, stems
+        ),
         # Labelled stem spans (Stem I / II / IIA-B / III / antiterminator) for the
         # in-app RNA colour overlay; leader-relative, indexes whole_antiterm_structure.
-        "stems": derive_stems(row),
+        "stems": stems,
         "deltadelta_g": _f(row["deltadelta_g"]),
         "terminator_energy": _f(row["terminator_energy"]),
         "type": _s(row["type"]),
@@ -1264,10 +1384,16 @@ def validate_gates(
         # pass-through antiterm/term structures are already balanced.
         if m["structure"] and not is_balanced(m["structure"]):
             failures.append(f"gate#7: {member_id} structure is not balanced dot-bracket")
-        for col in ("whole_antiterm_structure", "term_structure"):
+        for col in ("whole_antiterm_structure", "term_structure", "whole_term_structure"):
             value = m[col]
             if value is not None and not is_balanced(value):
                 failures.append(f"gate#7: {member_id} {col} is not balanced")
+        # The derived terminator conformation, when present, spans the whole leader.
+        wts = m["whole_term_structure"]
+        if wts is not None and m["fasta_sequence"] and len(wts) != len(m["fasta_sequence"]):
+            failures.append(
+                f"gate#7: {member_id} whole_term_structure len {len(wts)} != leader {len(m['fasta_sequence'])}"
+            )
 
     # Gate #9 (relational): pair count == Sum C(n_cores, 2); every pair is
     # intra-locus and references known members.
