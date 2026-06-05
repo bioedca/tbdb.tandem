@@ -23,6 +23,9 @@ test.describe('Visual regression', () => {
     await expect(kpi).toBeVisible()
     await expect(kpi.getByText('470')).toBeVisible() // values populated
     await fontsReady(page)
+    // Each KPI value is `use:fitText`-sized once fonts settle; await all six `data-fitted`
+    // signals so the snapshot captures the final sizes, never a mid-fit frame.
+    await expect(kpi.locator('[data-fitted]')).toHaveCount(6)
     await expect(kpi).toHaveScreenshot('kpi-strip.png')
   })
 
@@ -57,6 +60,14 @@ test.describe('Visual regression', () => {
     // must have rendered so the mask covers real charts, never a leftover spinner.
     await expect(page.locator('.js-plotly-plot')).toHaveCount(5)
     await fontsReady(page)
+    // The banner title (`use:fitText`) and the two intro leads (`use:fitMeasure`) size
+    // themselves with pretext once fonts settle; await their `data-fitted` settle signal
+    // so the snapshot captures the final sizes, never a mid-fit frame (PLAN §8 responsive).
+    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toHaveAttribute(
+      'data-fitted',
+      '',
+    )
+    await expect(page.locator('section.space-y-6 > header p[data-fitted]')).toHaveCount(2)
     await expect(page).toHaveScreenshot('dashboard.png', {
       fullPage: true,
       mask: [page.locator('.js-plotly-plot'), page.locator('.tv-phylotree')],
