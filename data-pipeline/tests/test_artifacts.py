@@ -100,6 +100,68 @@ def test_members_csv_is_current(loci, members, tmp_path):
     assert regenerated == committed, "public/data/members.csv is stale; rerun build_json.py"
 
 
+def _frontend_window(window: dict, feat: str, length: int):
+    """The span the VIEWERS keep for a feature -- an INDEPENDENT oracle (not the CSV
+    producer): validSpan (ascending + >= 1) AND the hi <= length drop, mirroring
+    src/lib/sequence.ts featureSpans/markerSpans/overlayFeatures. Used to prove the CSV
+    matches what the app actually highlights (so the check can't be tautological)."""
+    span = (window or {}).get(feat) or [None, None]
+    a, b = span[0], span[1]
+    if a is None or b is None or a < 1 or b < 1:
+        return None
+    lo, hi = min(a, b), max(a, b)
+    return (lo, hi) if hi <= length else None
+
+
+def test_members_csv_feature_windows_match_what_viewers_highlight(members_csv, members):
+    """The feature-window columns (specifier loop, codon, UGGN/discrim, terminator) +
+    term_sequence carry the EXACT spans the viewers highlight by (PLAN section 9). Checked
+    against an INDEPENDENT frontend oracle (leader-length bounded), so an off-the-3'-end
+    span the app drops (e.g. T0299.m2's corrupt term = [153, 143] over 143 bp) must be
+    blank in the CSV too -- the case the old _csv_window self-comparison could not catch."""
+    header, rows = members_csv
+    idx = {c: i for i, c in enumerate(header)}
+    for row in rows:
+        mid = row[idx["member_id"]]
+        member = members[mid]
+        window = member["coords"]["window"]
+        length = len(member["fasta_sequence"])
+        for feat in bj._FEATURE_CSV_FEATS:
+            lo, hi = row[idx[f"{feat}_start"]], row[idx[f"{feat}_end"]]
+            got = (int(lo), int(hi)) if lo != "" else None
+            assert got == _frontend_window(window, feat, length), f"{mid} {feat}: {got}"
+        ts = row[idx["term_sequence"]] or None
+        assert ts == member["term_sequence"], f"{mid} term_sequence CSV != members.json"
+
+
+def test_members_csv_drops_off_3prime_term_like_the_viewers(members_csv, members):
+    """Regression anchor for the off-the-3'-end drop: T0299.m2's term window is corrupt
+    ([153, 143] over a 143 bp leader); the viewers drop it, so the CSV term columns must
+    be blank (not the phantom 143..153 the low-end-only rule used to write)."""
+    header, rows = members_csv
+    idx = {c: i for i, c in enumerate(header)}
+    row = next(r for r in rows if r[idx["member_id"]] == "T0299.m2")
+    assert row[idx["term_start"]] == "" and row[idx["term_end"]] == ""
+    # the member's raw window is indeed off the end (guards the fixture's intent)
+    assert members["T0299.m2"]["coords"]["window"]["term"][0] > len(members["T0299.m2"]["fasta_sequence"])
+
+
+def test_term_sequence_pairs_with_term_structure(members):
+    """term_sequence is equal-length with term_structure wherever both are present, and
+    term_structure stays round-bracket balanced -- the invariant the terminator render
+    relies on (the sequence threads onto the structure base-for-base)."""
+    paired = 0
+    for mid, m in members.items():
+        ts, td = m["term_sequence"], m["term_structure"]
+        if ts is None:
+            continue
+        assert td is not None, f"{mid}: term_sequence without term_structure"
+        assert len(ts) == len(td), f"{mid}: term_sequence/term_structure length mismatch"
+        assert set(td) <= set("().") and is_balanced(td), f"{mid}: term_structure not balanced round-brackets"
+        paired += 1
+    assert paired >= 900  # ~935 members carry a complete terminator on the committed data
+
+
 # --- Gate #1 / #2 / #9 : absolute counts ------------------------------------
 
 def test_counts(loci, members, identity):

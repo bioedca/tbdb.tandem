@@ -100,6 +100,38 @@ export const STEM_COLORS: Record<StemKey, string> = STEM_META.reduce(
 /** Nucleotides outside any labelled stem (linkers / single strand) — quiet grey. */
 export const STEM_LINKER_COLOR = '#cbd3d8'
 
+// ── Conserved-motif overlay (a sub-region emphasis WITHIN a stem) ───────────────
+/**
+ * The two conserved T-box motifs emphasised inside their parent stem (PLAN §9):
+ *  • `discrim` — the conserved **5′-UGGN-3′** T-box motif that base-pairs the tRNA
+ *    acceptor end; it sits inside the **antiterminator** (901/901 members), so it is
+ *    painted a deeper shade of `STEM_COLORS.at`.
+ *  • `s1_loop` — the **specifier loop** (carrying the specifier codon), inside
+ *    **Stem I**, painted a deeper shade of `STEM_COLORS.i`.
+ * Drawn as a {@link featureShade} of the parent stem so the motif reads as the SAME
+ * structural family, just emphasised — not a new categorical color.
+ */
+export type OverlayFeatureKey = 's1_loop' | 'discrim'
+
+/** One conserved-motif span to emphasise: 1-based, inclusive, leader-relative. */
+export interface OverlayFeature {
+  key: OverlayFeatureKey
+  start: number
+  end: number
+}
+
+/** Each motif's parent stem (whose color it deepens) — the biological containment. */
+export const FEATURE_PARENT: Record<OverlayFeatureKey, StemKey> = {
+  s1_loop: 'i',
+  discrim: 'at',
+}
+
+/** Legend metadata for the motif overlay (label + the shade swatch it draws). */
+export const FEATURE_OVERLAY_META: { key: OverlayFeatureKey; label: string; color: string }[] = [
+  { key: 's1_loop', label: 'Specifier loop', color: featureShade(STEM_COLORS.i) },
+  { key: 'discrim', label: 'T-box (5′-UGGN-3′)', color: featureShade(STEM_COLORS.at) },
+]
+
 /**
  * Per-nucleotide stem-overlay colors for a member's structure: a 1-based map
  * `position → hex`, every position defaulting to {@link STEM_LINKER_COLOR} and
@@ -107,10 +139,19 @@ export const STEM_LINKER_COLOR = '#cbd3d8'
  * {@link STEM_COLORS} hue. The SINGLE source of this mapping — reused by BOTH the
  * fornac overlay and the R2DT diagram so the two viewers color identically
  * (PLAN §9). Later stems win on the (non-occurring) overlap, matching 5′→3′ order.
+ *
+ * `features` (the conserved-motif spans) are painted LAST, each a {@link featureShade}
+ * of its {@link FEATURE_PARENT} stem — BUT only over residues where that parent stem is
+ * the one actually shown (after the last-wins overlap). So a motif window that the raw
+ * annotation runs slightly past its parent helix (or onto a linker / a different stem)
+ * is CLIPPED to its structural domain: the deeper shade is always a deeper version of
+ * the visible parent stem, never a floating mislabel. Keeps the documented "specifier
+ * loop inside Stem I / UGGN inside the antiterminator" containment honest.
  */
 export function buildStemColorMap(
   stems: { key: StemKey; start: number; end: number }[],
   length: number,
+  features: OverlayFeature[] = [],
 ): Record<number, string> {
   const colors: Record<number, string> = {}
   for (let i = 1; i <= length; i++) colors[i] = STEM_LINKER_COLOR
@@ -119,7 +160,34 @@ export function buildStemColorMap(
     if (!col) continue
     for (let p = Math.max(1, s.start); p <= Math.min(length, s.end); p++) colors[p] = col
   }
+  for (const f of features) {
+    const parentColor = STEM_COLORS[FEATURE_PARENT[f.key]]
+    const shade = featureShade(parentColor)
+    for (let p = Math.max(1, f.start); p <= Math.min(length, f.end); p++) {
+      if (colors[p] === parentColor) colors[p] = shade // only deepen where the parent stem shows
+    }
+  }
   return colors
+}
+
+/** 1-based positions where a conserved-motif overlay is actually shown — its span
+ *  CLIPPED to the residues where its {@link FEATURE_PARENT} stem is the visible one
+ *  (matching {@link buildStemColorMap}). These take a discrete ring in the R2DT diagram
+ *  (the shaded fill reads as "deeper stem"; the ring marks the motif as distinct). */
+export function featurePositions(
+  stems: { key: StemKey; start: number; end: number }[],
+  length: number,
+  features: OverlayFeature[],
+): Set<number> {
+  const base = buildStemColorMap(stems, length) // stem-only colors (no feature recursion)
+  const set = new Set<number>()
+  for (const f of features) {
+    const parentColor = STEM_COLORS[FEATURE_PARENT[f.key]]
+    for (let p = Math.max(1, f.start); p <= Math.min(length, f.end); p++) {
+      if (base[p] === parentColor) set.add(p)
+    }
+  }
+  return set
 }
 
 /**
@@ -271,6 +339,42 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } {
   else if (max === gn) h = ((bn - rn) / d + 2) * 60
   else h = ((rn - gn) / d + 4) * 60
   return { h, s, l }
+}
+
+/**
+ * HSL (hue degrees, s/l in [0,1]) → `#rrggbb`. The inverse of {@link hexToHsl};
+ * used by {@link featureShade} to deepen a stem color while keeping its hue.
+ */
+export function hslToHex(h: number, s: number, l: number): string {
+  h = ((h % 360) + 360) % 360
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  let r = 0
+  let g = 0
+  let b = 0
+  if (h < 60) [r, g, b] = [c, x, 0]
+  else if (h < 120) [r, g, b] = [x, c, 0]
+  else if (h < 180) [r, g, b] = [0, c, x]
+  else if (h < 240) [r, g, b] = [0, x, c]
+  else if (h < 300) [r, g, b] = [x, 0, c]
+  else [r, g, b] = [c, 0, x]
+  const hx = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, '0')
+  return `#${hx(r)}${hx(g)}${hx(b)}`
+}
+
+/**
+ * A deeper, more-saturated shade of a stem color — same hue, so it reads as the SAME
+ * structural family (PLAN §9 conserved-motif overlay). Used to emphasise the UGGN
+ * motif inside the antiterminator and the specifier loop inside Stem I, in both the
+ * R2DT diagram and the fornac overlay, without introducing a new categorical color.
+ */
+export function featureShade(hex: string): string {
+  const { h, s, l } = hexToHsl(hex)
+  return hslToHex(h, Math.min(1, s * 1.28 + 0.06), Math.max(0, l * 0.62))
 }
 
 /** Smallest angular distance between two hues, in degrees [0,180]. */

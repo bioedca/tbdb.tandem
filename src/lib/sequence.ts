@@ -15,24 +15,32 @@
 // in-app RNA at S2.3 — they are deliberately not used here.
 
 import type { Member, StemKey } from './data/types'
+import { FEATURE_PARENT, type OverlayFeature, type OverlayFeatureKey } from './color'
 import { validSpan } from './architecture'
 
 /** The leader features carried in `coords.window` (the `tbox` body and the Stem-I
  *  terminal loop are diagram-only glyphs, not sequence highlights). `featureSpans`
  *  below exposes these for the architecture↔sequence drift guard; the RENDERER
- *  segments by `stems` + the codon/terminator/discriminator MARKERS instead. */
+ *  segments by `stems` + the conserved-motif overlay + the codon/terminator markers. */
 export const HIGHLIGHT_FEATURES = ['s1', 'codon', 'antiterm', 'term', 'discrim'] as const
 export type HighlightFeature = (typeof HIGHLIGHT_FEATURES)[number]
 
 /** The point/marker features overlaid ON the stem fill: the specifier codon (bold)
- *  and the two 3′ regulatory rules. Stem-I and the antiterminator are NOT here — they
- *  are stems, so they belong to the FILL channel (see `stemByPosition`), shared with
- *  the in-app RNA so the sequence and the 2D structure read the SAME stem colors. */
-export const MARKER_FEATURES = ['codon', 'term', 'discrim'] as const
+ *  and the terminator 3′ rule. Stem-I and the antiterminator are NOT here — they are
+ *  stems, so they belong to the FILL channel (see `stemByPosition`), shared with the
+ *  in-app RNA so the sequence and the 2D structure read the SAME stem colors. The
+ *  conserved motifs (specifier loop, UGGN) are the FEATURE channel (`featureByPosition`),
+ *  a deeper shade of their parent stem — also shared with the structure viewers. */
+export const MARKER_FEATURES = ['codon', 'term'] as const
 export type MarkerFeature = (typeof MARKER_FEATURES)[number]
 
-/** Bottom-rule channel (neutral chrome) for the 3′ regulatory features. */
-export type SeqRule = 'term' | 'discrim' | null
+/** The conserved-motif overlay features painted as a deeper shade of their parent
+ *  stem (PLAN §9), shared with the R2DT/fornac viewers via `color.ts`: the specifier
+ *  loop (in Stem I) and the 5′-UGGN-3′ T-box motif (in the antiterminator). */
+export const OVERLAY_FEATURES = ['s1_loop', 'discrim'] as const
+
+/** Bottom-rule channel (neutral chrome) for the terminator 3′ feature. */
+export type SeqRule = 'term' | null
 
 /**
  * One maximal run of the leader with constant styling across the two channels the
@@ -46,9 +54,12 @@ export interface SeqSegment {
   text: string
   /** Stem this run sits in → background tint via `STEM_COLORS` (null = linker, no fill). */
   stem: StemKey | null
-  /** True over the specifier codon (sits inside Stem-I) → bold + an ink ring marker. */
+  /** Conserved motif this run sits in → a deeper shade of its parent stem + a ring
+   *  (specifier loop in Stem-I, UGGN in the antiterminator); null = none. */
+  feature: OverlayFeatureKey | null
+  /** True over the specifier codon (sits inside the specifier loop) → bold + ink ring. */
   codon: boolean
-  /** 3′ regulatory bottom-rule (terminator wins over discriminator). */
+  /** Terminator 3′ bottom-rule. */
   rule: SeqRule
 }
 
@@ -101,6 +112,45 @@ export function stemByPosition(member: Member): (StemKey | null)[] {
   return out
 }
 
+/**
+ * The conserved-motif overlay spans a member carries — the specifier loop (Stem I)
+ * and the 5′-UGGN-3′ T-box motif (antiterminator) — as 1-based inclusive
+ * {@link OverlayFeature}s, dropping any window off the leader 3′ end (same guard as
+ * `featureSpans`). This is the SINGLE source both the sequence view and the structure
+ * viewers (R2DT + fornac, via `color.ts buildStemColorMap`) read, so the motif
+ * emphasis matches base-for-base across all three.
+ */
+export function overlayFeatures(member: Member): OverlayFeature[] {
+  const length = member.fasta_sequence.length
+  const out: OverlayFeature[] = []
+  for (const key of OVERLAY_FEATURES) {
+    const span = validSpan(member.coords.window[key])
+    if (!span) continue
+    const [lo, hi] = span
+    if (lo >= 1 && hi <= length) out.push({ key, start: lo, end: hi })
+  }
+  return out
+}
+
+/** Per-position conserved-motif key over the gap-free leader (1-based: element `i` is
+ *  position `i + 1`), the FEATURE-channel companion to {@link stemByPosition}. A motif
+ *  is marked only where its {@link FEATURE_PARENT} stem is the visible one — CLIPPING a
+ *  window the annotation runs past its parent helix (or onto a linker / another stem),
+ *  exactly as `color.ts buildStemColorMap` clips the structure-viewer fill, so the
+ *  emphasis stays inside its structural domain in all three viewers. Linkers stay `null`. */
+export function featureByPosition(member: Member): (OverlayFeatureKey | null)[] {
+  const length = member.fasta_sequence.length
+  const stems = stemByPosition(member)
+  const out: (OverlayFeatureKey | null)[] = new Array(length).fill(null)
+  for (const f of overlayFeatures(member)) {
+    const parent = FEATURE_PARENT[f.key]
+    for (let p = Math.max(1, f.start); p <= Math.min(length, f.end); p++) {
+      if (stems[p - 1] === parent) out[p - 1] = f.key
+    }
+  }
+  return out
+}
+
 /** The codon/3′ marker spans of a member as 1-based inclusive `[lo, hi]`, dropping
  *  any window that runs off the leader 3′ end (same guard as `featureSpans`). */
 export function markerSpans(member: Member): Partial<Record<MarkerFeature, [number, number]>> {
@@ -122,17 +172,19 @@ export function presentMarkers(member: Member): MarkerFeature[] {
 }
 
 /**
- * Segment a member's leader into maximal runs of constant styling across the two
- * rendered channels (PLAN §9): the STEM fill (from `stemByPosition`, matching the
- * in-app RNA) and the codon/3′-rule markers. Precedence within the rule channel:
- * `term > discrim`. Returns `[]` only for an empty sequence (never on real data —
- * gate #4 guarantees a non-empty leader).
+ * Segment a member's leader into maximal runs of constant styling across the rendered
+ * channels (PLAN §9): the STEM fill (from `stemByPosition`, matching the in-app RNA),
+ * the conserved-motif FEATURE overlay (from `featureByPosition` — the specifier loop /
+ * UGGN, a deeper shade of the parent stem, shared with the structure viewers), the
+ * bold codon, and the terminator 3′ rule. Returns `[]` only for an empty sequence
+ * (never on real data — gate #4 guarantees a non-empty leader).
  */
 export function buildSequenceSegments(member: Member): SeqSegment[] {
   const seq = member.fasta_sequence
   const length = seq.length
   if (length === 0) return []
   const stems = stemByPosition(member)
+  const features = featureByPosition(member)
   const markers = markerSpans(member)
 
   const covers = (name: MarkerFeature, pos: number): boolean => {
@@ -140,27 +192,29 @@ export function buildSequenceSegments(member: Member): SeqSegment[] {
     return s !== undefined && pos >= s[0] && pos <= s[1]
   }
   const codonAt = (pos: number): boolean => covers('codon', pos)
-  const ruleAt = (pos: number): SeqRule =>
-    covers('term', pos) ? 'term' : covers('discrim', pos) ? 'discrim' : null
+  const ruleAt = (pos: number): SeqRule => (covers('term', pos) ? 'term' : null)
 
   const segments: SeqSegment[] = []
   let start = 1
   let stem = stems[0]
+  let feature = features[0]
   let codon = codonAt(1)
   let rule = ruleAt(1)
   for (let pos = 2; pos <= length; pos++) {
     const st = stems[pos - 1]
+    const ft = features[pos - 1]
     const c = codonAt(pos)
     const r = ruleAt(pos)
-    if (st !== stem || c !== codon || r !== rule) {
-      segments.push({ start, end: pos - 1, text: seq.slice(start - 1, pos - 1), stem, codon, rule })
+    if (st !== stem || ft !== feature || c !== codon || r !== rule) {
+      segments.push({ start, end: pos - 1, text: seq.slice(start - 1, pos - 1), stem, feature, codon, rule })
       start = pos
       stem = st
+      feature = ft
       codon = c
       rule = r
     }
   }
-  segments.push({ start, end: length, text: seq.slice(start - 1, length), stem, codon, rule })
+  segments.push({ start, end: length, text: seq.slice(start - 1, length), stem, feature, codon, rule })
   return segments
 }
 
