@@ -26,11 +26,12 @@
   //   • The fornac render basis (whole-leader antiterminator structure) is chosen in
   //     `rna.ts` — the Stem-I alignment column carries non-nucleotide junk.
   import type { Member } from '../data/types'
-  import { swatchBackground, STEM_META, buildStemColorMap } from '../color'
+  import { swatchBackground, STEM_META, FEATURE_OVERLAY_META, buildStemColorMap } from '../color'
   import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
   import R2dtDiagram from './R2dtDiagram.svelte'
   import { leaderRnaModel, varnaLink, type RnaModel } from '../rna'
+  import { overlayFeatures } from '../sequence'
   import { loadFornac, type FornaContainerCtor } from '../fornac'
   import { loadR2dtManifest, loadR2dtDiagram, type R2dtDiagram as R2dtDiagramData } from '../r2dt'
 
@@ -50,6 +51,9 @@
   const member = $derived(els[active] ?? null)
   const model = $derived<RnaModel | null>(member ? leaderRnaModel(member) : null)
   const deepLink = $derived(member ? varnaLink(member) : null)
+  // Conserved-motif overlay (specifier loop + 5′-UGGN-3′ T-box motif) — the SAME
+  // spans the sequence view paints, fed to BOTH viewers so the emphasis matches.
+  const features = $derived(member ? overlayFeatures(member) : [])
 
   // ── Viewer toggle (R2DT ⇄ fornac) ───────────────────────────────────────────
   type ViewMode = 'r2dt' | 'fornac'
@@ -103,6 +107,12 @@
   const legendStems = $derived.by(() => {
     const present = new Set((member?.stems ?? []).map((s) => s.key))
     return STEM_META.filter((s) => present.has(s.key))
+  })
+  // Conserved-motif legend entries actually present on the active element (deeper
+  // shade of the parent stem): specifier loop + 5′-UGGN-3′ T-box motif.
+  const legendFeatures = $derived.by(() => {
+    const present = new Set(features.map((f) => f.key))
+    return FEATURE_OVERLAY_META.filter((f) => present.has(f.key))
   })
 
   function ordinalLabel(ordinal: number, n: number): string {
@@ -159,6 +169,7 @@
     const m = model
     const name = member?.unique_name ?? ''
     const stems = member?.stems ?? []
+    const feats = member ? overlayFeatures(member) : []
     if (!el || !ctor || !m) return
     el.innerHTML = '' // drop any previous render before re-mounting
 
@@ -200,7 +211,7 @@
       // domain it sits in. fornac returns a non-numeric custom value verbatim as the
       // node fill, so we map nucleotide number → hex via the shared helper that the
       // R2DT diagram also uses — so both viewers color identically (structName === name).
-      const colorValues = buildStemColorMap(stems, m.sequence.length)
+      const colorValues = buildStemColorMap(stems, m.sequence.length, feats)
       container.addCustomColors({ colorValues: { [name]: colorValues } })
       container.changeColorScheme('custom')
     } catch {
@@ -315,7 +326,7 @@
       {#if view === 'r2dt'}
         {#if showR2dt && r2dtData}
           <div class="h-full w-full p-2">
-            <R2dtDiagram diagram={r2dtData} stems={member.stems} />
+            <R2dtDiagram diagram={r2dtData} stems={member.stems} {features} />
           </div>
         {:else}
           <div class="absolute inset-0 grid place-items-center p-6 text-center">
@@ -352,11 +363,11 @@
       {/if}
     </div>
 
-    <!-- Stem color key (only the domains present on the active element) — shared -->
-    {#if (showR2dt || showFornac) && legendStems.length}
+    <!-- Stem color key + conserved-motif key (only what's present) — shared by both viewers -->
+    {#if (showR2dt || showFornac) && (legendStems.length || legendFeatures.length)}
       <ul
         class="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted"
-        aria-label="Stem color key"
+        aria-label="Stem and motif color key"
       >
         {#each legendStems as s (s.key)}
           <li class="inline-flex items-center gap-1.5">
@@ -368,6 +379,16 @@
             <span>{s.label}</span>
           </li>
         {/each}
+        {#each legendFeatures as f (f.key)}
+          <li class="inline-flex items-center gap-1.5">
+            <span
+              class="size-2.5 rounded-full ring-1 ring-ink/60"
+              style:background={f.color}
+              aria-hidden="true"
+            ></span>
+            <span>{f.label}</span>
+          </li>
+        {/each}
       </ul>
     {/if}
 
@@ -377,8 +398,9 @@
         {#if showR2dt}
           <span>
             {r2dtTemplate} template (RF00230) · R2DT, with the antiterminator folded in (antiterminator
-            conformation); nucleotides are colored by structural domain. The tbdb.io VARNA diagram is
-            the reference drawing.
+            conformation); nucleotides are colored by structural domain{#if legendFeatures.length}, with
+            the 5′-UGGN-3′ T-box motif and specifier loop shaded within their stems{/if}. The tbdb.io
+            VARNA diagram is the reference drawing.
           </span>
         {:else if view === 'fornac'}
           <span>

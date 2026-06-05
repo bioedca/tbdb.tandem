@@ -17,12 +17,19 @@
   import type { MemberStem } from '../data/types'
   import type { R2dtDiagram } from '../r2dt'
   import { diagramViewBox, nucleotideSpacing } from '../r2dt'
-  import { buildStemColorMap, STEM_LINKER_COLOR } from '../color'
+  import { buildStemColorMap, featurePositions, STEM_LINKER_COLOR, type OverlayFeature } from '../color'
 
-  let { diagram, stems }: { diagram: R2dtDiagram; stems: MemberStem[] } = $props()
+  let {
+    diagram,
+    stems,
+    features = [],
+  }: { diagram: R2dtDiagram; stems: MemberStem[]; features?: OverlayFeature[] } = $props()
 
   const n = $derived(diagram.seq.length)
-  const colorAt = $derived(buildStemColorMap(stems, n))
+  // Feature spans (specifier loop / UGGN) are painted a deeper shade of their parent
+  // stem in the same shared map; their residues additionally take a discrete ring.
+  const colorAt = $derived(buildStemColorMap(stems, n, features))
+  const featureSet = $derived(featurePositions(stems, n, features))
   const viewBox = $derived(diagramViewBox(diagram))
   const spacing = $derived(nucleotideSpacing(diagram))
 
@@ -76,10 +83,10 @@
       <circle
         cx={diagram.x[idx]}
         cy={diagram.y[idx]}
-        {r}
+        r={featureSet.has(idx + 1) ? r * 1.08 : r}
         fill={colorAt[idx + 1]}
-        stroke="rgba(15,23,42,0.16)"
-        stroke-width={stroke * 0.6}
+        stroke={featureSet.has(idx + 1) ? 'rgba(15,23,42,0.72)' : 'rgba(15,23,42,0.16)'}
+        stroke-width={featureSet.has(idx + 1) ? stroke * 1.1 : stroke * 0.6}
       />
       {#if showLetters}
         <text

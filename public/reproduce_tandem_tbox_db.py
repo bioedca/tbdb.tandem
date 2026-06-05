@@ -200,7 +200,7 @@ _DETECT_COLS = [
 #: Master columns needed to fill out every per-member / per-locus field.
 _FIELD_COLS = [
     "FASTA_sequence", "Sequence", "Structure",
-    "whole_antiterm_structure", "term_structure",
+    "whole_antiterm_structure", "term_structure", "term_sequence",
     "s1_start", "s1_end", "s1_loop_start", "s1_loop_end",
     "stem2_region_start", "stem2_region_end", "stem3_start", "stem3_end",
     "antiterm_start", "antiterm_end", "term_start", "term_end",
@@ -568,6 +568,9 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
         "structure": wuss_to_dotbracket(str(row["Structure"])),
         "whole_antiterm_structure": _s(row["whole_antiterm_structure"]),
         "term_structure": _s(row["term_structure"]),
+        # Terminator-hairpin sequence; pairs 1:1 with term_structure WHERE PRESENT.
+        # Independent source cell -> can be null even when term_structure is not (T0360.m2).
+        "term_sequence": _s(row["term_sequence"]),
         "stems": derive_stems(row),
         "deltadelta_g": _f(row["deltadelta_g"]),
         "terminator_energy": _f(row["terminator_energy"]),
@@ -844,8 +847,35 @@ _MEMBER_CSV_LEAD = [
 ]
 #: One ``start``/``end`` column pair per stem key (Stem I / II / IIA-B / III / antiterm).
 _STEM_CSV_COLS = [f"stem_{key}_{end}" for key in _STEM_KEYS for end in ("start", "end")]
-#: Full members.csv header: lead columns -> stem span pairs -> the two deep-link URLs.
-_MEMBER_CSV_HEADER = _MEMBER_CSV_LEAD + _STEM_CSV_COLS + ["tbdb_url", "ncbi_url"]
+
+#: Conserved-feature window columns alongside the stems (leader-relative, 1-based,
+#: inclusive -- same frame as the stem spans): the specifier loop + codon (Stem I), the
+#: 5'-UGGN-3' T-box motif (``discrim``, in the antiterminator), and the terminator
+#: hairpin + its sequence. Blank start/end == that window is absent on the element.
+_FEATURE_CSV_FEATS = ("s1_loop", "codon", "discrim", "term")
+_FEATURE_CSV_COLS = [f"{feat}_{end}" for feat in _FEATURE_CSV_FEATS for end in ("start", "end")] + [
+    "term_sequence"
+]
+#: Full members.csv header: lead -> stem spans -> feature windows -> the two deep-link URLs.
+_MEMBER_CSV_HEADER = (
+    _MEMBER_CSV_LEAD + _STEM_CSV_COLS + _FEATURE_CSV_COLS + ["tbdb_url", "ncbi_url"]
+)
+
+
+def _csv_window(window: dict, feat: str, length: int):
+    """A feature's leader-relative ``(lo, hi)`` for members.csv, or ``(None, None)`` when
+    the window is absent / a missing sentinel (start or end < 1) OR runs off the leader
+    3' end (``hi > length``). This is the FULL web-app drop rule -- ``validSpan``
+    (ascending + >= 1) AND the ``hi <= length`` guard the viewers apply -- so the CSV
+    never carries a span the app does not draw (e.g. a corrupt term window past the end)."""
+    span = window.get(feat) or [None, None]
+    a, b = span[0], span[1]
+    if a is None or b is None or a < 1 or b < 1:
+        return (None, None)
+    lo, hi = min(a, b), max(a, b)
+    if hi > length:
+        return (None, None)
+    return (lo, hi)
 
 
 def _member_csv_row(member: dict, locus: dict) -> list:
@@ -880,6 +910,12 @@ def _member_csv_row(member: dict, locus: dict) -> list:
     for key in _STEM_KEYS:
         lo, hi = spans.get(key, (None, None))
         row.extend([lo, hi])
+    window = (member.get("coords") or {}).get("window") or {}
+    leader_length = lead["leader_length"]
+    for feat in _FEATURE_CSV_FEATS:
+        lo, hi = _csv_window(window, feat, leader_length)
+        row.extend([lo, hi])
+    row.append(member.get("term_sequence"))
     row.extend([member.get("tbdb_url"), member.get("ncbi_url")])
     return row
 

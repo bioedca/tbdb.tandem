@@ -3,14 +3,22 @@
 // HSL/RGB helpers, and the chrome⟂data disjointness margins that gate §8.2.
 import { describe, expect, test } from 'vitest'
 import {
+  FEATURE_OVERLAY_META,
+  FEATURE_PARENT,
   MIN_BRAND_DATA_HUE_GAP,
   PHYLUM_DEFAULT_COLOR,
   SPECIFIER_COLORS,
+  STEM_COLORS,
+  STEM_LINKER_COLOR,
   UNKNOWN_SPECIFIER_COLOR,
   aaColor,
   assertChromeDataDisjoint,
+  buildStemColorMap,
+  featurePositions,
+  featureShade,
   hexToHsl,
   hexToRgb,
+  hslToHex,
   hueDistance,
   isMixed,
   phylumColor,
@@ -185,6 +193,85 @@ describe('withAlpha', () => {
   test('produces an rgba() string', () => {
     expect(withAlpha('#0f766e', 0.25)).toBe('rgba(15, 118, 110, 0.25)')
     expect(withAlpha('#000000', 1)).toBe('rgba(0, 0, 0, 1)')
+  })
+})
+
+describe('hslToHex / featureShade (conserved-motif overlay, PLAN §9)', () => {
+  test('hslToHex round-trips hexToHsl on the stem palette', () => {
+    for (const hex of Object.values(STEM_COLORS)) {
+      const { h, s, l } = hexToHsl(hex)
+      expect(hslToHex(h, s, l)).toBe(hex)
+    }
+  })
+
+  test('featureShade keeps the hue but is deeper + more saturated than the stem', () => {
+    for (const hex of Object.values(STEM_COLORS)) {
+      const base = hexToHsl(hex)
+      const shade = hexToHsl(featureShade(hex))
+      expect(hueDistance(shade.h, base.h)).toBeLessThan(2) // same hue family
+      expect(shade.l).toBeLessThan(base.l) // deeper
+      expect(shade.s).toBeGreaterThan(base.s) // more saturated
+    }
+  })
+
+  test('FEATURE_OVERLAY_META swatches are the shade of their parent stem', () => {
+    for (const f of FEATURE_OVERLAY_META) {
+      expect(f.color).toBe(featureShade(STEM_COLORS[FEATURE_PARENT[f.key]]))
+    }
+    expect(FEATURE_OVERLAY_META.map((f) => f.key).sort()).toEqual(['discrim', 's1_loop'])
+  })
+})
+
+describe('buildStemColorMap feature overlay + featurePositionSet (PLAN §9)', () => {
+  const stems = [
+    { key: 'i' as const, start: 1, end: 10 },
+    { key: 'at' as const, start: 20, end: 30 },
+  ]
+  const features = [
+    { key: 's1_loop' as const, start: 4, end: 6 },
+    { key: 'discrim' as const, start: 22, end: 25 },
+  ]
+
+  test('features paint a deeper shade of their parent stem, over the stem fill', () => {
+    const m = buildStemColorMap(stems, 30, features)
+    expect(m[3]).toBe(STEM_COLORS.i) // Stem-I, outside the loop
+    expect(m[4]).toBe(featureShade(STEM_COLORS.i)) // specifier loop → deeper Stem-I
+    expect(m[6]).toBe(featureShade(STEM_COLORS.i))
+    expect(m[7]).toBe(STEM_COLORS.i) // back to plain Stem-I
+    expect(m[21]).toBe(STEM_COLORS.at) // antiterminator, outside UGGN
+    expect(m[22]).toBe(featureShade(STEM_COLORS.at)) // UGGN → deeper antiterminator
+    expect(m[25]).toBe(featureShade(STEM_COLORS.at))
+  })
+
+  test('a feature is CLIPPED to its parent stem: residues off Stem-I are NOT deepened', () => {
+    // s1_loop runs 1..6 but Stem-I is 3..10, so 1..2 are a pre-Stem-I linker, and 7..8
+    // are inside the WRONG stem ('at' here) — none may be painted deeper Stem-I.
+    const m = buildStemColorMap(
+      [{ key: 'i', start: 3, end: 6 }, { key: 'at', start: 7, end: 9 }],
+      10,
+      [{ key: 's1_loop', start: 1, end: 8 }],
+    )
+    expect(m[1]).toBe(STEM_LINKER_COLOR) // pre-Stem-I linker — unchanged
+    expect(m[2]).toBe(STEM_LINKER_COLOR)
+    expect(m[3]).toBe(featureShade(STEM_COLORS.i)) // in Stem-I → deepened
+    expect(m[6]).toBe(featureShade(STEM_COLORS.i))
+    expect(m[7]).toBe(STEM_COLORS.at) // 'at' residue — NOT forced to deeper Stem-I
+    expect(m[8]).toBe(STEM_COLORS.at)
+  })
+
+  test('with no features the map is unchanged (default arg)', () => {
+    const a = buildStemColorMap(stems, 30)
+    const b = buildStemColorMap(stems, 30, [])
+    expect(a).toEqual(b)
+    expect(a[4]).toBe(STEM_COLORS.i) // no deepening without features
+  })
+
+  test('featurePositions = the feature residues clipped to the visible parent stem', () => {
+    // the [28,100] s1_loop falls on the 'at' stem (20..30), NOT Stem-I → contributes nothing.
+    const set = featurePositions(stems, 30, [...features, { key: 's1_loop', start: 28, end: 100 }])
+    expect([...set].sort((x, y) => x - y)).toEqual([4, 5, 6, 22, 23, 24, 25])
+    expect(set.has(3)).toBe(false) // just outside the first loop
+    expect(set.has(28)).toBe(false) // s1_loop residue on the 'at' stem → not ringed as Stem-I
   })
 })
 

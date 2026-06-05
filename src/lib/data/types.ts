@@ -119,6 +119,12 @@ export interface Member {
   whole_antiterm_structure: string | null
   /** Already dot-bracket — passed through; null for 13 members (PLAN §3.1). */
   term_structure: string | null
+  /** Terminator-hairpin sequence. WHEN PRESENT it pairs 1:1 with `term_structure` (equal
+   *  length, round-bracket-balanced) — but it is an independent source cell, so it may be
+   *  null even when `term_structure` is not (e.g. T0360.m2: a structure cell, no sequence
+   *  cell). A terminator render MUST gate on `term_sequence != null`, not `term_structure`.
+   *  May carry IUPAC ambiguity codes besides A/C/G/T. */
+  term_sequence: string | null
   /** Labelled stem spans (Stem I / II / IIA-B / III / antiterminator) indexing the
    *  rendered antiterminator fold, for the in-app RNA color overlay (PLAN §9). */
   stems: MemberStem[]
