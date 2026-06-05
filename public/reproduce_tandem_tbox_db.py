@@ -154,6 +154,7 @@ import csv
 import json
 import re
 import sys
+from collections import Counter
 from itertools import combinations
 from math import comb
 from pathlib import Path
@@ -161,8 +162,6 @@ from pathlib import Path
 try:
     import pandas as pd
     from Bio.Align import PairwiseAligner
-    from Bio.Data.IUPACData import protein_letters_1to3
-    from Bio.Seq import Seq
 except ImportError as exc:  # pragma: no cover - dependency hint
     sys.exit(
         f"Missing dependency: {exc.name}.\n"
@@ -293,9 +292,15 @@ def load_master(path: Path) -> pd.DataFrame:
     master = raw[~raw["phylum"].isin(CONTAMINANT_PHYLA)].copy()
     print(f"  {len(raw):,} T-box rows; dropped {n_contaminant} non-bacterial contaminant rows.")
 
-    for col in ["locus_start", "locus_end", "Tbox_start", "Tbox_end", "E_value"]:
+    # Float (`_n`) copies of the coordinate columns. Only three things need a
+    # plain float: the genome-anchor arithmetic for `core5` (`Tbox_start_n`),
+    # the strand comparison (`locus_start_n` < `locus_end_n`), and the
+    # physical-core ranking (`E_value_n`, `codon_start_n`). Every other call
+    # site reads the nullable-int (`Int64`) form built from `_COORD_COLS` below
+    # -- so `Tbox_start` and `codon_start` deliberately exist in both forms.
+    for col in ["locus_start", "locus_end", "Tbox_start", "E_value"]:
         master[col + "_n"] = pd.to_numeric(master[col], errors="coerce")
-    master["codon_start_num"] = pd.to_numeric(master["codon_start"], errors="coerce")
+    master["codon_start_n"] = pd.to_numeric(master["codon_start"], errors="coerce")
     for col in _COORD_COLS:
         master[col] = pd.to_numeric(master[col], errors="coerce").astype("Int64")
 
@@ -330,7 +335,7 @@ def _pick_best(rows: pd.DataFrame):
     """Index of the best representative row of a collapsed physical core (step 3)."""
     ranked = rows.assign(
         _full=(rows["Completeness"] == "Full").astype(int),
-        _codon=(rows["codon_start_num"].fillna(-1) > 0).astype(int),
+        _codon=(rows["codon_start_n"].fillna(-1) > 0).astype(int),
         _uname=rows["unique_name"].map(_has_unique_name).astype(int),
     ).sort_values(
         ["_full", "_codon", "_uname", "E_value_n"],
@@ -449,7 +454,7 @@ def classify_func(ec, protein) -> tuple[str, str]:
 # Step 6: assemble member + locus records
 # =============================================================================
 
-def _s(value):
+def _clean_str(value):
     """A trimmed string, or ``None`` for a missing/blank cell."""
     if pd.isna(value):
         return None
@@ -457,17 +462,22 @@ def _s(value):
     return text or None
 
 
-def _i(value):
+def _to_int(value):
     return None if pd.isna(value) else int(value)
 
 
-def _f(value, ndigits: int = 2):
+def _to_float(value, ndigits: int = 2):
     if pd.isna(value):
         return None
     try:
         return round(float(value), ndigits)
     except (TypeError, ValueError):
         return None
+
+
+def _ordered_unique(values) -> list:
+    """Distinct values in first-seen order (the ``dict.fromkeys`` idiom)."""
+    return list(dict.fromkeys(values))
 
 
 def _parse_other_stems(value) -> list:
@@ -505,7 +515,7 @@ def derive_stems(row) -> list:
     Missing domains are simply omitted.
     """
     def span(c0, c1):
-        a, b = _i(row[c0]), _i(row[c1])
+        a, b = _to_int(row[c0]), _to_int(row[c1])
         if a is None or b is None or a <= 0 or b <= 0:
             return None
         return (min(a, b), max(a, b))
@@ -538,7 +548,7 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
     """Build one ``members.json`` element record from its representative Master row."""
     locus_start, locus_end = int(row["locus_start_n"]), int(row["locus_end_n"])
 
-    uname = _s(row["unique_name"])
+    uname = _clean_str(row["unique_name"])
     tbdb_url = f"https://tbdb.io/tboxes/{uname}.html" if uname else None
     lo, hi = (locus_start, locus_end) if locus_start <= locus_end else (locus_end, locus_start)
     ncbi_url = (
@@ -548,10 +558,10 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
 
     window, genome = {}, {}
     for name, (c0, c1) in _FEATURE_SPANS.items():
-        window[name] = [_i(row[c0]), _i(row[c1])]
+        window[name] = [_to_int(row[c0]), _to_int(row[c1])]
         genome[name] = [project(row[c0], locus_start, strand), project(row[c1], locus_start, strand)]
 
-    ec, protein = _s(row["downstream_protein_EC"]), _s(row["downstream_protein"])
+    ec, protein = _clean_str(row["downstream_protein_EC"]), _clean_str(row["downstream_protein"])
     func_class, func_source = classify_func(ec, protein)
 
     return {
@@ -561,30 +571,85 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
         "unique_name": uname,
         "tbdb_url": tbdb_url,
         "ncbi_url": ncbi_url,
-        "specifier": {"aa": _s(row["amino_acid_top"]), "codon": _s(row["refine_codon_top"])},
+        "specifier": {"aa": _clean_str(row["amino_acid_top"]), "codon": _clean_str(row["refine_codon_top"])},
         "coords": {"leader": [locus_start, locus_end], "window": window, "genome": genome},
-        "fasta_sequence": _s(row["FASTA_sequence"]),
-        "aligned_sequence": _s(row["Sequence"]),
+        "fasta_sequence": _clean_str(row["FASTA_sequence"]),
+        "aligned_sequence": _clean_str(row["Sequence"]),
         "structure": wuss_to_dotbracket(str(row["Structure"])),
-        "whole_antiterm_structure": _s(row["whole_antiterm_structure"]),
-        "term_structure": _s(row["term_structure"]),
+        "whole_antiterm_structure": _clean_str(row["whole_antiterm_structure"]),
+        "term_structure": _clean_str(row["term_structure"]),
         # Terminator-hairpin sequence; pairs 1:1 with term_structure WHERE PRESENT.
         # Independent source cell -> can be null even when term_structure is not (T0360.m2).
-        "term_sequence": _s(row["term_sequence"]),
+        "term_sequence": _clean_str(row["term_sequence"]),
         "stems": derive_stems(row),
-        "deltadelta_g": _f(row["deltadelta_g"]),
-        "terminator_energy": _f(row["terminator_energy"]),
-        "type": _s(row["type"]),
-        "completeness": _s(row["Completeness"]),
-        "trna": _s(row["trna_family_top"]),
+        "deltadelta_g": _to_float(row["deltadelta_g"]),
+        "terminator_energy": _to_float(row["terminator_energy"]),
+        "type": _clean_str(row["type"]),
+        "completeness": _clean_str(row["Completeness"]),
+        "trna": _clean_str(row["trna_family_top"]),
         "downstream": {
             "protein": protein,
-            "id": _s(row["downstream_protein_id"]),
+            "id": _clean_str(row["downstream_protein_id"]),
             "ec": ec,
-            "desc": _s(row["protein_desc"]),
+            "desc": _clean_str(row["protein_desc"]),
             "func_class": func_class,
             "func_source": func_source,
         },
+    }
+
+
+def _summarize_locus(loc: dict, member_objs: list[dict], master: pd.DataFrame) -> dict:
+    """Roll a locus's ordered members up into one ``loci.json`` record (steps 5-6)."""
+    # Locus specifier: the distinct member specifiers (alphabetical), or '?'.
+    distinct_aa = _ordered_unique(o["specifier"]["aa"] for o in member_objs if o["specifier"]["aa"])
+    specifier_aa = "?" if not distinct_aa else ";".join(sorted(distinct_aa))
+    same_specifier = len(distinct_aa) == 1
+
+    # A core counts as "complete" when its specifier codon was called.
+    n_complete = sum(1 for o in member_objs if (o["coords"]["window"]["codon"][0] or 0) > 0)
+    confidence = "high" if n_complete >= 2 else "low"
+
+    core5s = [int(master.loc[idx, "core5"]) for idx in loc["core_indices"]]
+    core_span = abs(max(core5s) - min(core5s))
+
+    distinct_ids = _ordered_unique(o["downstream"]["id"] for o in member_objs if o["downstream"]["id"])
+    downstream_id = ";".join(distinct_ids) if distinct_ids else None
+    distinct_genes = _ordered_unique(o["downstream"]["protein"] for o in member_objs if o["downstream"]["protein"])
+    downstream_gene = ";".join(distinct_genes) if distinct_genes else None
+
+    # Locus func_class: one shared downstream gene id lets the locus inherit that
+    # member's EC-backed class; multi-gene (or gene-less) loci fall back to
+    # classifying the joined downstream gene text.
+    if len(distinct_ids) == 1:
+        # single regulated gene: inherit that member's EC-backed class
+        matched = next(o for o in member_objs if o["downstream"]["id"] == distinct_ids[0])
+        func_class, func_source = matched["downstream"]["func_class"], matched["downstream"]["func_source"]
+    else:
+        func_class, func_source = classify_func(None, downstream_gene)
+
+    locus_type = "Translational" if any(o["type"] == "Translational" for o in member_objs) else "Transcriptional"
+    first = master.loc[loc["core_indices"][0]]
+
+    return {
+        "tandem_id": loc["tandem_id"],
+        "accession": loc["accession"],
+        "strand": loc["strand"],
+        "organism": _clean_str(first["GBSeq_organism"]),
+        "phylum": _clean_str(first["phylum"]),
+        "tax_id": _clean_str(first["TaxId"]),
+        "n_cores": loc["n_cores"],
+        "n_complete_cores": n_complete,
+        "core_span": core_span,
+        "specifier_aa": specifier_aa,
+        "same_specifier": same_specifier,
+        "confidence": confidence,
+        "type": locus_type,
+        "func_class": func_class,
+        "func_source": func_source,
+        "downstream_gene": downstream_gene,
+        "downstream_id": downstream_id,
+        "member_ids": [o["member_id"] for o in member_objs],
+        "mean_pairwise_identity": None,  # filled in step 7
     }
 
 
@@ -603,55 +668,7 @@ def assemble(detected: list[dict], master: pd.DataFrame) -> tuple[list[dict], di
             members_map[obj["member_id"]] = obj
             member_objs.append(obj)
 
-        # Locus specifier: the distinct member specifiers (alphabetical), or '?'.
-        distinct_aa = list(dict.fromkeys(o["specifier"]["aa"] for o in member_objs if o["specifier"]["aa"]))
-        specifier_aa = "?" if not distinct_aa else ";".join(sorted(distinct_aa))
-        same_specifier = len(distinct_aa) == 1
-
-        # A core counts as "complete" when its specifier codon was called.
-        n_complete = sum(1 for o in member_objs if (o["coords"]["window"]["codon"][0] or 0) > 0)
-        confidence = "high" if n_complete >= 2 else "low"
-
-        core5s = [int(master.loc[idx, "core5"]) for idx in loc["core_indices"]]
-        core_span = abs(max(core5s) - min(core5s))
-
-        distinct_ids = list(dict.fromkeys(o["downstream"]["id"] for o in member_objs if o["downstream"]["id"]))
-        downstream_id = ";".join(distinct_ids) if distinct_ids else None
-        distinct_genes = list(dict.fromkeys(o["downstream"]["protein"] for o in member_objs if o["downstream"]["protein"]))
-        downstream_gene = ";".join(distinct_genes) if distinct_genes else None
-
-        # Locus func_class: the member whose id matches the locus id keeps its
-        # EC-backed class; multi-gene loci fall back to classifying the gene text.
-        matched = next((o for o in member_objs if downstream_id and o["downstream"]["id"] == downstream_id), None)
-        if matched is not None:
-            func_class, func_source = matched["downstream"]["func_class"], matched["downstream"]["func_source"]
-        else:
-            func_class, func_source = classify_func(None, downstream_gene)
-
-        locus_type = "Translational" if any(o["type"] == "Translational" for o in member_objs) else "Transcriptional"
-        first = master.loc[loc["core_indices"][0]]
-
-        locus_objs.append({
-            "tandem_id": tandem_id,
-            "accession": accession,
-            "strand": strand,
-            "organism": _s(first["GBSeq_organism"]),
-            "phylum": _s(first["phylum"]),
-            "tax_id": _s(first["TaxId"]),
-            "n_cores": loc["n_cores"],
-            "n_complete_cores": n_complete,
-            "core_span": core_span,
-            "specifier_aa": specifier_aa,
-            "same_specifier": same_specifier,
-            "confidence": confidence,
-            "type": locus_type,
-            "func_class": func_class,
-            "func_source": func_source,
-            "downstream_gene": downstream_gene,
-            "downstream_id": downstream_id,
-            "member_ids": [o["member_id"] for o in member_objs],
-            "mean_pairwise_identity": None,  # filled in step 7
-        })
+        locus_objs.append(_summarize_locus(loc, member_objs, master))
 
     return locus_objs, members_map
 
@@ -698,11 +715,8 @@ def compute_identity(locus_objs: list[dict], members_map: dict[str, dict]) -> li
 # =============================================================================
 
 def _count_dist(objs: list[dict], key: str) -> list[dict]:
-    counts: dict[str, int] = {}
-    for obj in objs:
-        value = obj[key]
-        if value is not None:
-            counts[value] = counts.get(value, 0) + 1
+    """Value -> count records, ordered by (count desc, value asc)."""
+    counts = Counter(obj[key] for obj in objs if obj[key] is not None)
     return [{"value": v, "count": c} for v, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
 
@@ -717,10 +731,7 @@ def _median(values: list[float]):
 
 def build_facets(locus_objs: list[dict]) -> dict[str, list[str]]:
     def freq_desc(key):
-        counts: dict[str, int] = {}
-        for o in locus_objs:
-            if o[key] is not None:
-                counts[o[key]] = counts.get(o[key], 0) + 1
+        counts = Counter(o[key] for o in locus_objs if o[key] is not None)
         return [v for v, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
     def sorted_distinct(key):
@@ -738,10 +749,9 @@ def build_facets(locus_objs: list[dict]) -> dict[str, list[str]]:
 def build_summary(locus_objs: list[dict], members_map: dict[str, dict], pairs: list[dict]) -> dict:
     n = len(locus_objs)
     same = sum(1 for o in locus_objs if o["same_specifier"])
-    conf = {"high": 0, "low": 0}
-    for o in locus_objs:
-        if o["confidence"] in conf:
-            conf[o["confidence"]] += 1
+    # Keep the emitted key order fixed at {"high", "low"} regardless of data order.
+    conf_counts = Counter(o["confidence"] for o in locus_objs)
+    conf = {"high": conf_counts["high"], "low": conf_counts["low"]}
     ddg = [m["deltadelta_g"] for m in members_map.values() if m["deltadelta_g"] is not None]
     pid = [p["identity"] for p in pairs]
     return {
@@ -946,22 +956,22 @@ def write_table(path: Path, locus_objs: list[dict], members_map: dict[str, dict]
         fh.write("\t".join(cols) + "\n")
         for o in locus_objs:
             unames = ";".join(str(members_map[mid]["unique_name"]) for mid in o["member_ids"])
-            row = [o.get(c) for c in cols[:-1]] + [unames]
+            row = [o[c] for c in cols[:-1]] + [unames]
             fh.write("\t".join("" if v is None else str(v) for v in row) + "\n")
 
 
-def verify(locus_objs: list[dict], members_map: dict[str, dict], pairs: list[dict]) -> None:
-    """Assert the load-bearing invariants; raise (non-zero exit) on any violation."""
+def verify_invariants(locus_objs: list[dict], members_map: dict[str, dict], pairs: list[dict]) -> None:
+    """Assert the always-true structural invariants; raise (non-zero exit) on violation.
+
+    These hold for *any* valid run -- they check internal consistency (the pair
+    arithmetic, per-member resolvability, balanced Stem-I structures, leader-span
+    agreement), never dataset-specific totals. See ``verify_golden`` for those.
+    """
     problems: list[str] = []
 
-    if len(locus_objs) != 470:
-        problems.append(f"locus count {len(locus_objs)} != 470")
-    if len(members_map) != 949:
-        problems.append(f"member count {len(members_map)} != 949")
-
     expected_pairs = sum(comb(o["n_cores"], 2) for o in locus_objs)
-    if len(pairs) != expected_pairs or len(pairs) != 488:
-        problems.append(f"pair count {len(pairs)} != 488 (sum C(n_cores,2) = {expected_pairs})")
+    if len(pairs) != expected_pairs:
+        problems.append(f"pair count {len(pairs)} != sum C(n_cores,2) = {expected_pairs}")
 
     sum_cores = sum(o["n_cores"] for o in locus_objs)
     if sum_cores != len(members_map):
@@ -978,15 +988,42 @@ def verify(locus_objs: list[dict], members_map: dict[str, dict], pairs: list[dic
         if m["fasta_sequence"] and len(m["fasta_sequence"]) != abs(b - a) + 1:
             problems.append(f"{member_id}: fasta length != leader span")
 
+    if problems:
+        raise SystemExit("INVARIANT CHECK FAILED:\n  " + "\n  ".join(problems))
+
+
+def verify_golden(locus_objs: list[dict], members_map: dict[str, dict], pairs: list[dict]) -> None:
+    """Assert the published dataset's hardcoded counts + golden locus.
+
+    This is the single source of truth for the magic numbers: 470 loci / 949
+    members / 488 pairs, the 394 high / 76 low confidence split, and the
+    CP045927 TRP->VAL order. Gated by ``--golden`` (default on); ``--no-golden``
+    skips it so the script can validate an updated source without these firing.
+    """
+    problems: list[str] = []
+
+    if len(locus_objs) != 470:
+        problems.append(f"locus count {len(locus_objs)} != 470")
+    if len(members_map) != 949:
+        problems.append(f"member count {len(members_map)} != 949")
+    if len(pairs) != 488:
+        problems.append(f"pair count {len(pairs)} != 488")
+
+    conf = Counter(o["confidence"] for o in locus_objs)
+    if (conf["high"], conf["low"]) != (394, 76):
+        problems.append(f"confidence split {conf['high']}/{conf['low']} != 394/76")
+
     # Golden: Staphylococcus agnetis CP045927 stacks TRP then VAL (transcript 5'->3').
     golden = next((o for o in locus_objs if o["accession"] == "CP045927"), None)
-    if golden is not None:
+    if golden is None:
+        problems.append("golden locus CP045927 missing")
+    else:
         order = [members_map[mid]["specifier"]["aa"] for mid in golden["member_ids"]]
         if order != ["TRP", "VAL"]:
             problems.append(f"golden CP045927 order {order} != ['TRP', 'VAL']")
 
     if problems:
-        raise SystemExit("VERIFICATION FAILED:\n  " + "\n  ".join(problems))
+        raise SystemExit("GOLDEN CHECK FAILED:\n  " + "\n  ".join(problems))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -997,6 +1034,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--master", type=Path, required=True, help="path to Master_tboxes.csv")
     parser.add_argument("--out", type=Path, required=True, help="output directory")
     parser.add_argument("--emit-table", action="store_true", help="also write tandem_loci.tsv")
+    parser.add_argument(
+        "--golden", action=argparse.BooleanOptionalAction, default=True,
+        help="also assert the published counts + golden locus (default: on; --no-golden to skip)",
+    )
     args = parser.parse_args(argv)
 
     print(f"Reading {args.master} ...")
@@ -1013,7 +1054,9 @@ def main(argv: list[str] | None = None) -> int:
     summary = build_summary(locus_objs, members_map, pairs)
 
     print("Verifying invariants ...")
-    verify(locus_objs, members_map, pairs)
+    verify_invariants(locus_objs, members_map, pairs)
+    if args.golden:
+        verify_golden(locus_objs, members_map, pairs)
 
     args.out.mkdir(parents=True, exist_ok=True)
     _write_json(args.out / "loci.json", {"loci": locus_objs, "facets": build_facets(locus_objs)})
@@ -1035,7 +1078,11 @@ def main(argv: list[str] | None = None) -> int:
         f"  members.csv      {n_members_csv} members (flat base table incl. stem spans)\n"
         f"  tree_input.fasta {main_tips} length-gated members (+ {fallback} in the fallback)\n"
         + (f"  tandem_loci.tsv  {len(locus_objs)} rows\n" if args.emit_table else "")
-        + "All invariants passed (470 / 949 / 488, balanced structures, golden CP045927)."
+        + (
+            "All invariants passed (470 / 949 / 488, balanced structures, golden CP045927)."
+            if args.golden else
+            "Structural invariants passed (golden checks skipped via --no-golden)."
+        )
     )
     return 0
 
