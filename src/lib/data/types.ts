@@ -258,6 +258,37 @@ export type TreeTipsMap = Record<string, TreeTip>
 /** `tree_locus_map.json` — `tandem_id` → its tip `unique_name`s (470 entries). */
 export type TreeLocusMap = Record<string, string[]>
 
+// ── R2DT diagrams (PLAN §9; data-pipeline/build_r2dt.py) ───────────────────────
+//
+// Per-member RNA secondary-structure diagrams drawn on the canonical RF00230 /
+// T-box template by R2DT (offline, like the tree), committed under
+// `public/data/r2dt/`. The app fetches one `<member_id>.json` on demand and
+// colours each nucleotide CLIENT-SIDE from `color.ts` `STEM_COLORS` (the same
+// palette the fornac overlay uses), keyed by `stems[]` — so colours live in one
+// place and match across both viewers. Coordinates carry no units; the renderer
+// fits them to its box. `residueIndex` is 1-based over the nucleotides, the SAME
+// frame as `stems[]`, so `x[i-1]`/`y[i-1]` is the centre of nucleotide `i`.
+
+/** One member's compact R2DT diagram (`public/data/r2dt/<member_id>.json`). */
+export interface R2dtDiagram {
+  /** RNA sequence (T→U), equals the member's `fasta_sequence` (asserted at build). */
+  seq: string
+  /** Per-nucleotide centre coordinates (length == `seq.length`). */
+  x: number[]
+  y: number[]
+  /** Canonical base pairs as ordered 1-based `[lo, hi]` index pairs. */
+  pairs: [number, number][]
+  /** Matched template id (e.g. `"T-box"`) and library (`"Rfam"`); may be null. */
+  template: string | null
+  source: string | null
+}
+
+/** `public/data/r2dt/manifest.json` — which members have a committed diagram. */
+export interface R2dtManifest {
+  count: number
+  diagrams: Record<string, { template: string | null; source: string | null }>
+}
+
 // ── filter / cross-filter state (PLAN §7.3) ────────────────────────────────────
 
 /** The five multi-select facets backed by `loci.json` `facets` (PLAN §7.3). */

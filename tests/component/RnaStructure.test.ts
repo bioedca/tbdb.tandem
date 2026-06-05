@@ -46,4 +46,12 @@ describe('RnaStructure', () => {
     const link = screen.getByRole('link', { name: /NCBI record/ })
     expect(link).toHaveAttribute('href', noName.ncbi_url)
   })
+
+  test('offers the R2DT ⇄ Fornac viewer toggle (without inflating the element tabs)', () => {
+    render(RnaStructure, { props: { members: [withName, noName] } })
+    expect(screen.getByRole('button', { name: 'R2DT' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Fornac' })).toBeInTheDocument()
+    // the toggle is a button group, NOT tabs, so the element tablist stays at 2
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
+  })
 })

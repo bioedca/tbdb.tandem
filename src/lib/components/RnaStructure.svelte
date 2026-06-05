@@ -1,26 +1,36 @@
 <script lang="ts">
   // In-app RNA secondary structure (PLAN §9 detail flow, §7.1, §13). One tab per
-  // element; the active element's whole-leader antiterminator conformation is
-  // force-laid-out in-app by fornac (best-effort), and the tbdb.io VARNA view is
-  // ALWAYS offered per element as the guaranteed path.
+  // element; the active element renders in one of TWO interchangeable viewers,
+  // both colored by structural domain (Stem I / II / IIA-B / III / antiterminator)
+  // from the SAME color.ts palette, and both backed by the guaranteed tbdb.io
+  // VARNA deep-link:
   //
-  // ── fornac is legacy + fragile, so this is defensive by design (PLAN §13) ──────
-  //   • Loaded by a dynamic import() so the 2016 UMD (with its own bundled d3 v3)
-  //     never touches the boot path and its d3 v3 stays isolated in its module
-  //     scope, away from the architecture diagram's / phylotree's d3 v7 (§7.1).
+  //   • R2DT      — the canonical RF00230 / T-box template layout (the recognizable,
+  //                 reproducible textbook shape), pre-generated offline and committed
+  //                 under public/data/r2dt/ (data-pipeline/build_r2dt.py), fetched on
+  //                 demand and drawn by R2dtDiagram.svelte. Default when available.
+  //   • Fornac    — the legacy 2016 force-directed render of the whole-leader
+  //                 antiterminator conformation (best-effort; PLAN §13).
+  //
+  // ── fornac is legacy + fragile, so its path is defensive by design (PLAN §13) ──
+  //   • Loaded by a classic <script> (lib/fornac.ts) so the 2016 UMD (own d3 v3)
+  //     never touches the boot path and stays out of ESM strict mode; it is fetched
+  //     only when the fornac view first mounts on /locus.
   //   • The import AND the render are both guarded: any failure falls back cleanly
-  //     to the VARNA deep-link (which is shown regardless).
-  //   • fornac self-injects a bare-tag `svg { width/min-*: 100% }` stylesheet on
-  //     import; `app.css`'s `.tv-app svg { min-*: 0 }` neutralizes that leak app-
-  //     wide, and the scoped rule below re-sizes fornac's own graph inside .tv-rna.
-  //   • The render basis (whole-leader antiterminator structure) is chosen in
+  //     to the VARNA deep-link (shown regardless).
+  //   • fornac self-injects a bare-tag `svg { width/min-*: 100% }` stylesheet;
+  //     `app.css`'s `.tv-app svg { min-*: 0 }` neutralizes that leak app-wide, and
+  //     the scoped rule below re-sizes fornac's own graph inside .tv-rna.
+  //   • The fornac render basis (whole-leader antiterminator structure) is chosen in
   //     `rna.ts` — the Stem-I alignment column carries non-nucleotide junk.
   import type { Member } from '../data/types'
-  import { swatchBackground, STEM_COLORS, STEM_LINKER_COLOR, STEM_META } from '../color'
+  import { swatchBackground, STEM_META, buildStemColorMap } from '../color'
   import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
+  import R2dtDiagram from './R2dtDiagram.svelte'
   import { leaderRnaModel, varnaLink, type RnaModel } from '../rna'
   import { loadFornac, type FornaContainerCtor } from '../fornac'
+  import { loadR2dtManifest, loadR2dtDiagram, type R2dtDiagram as R2dtDiagramData } from '../r2dt'
 
   let { members }: { members: Member[] } = $props()
 
@@ -39,8 +49,55 @@
   const model = $derived<RnaModel | null>(member ? leaderRnaModel(member) : null)
   const deepLink = $derived(member ? varnaLink(member) : null)
 
+  // ── Viewer toggle (R2DT ⇄ fornac) ───────────────────────────────────────────
+  type ViewMode = 'r2dt' | 'fornac'
+  // null = auto: prefer R2DT where a committed diagram exists, else fornac. A user
+  // click pins the choice across element tabs (a per-element auto-flip would be
+  // disorienting). R2DT is the canonical layout, so it leads when present.
+  let chosen = $state<ViewMode | null>(null)
+
+  // R2DT availability manifest (loaded once; absent → fornac-only, graceful).
+  let r2dtAvail = $state<Record<string, { template: string | null; source: string | null }>>({})
+  let manifestLoaded = $state(false)
+  $effect(() => {
+    loadR2dtManifest().then((m) => {
+      if (m) r2dtAvail = m.diagrams
+      manifestLoaded = true // even on null: the availability question is now answered
+    })
+  })
+  const r2dtHere = $derived(!!member && member.member_id in r2dtAvail)
+  const view = $derived<ViewMode>(chosen ?? (r2dtHere ? 'r2dt' : 'fornac'))
+  const r2dtTemplate = $derived(member ? (r2dtAvail[member.member_id]?.template ?? 'T-box') : 'T-box')
+
+  // The active member's R2DT diagram, fetched on demand (cached in lib/r2dt.ts).
+  let r2dtData = $state<R2dtDiagramData | null>(null)
+  let r2dtLoading = $state(false)
+  $effect(() => {
+    const id = member?.member_id
+    // Drop the previous element's diagram synchronously so a stale one is never
+    // painted with the new element's stems while the new fetch is in flight
+    // (mirrors the fornac path's el.innerHTML='' reset).
+    r2dtData = null
+    if (view !== 'r2dt' || !id || !(id in r2dtAvail)) {
+      r2dtLoading = false
+      return
+    }
+    let cancelled = false
+    r2dtLoading = true
+    loadR2dtDiagram(id).then((d) => {
+      if (!cancelled) {
+        r2dtData = d
+        r2dtLoading = false
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  })
+
   // Stem-overlay legend: the labelled domains actually present on the active
   // element (degenerate elements omit some), in canonical 5′→3′ order (PLAN §9).
+  // Shared by both viewers (both color by `member.stems`).
   const legendStems = $derived.by(() => {
     const present = new Set((member?.stems ?? []).map((s) => s.key))
     return STEM_META.filter((s) => present.has(s.key))
@@ -52,9 +109,7 @@
     return `mid (${ordinal})`
   }
 
-  // ── fornac loader (lazy; resolves the FornaContainer constructor once) ──────────
-  // The classic-script load (see lib/fornac.ts) keeps the legacy UMD off the boot
-  // path and out of ESM strict mode.
+  // ── fornac loader (lazy; only when the fornac view is actually shown) ──────────
   let Forna = $state<FornaContainerCtor | null>(null)
   let loadFailed = $state(false)
   let renderFailed = $state(false)
@@ -68,6 +123,10 @@
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   $effect(() => {
+    // Don't fetch the legacy UMD unless fornac is the resolved viewer. Gate on the
+    // manifest too: until it resolves, `view` provisionally reads 'fornac', so an
+    // element that will default to R2DT must not pull fornac in that brief window.
+    if (view !== 'fornac' || !manifestLoaded) return
     let cancelled = false
     loadFornac()
       .then((ctor) => {
@@ -88,9 +147,10 @@
     renderFailed = false
   })
 
-  // (Re)render whenever the loader, host, or active model is ready. NOTE: this
+  // (Re)render fornac whenever the loader, host, or active model is ready. NOTE: this
   // effect deliberately does not read `renderFailed` (it only writes it) — that
-  // avoids a mount/unmount loop with the {#if} guard in the template.
+  // avoids a mount/unmount loop with the {#if} guard in the template. The host only
+  // exists in the DOM while the fornac view is active, so this is naturally gated.
   $effect(() => {
     const el = host
     const ctor = Forna
@@ -135,17 +195,10 @@
       container.addRNA(m.structure, { sequence: m.sequence, name })
 
       // Per-stem color overlay (PLAN §9): paint each nucleotide by the structural
-      // domain it sits in (Stem I / II / IIA-B / III / antiterminator); linkers stay
-      // a quiet grey. fornac returns a non-numeric custom value verbatim as the node
-      // fill, so we map nucleotide number → hex directly (structName === name).
-      const colorValues: Record<number, string> = {}
-      const len = m.sequence.length
-      for (let i = 1; i <= len; i++) colorValues[i] = STEM_LINKER_COLOR
-      for (const s of stems) {
-        const col = STEM_COLORS[s.key]
-        if (!col) continue
-        for (let p = Math.max(1, s.start); p <= Math.min(len, s.end); p++) colorValues[p] = col
-      }
+      // domain it sits in. fornac returns a non-numeric custom value verbatim as the
+      // node fill, so we map nucleotide number → hex via the shared helper that the
+      // R2DT diagram also uses — so both viewers color identically (structName === name).
+      const colorValues = buildStemColorMap(stems, m.sequence.length)
       container.addCustomColors({ colorValues: { [name]: colorValues } })
       container.changeColorScheme('custom')
     } catch {
@@ -163,14 +216,14 @@
     }
   })
 
-  const showViewer = $derived(!!model && !!Forna && !renderFailed)
+  const showFornac = $derived(view === 'fornac' && !!model && !!Forna && !renderFailed)
+  const showR2dt = $derived(view === 'r2dt' && r2dtHere && !!r2dtData)
 
-  // Scroll-to-zoom must never chain to the page. fornac's legacy d3 v3 zoom only
-  // cancels the page-scroll default for one wheel direction (wheel-down), so
-  // wheel-up zooms AND scrolls the window. Cancel the default ourselves in BOTH
-  // directions with a non-passive listener (passive:false so preventDefault takes
-  // effect) — fornac still receives the event and zooms; only the page scroll is
-  // suppressed. (The similarity-map tree handles this itself via d3 v7.)
+  // Scroll-to-zoom (fornac only) must never chain to the page. fornac's legacy d3 v3
+  // zoom only cancels the page-scroll default for wheel-down, so wheel-up zooms AND
+  // scrolls the window. Cancel the default ourselves in BOTH directions with a
+  // non-passive listener — fornac still zooms; only the page scroll is suppressed.
+  // (The R2DT diagram is a static SVG and does not capture the wheel.)
   function lockWheel(node: HTMLElement) {
     const onWheel = (e: WheelEvent) => e.preventDefault()
     node.addEventListener('wheel', onWheel, { passive: false })
@@ -183,41 +236,102 @@
 </script>
 
 <div class="space-y-3">
-  <!-- Per-element tabs (one tab per member; PLAN §9 "tabs per element") -->
-  {#if els.length > 1}
-    <div role="tablist" aria-label="Elements" class="flex flex-wrap gap-1.5">
-      {#each els as m, i (m.member_id)}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={i === active}
-          class="inline-flex items-center gap-1.5 rounded-sm border px-2 py-1 text-small transition-colors duration-150 ease-standard"
-          class:border-brand={i === active}
-          class:bg-brand-subtle={i === active}
-          class:text-ink={i === active}
-          class:border-hairline={i !== active}
-          class:text-muted={i !== active}
-          class:hover:text-ink={i !== active}
-          onclick={() => (active = i)}
-        >
-          <span
-            class="size-3 rounded-sm ring-1 ring-ink/10"
-            style:background={swatchBackground(m.specifier.aa)}
-            aria-hidden="true"
-          ></span>
-          <span class="font-mono text-caption">{ordinalLabel(m.ordinal, els.length)}</span>
-          <span class="font-mono font-medium">{m.specifier.aa ?? '?'}</span>
-        </button>
-      {/each}
+  <!-- Element tabs (one per member) + the viewer toggle -->
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    {#if els.length > 1}
+      <div role="tablist" aria-label="Elements" class="flex flex-wrap gap-1.5">
+        {#each els as m, i (m.member_id)}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            class="inline-flex items-center gap-1.5 rounded-sm border px-2 py-1 text-small transition-colors duration-150 ease-standard"
+            class:border-brand={i === active}
+            class:bg-brand-subtle={i === active}
+            class:text-ink={i === active}
+            class:border-hairline={i !== active}
+            class:text-muted={i !== active}
+            class:hover:text-ink={i !== active}
+            onclick={() => (active = i)}
+          >
+            <span
+              class="size-3 rounded-sm ring-1 ring-ink/10"
+              style:background={swatchBackground(m.specifier.aa)}
+              aria-hidden="true"
+            ></span>
+            <span class="font-mono text-caption">{ordinalLabel(m.ordinal, els.length)}</span>
+            <span class="font-mono font-medium">{m.specifier.aa ?? '?'}</span>
+          </button>
+        {/each}
+      </div>
+    {:else}
+      <span></span>
+    {/if}
+
+    <!-- Viewer toggle: R2DT (canonical template) vs fornac (force layout). A
+         segmented toggle-button group (aria-pressed), distinct from the element
+         tablist above so the two never conflate. -->
+    <div
+      role="group"
+      aria-label="Structure viewer"
+      class="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-hairline p-0.5"
+    >
+      <button
+        type="button"
+        aria-pressed={view === 'r2dt'}
+        title="Canonical RF00230 / T-box template layout (R2DT)"
+        class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
+        class:bg-brand-subtle={view === 'r2dt'}
+        class:text-ink={view === 'r2dt'}
+        class:text-muted={view !== 'r2dt'}
+        class:hover:text-ink={view !== 'r2dt'}
+        onclick={() => (chosen = 'r2dt')}
+      >
+        R2DT
+      </button>
+      <button
+        type="button"
+        aria-pressed={view === 'fornac'}
+        title="Force-directed layout of the antiterminator conformation (fornac)"
+        class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
+        class:bg-brand-subtle={view === 'fornac'}
+        class:text-ink={view === 'fornac'}
+        class:text-muted={view !== 'fornac'}
+        class:hover:text-ink={view !== 'fornac'}
+        onclick={() => (chosen = 'fornac')}
+      >
+        Fornac
+      </button>
     </div>
-  {/if}
+  </div>
 
   {#if member}
-    <!-- fornac mount target (explicit height — fornac measures offsetHeight) -->
+    <!-- Structure mount box (responsive clamp; fornac measures offsetHeight) -->
     <div
-      class="tv-rna relative h-[clamp(18rem,46vh,24rem)] w-full overflow-hidden rounded-md border border-hairline bg-surface-subtle"
+      class="tv-rna relative h-[clamp(18rem,46vh,24rem)] w-full overflow-hidden rounded-md border border-hairline bg-surface"
     >
-      {#if showViewer}
+      {#if view === 'r2dt'}
+        {#if showR2dt && r2dtData}
+          <div class="h-full w-full p-2">
+            <R2dtDiagram diagram={r2dtData} stems={member.stems} />
+          </div>
+        {:else}
+          <div class="absolute inset-0 grid place-items-center p-6 text-center">
+            <p class="max-w-sm text-small text-muted">
+              {#if !r2dtHere}
+                No R2DT diagram is available for this element. Switch to the Fornac view, or open the
+                VARNA secondary-structure view on tbdb.io below.
+              {:else if r2dtLoading}
+                Loading the R2DT diagram…
+              {:else}
+                The R2DT diagram couldn't load.
+                <br />
+                Switch to the Fornac view or open the VARNA view on tbdb.io below.
+              {/if}
+            </p>
+          </div>
+        {/if}
+      {:else if showFornac}
         <div bind:this={host} use:lockWheel class="h-full w-full" aria-label="RNA secondary structure"></div>
       {:else}
         <div class="absolute inset-0 grid place-items-center p-6 text-center">
@@ -236,8 +350,8 @@
       {/if}
     </div>
 
-    <!-- Stem color key (only the domains present on the active element) -->
-    {#if showViewer && legendStems.length}
+    <!-- Stem color key (only the domains present on the active element) — shared -->
+    {#if (showR2dt || showFornac) && legendStems.length}
       <ul
         class="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted"
         aria-label="Stem color key"
@@ -258,11 +372,23 @@
     <!-- Caption + the GUARANTEED VARNA deep-link (always shown, per element) -->
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
       <p class="inline-flex items-center gap-1 text-caption text-muted">
-        <span>
-          {#if model}{model.source} · {model.pairs} base pairs · {/if}in-app preview — the
-          base pairs are exact, but the layout is approximate; the tbdb.io VARNA diagram is
-          the reference drawing.
-        </span>
+        {#if showR2dt}
+          <span>
+            {r2dtTemplate} template (RF00230) · R2DT — the canonical, reproducible layout; nucleotides
+            are colored by structural domain. The tbdb.io VARNA diagram is the reference drawing.
+          </span>
+        {:else if view === 'fornac'}
+          <span>
+            {#if model}{model.source} · {model.pairs} base pairs · {/if}fornac force layout — the base
+            pairs are exact, but the layout is approximate; the tbdb.io VARNA diagram is the reference
+            drawing.
+          </span>
+        {:else}
+          <span>
+            No R2DT diagram for this element — switch to Fornac, or open the tbdb.io VARNA
+            secondary-structure view.
+          </span>
+        {/if}
         <InfoTip term="varna" />
       </p>
       {#if deepLink}
@@ -282,7 +408,8 @@
 <style>
   /* fornac renders its force graph as an <svg> inside this host. `app.css` resets
      `min-*` on every app svg to undo fornac's injected global `svg { min-*:100% }`
-     leak; here we (re)give fornac's own svg the full host box it expects. */
+     leak; here we (re)give fornac's own svg the full host box it expects. The R2DT
+     diagram's own <svg> (also inside .tv-rna) reuses the same full-box sizing. */
   .tv-rna :global(svg) {
     width: 100%;
     height: 100%;

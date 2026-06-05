@@ -100,6 +100,28 @@ export const STEM_COLORS: Record<StemKey, string> = STEM_META.reduce(
 export const STEM_LINKER_COLOR = '#cbd3d8'
 
 /**
+ * Per-nucleotide stem-overlay colors for a member's structure: a 1-based map
+ * `position → hex`, every position defaulting to {@link STEM_LINKER_COLOR} and
+ * each stem's `[start, end]` (1-based, inclusive, clamped to `length`) painted its
+ * {@link STEM_COLORS} hue. The SINGLE source of this mapping — reused by BOTH the
+ * fornac overlay and the R2DT diagram so the two viewers color identically
+ * (PLAN §9). Later stems win on the (non-occurring) overlap, matching 5′→3′ order.
+ */
+export function buildStemColorMap(
+  stems: { key: StemKey; start: number; end: number }[],
+  length: number,
+): Record<number, string> {
+  const colors: Record<number, string> = {}
+  for (let i = 1; i <= length; i++) colors[i] = STEM_LINKER_COLOR
+  for (const s of stems) {
+    const col = STEM_COLORS[s.key]
+    if (!col) continue
+    for (let p = Math.max(1, s.start); p <= Math.min(length, s.end); p++) colors[p] = col
+  }
+  return colors
+}
+
+/**
  * Phylum CONTEXT ramp (§8.2) — a small, separate, deliberately neutral ramp used
  * ONLY for the tree's phylum ring, so it never competes with the specifier hues.
  * The dataset is ~monochrome (454/470 Firmicutes), so this is intentionally quiet.
