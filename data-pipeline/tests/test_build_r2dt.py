@@ -392,3 +392,91 @@ def test_place_tail_closes_interior_break():
     br._place_tail(xs, ys, 2, 5, 1, med=10.0, n=5, partner={})
     steps = [math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) for i in range(2, 6)]
     assert max(steps) <= 1.2 * 10.0  # every tail step ~one median apart (no 3x jump left)
+
+
+# --- stage 4: standalone terminator diagrams ---------------------------------
+
+
+def test_terminator_member_simple_hairpin():
+    # a simple-hairpin terminator (with 5'/3' dangles) -> ladder layout, sequence T->U.
+    member = {
+        "term_sequence": "ACGGGUACUUCCCGU",  # len 15
+        "term_structure": "..(((.....)))..",  # pairs (3,13)(4,12)(5,11); dangles 1-2, 14-15
+    }
+    d = br.terminator_member(member)
+    assert d is not None
+    assert d["seq"] == "ACGGGUACUUCCCGU"  # already RNA; T->U is a no-op here
+    assert {tuple(p) for p in d["pairs"]} == {(3, 13), (4, 12), (5, 11)}
+    assert len(d["x"]) == 15 and len(d["y"]) == 15
+    assert all(math.isfinite(v) for v in d["x"] + d["y"])
+    assert d["template"] is None and d["source"] is None
+    # the loop caps the top (small y); the 5'/3' dangles hang below the base (larger y)
+    assert min(d["y"][2:13]) < min(d["y"][0], d["y"][14])
+
+
+def test_terminator_member_rejects_invalid():
+    assert br.terminator_member({"term_sequence": "ACGU", "term_structure": "(())"}) is not None
+    assert br.terminator_member({"term_sequence": None, "term_structure": "(())"}) is None
+    assert br.terminator_member({"term_sequence": "ACGU", "term_structure": None}) is None
+    assert br.terminator_member({"term_sequence": "ACG", "term_structure": "(())"}) is None  # length≠
+    assert br.terminator_member({"term_sequence": "ACGU", "term_structure": "..(("}) is None  # unbalanced
+    assert br.terminator_member({"term_sequence": "ACGU", "term_structure": "...."}) is None  # pairless
+
+
+def test_terminator_layout_branched_uses_naview():
+    pytest.importorskip("RNA")  # two side-by-side hairpins -> the ladder declines, NAView lays it out
+    out = br._terminator_layout("(((...)))(((...)))")  # len 18, a branch (multiloop)
+    assert out is not None
+    xs, ys = out
+    assert len(xs) == 18 and len(ys) == 18
+    assert all(math.isfinite(v) for v in xs + ys)
+
+
+def test_terminator_driver_writes_manifest_clears_stale_and_skips(tmp_path: Path):
+    members = {
+        "T0001.m1": {"term_sequence": "ACGGGUACUUCCCGU", "term_structure": "..(((.....))).."},  # drawable
+        "T0002.m1": {"term_sequence": None, "term_structure": "(())"},  # no sequence → skip
+        "T0003.m1": {"term_sequence": "ACGU", "term_structure": "...."},  # pairless → skip
+    }
+    out = tmp_path / "term"
+    out.mkdir()
+    (out / "STALE.json").write_text("{}")  # must be cleared
+
+    n, skipped = br.terminator(members, out)
+
+    assert n == 1
+    assert (out / "T0001.m1.json").exists()
+    assert not (out / "T0002.m1.json").exists()
+    assert not (out / "STALE.json").exists()
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["count"] == 1 and list(manifest["diagrams"]) == ["T0001.m1"]
+    assert "T0002.m1" in skipped and "T0003.m1" in skipped
+
+
+def test_spread_coincident_separates_overlapping_residues():
+    # two residues dropped onto one coordinate (idx 1 & 3, with 2 between) are pushed
+    # at least min_dist apart; the adjacent (idx 1 & 2) coincidence is also resolved.
+    cx = [0.0, 10.0, 10.0, 10.0, 20.0]
+    cy = [0.0, 0.0, 0.0, 0.0, 5.0]
+    br._spread_coincident(cx, cy, min_dist=6.0)
+    dists = [
+        math.hypot(cx[i] - cx[j], cy[i] - cy[j])
+        for i in range(len(cx))
+        for j in range(i + 1, len(cx))
+    ]
+    assert min(dists) >= 6.0 - 0.5  # no two residues share (or nearly share) a point
+    assert all(math.isfinite(v) for v in cx + cy)
+
+
+def test_terminator_layout_no_coincident_glyphs():
+    # a lone base pair flanked by an unpaired run on EACH strand (the T0418 pattern) used
+    # to collapse two flanking-bulge residues onto one point; every residue stays distinct.
+    out = br._terminator_layout("(((..(..)..)))")  # lone pair (6,9) between bulges 4-5, 10-11
+    assert out is not None
+    xs, ys = out
+    mind = min(
+        math.hypot(xs[i] - xs[j], ys[i] - ys[j])
+        for i in range(len(xs))
+        for j in range(i + 1, len(xs))
+    )
+    assert mind > 1.0  # no two glyphs render on top of each other

@@ -26,14 +26,27 @@
   //   • The fornac render basis (whole-leader antiterminator structure) is chosen in
   //     `rna.ts` — the Stem-I alignment column carries non-nucleotide junk.
   import type { Member } from '../data/types'
-  import { swatchBackground, STEM_META, FEATURE_OVERLAY_META, buildStemColorMap } from '../color'
+  import {
+    swatchBackground,
+    STEM_META,
+    FEATURE_OVERLAY_META,
+    buildStemColorMap,
+    TERMINATOR_COLOR,
+    STEM_LINKER_COLOR,
+  } from '../color'
   import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
   import R2dtDiagram from './R2dtDiagram.svelte'
-  import { leaderRnaModel, varnaLink, type RnaModel } from '../rna'
+  import { leaderRnaModel, terminatorRnaModel, varnaLink, type RnaModel } from '../rna'
   import { overlayFeatures } from '../sequence'
   import { loadFornac, type FornaContainerCtor } from '../fornac'
-  import { loadR2dtManifest, loadR2dtDiagram, type R2dtDiagram as R2dtDiagramData } from '../r2dt'
+  import {
+    loadR2dtManifest,
+    loadR2dtDiagram,
+    loadTerminatorManifest,
+    loadTerminatorDiagram,
+    type R2dtDiagram as R2dtDiagramData,
+  } from '../r2dt'
 
   let { members }: { members: Member[] } = $props()
 
@@ -49,11 +62,27 @@
   })
 
   const member = $derived(els[active] ?? null)
-  const model = $derived<RnaModel | null>(member ? leaderRnaModel(member) : null)
   const deepLink = $derived(member ? varnaLink(member) : null)
   // Conserved-motif overlay (specifier loop + 5′-UGGN-3′ T-box motif) — the SAME
   // spans the sequence view paints, fed to BOTH viewers so the emphasis matches.
   const features = $derived(member ? overlayFeatures(member) : [])
+
+  // ── Conformation toggle (Antiterminator ⇄ Terminator) ───────────────────────
+  // Orthogonal to the R2DT/fornac viewer toggle: which FOLD is shown — the gene-ON
+  // antiterminator (the leader/RF00230 fold) or the gene-OFF terminator hairpin. The
+  // terminator is its own sequence + structure, so it drives a separate model + diagram.
+  type Conformation = 'antiterm' | 'term'
+  let conformation = $state<Conformation>('antiterm')
+  const hasTerminator = $derived(!!member && terminatorRnaModel(member) !== null)
+  // An element with no terminator can't show that conformation — fall back to antiterm.
+  $effect(() => {
+    if (!hasTerminator && conformation === 'term') conformation = 'antiterm'
+  })
+  const isTerm = $derived(conformation === 'term')
+
+  const model = $derived<RnaModel | null>(
+    !member ? null : isTerm ? terminatorRnaModel(member) : leaderRnaModel(member),
+  )
 
   // ── Viewer toggle (R2DT ⇄ fornac) ───────────────────────────────────────────
   type ViewMode = 'r2dt' | 'fornac'
@@ -62,16 +91,23 @@
   // disorienting). R2DT is the canonical layout, so it leads when present.
   let chosen = $state<ViewMode | null>(null)
 
-  // R2DT availability manifest (loaded once; absent → fornac-only, graceful).
+  // R2DT availability manifests (loaded once each; absent → fornac-only, graceful) —
+  // one for the antiterminator diagrams, one for the standalone terminator diagrams.
   let r2dtAvail = $state<Record<string, { template: string | null; source: string | null }>>({})
+  let termAvail = $state<Record<string, { template: string | null; source: string | null }>>({})
   let manifestLoaded = $state(false)
   $effect(() => {
     loadR2dtManifest().then((m) => {
       if (m) r2dtAvail = m.diagrams
       manifestLoaded = true // even on null: the availability question is now answered
     })
+    loadTerminatorManifest().then((m) => {
+      if (m) termAvail = m.diagrams
+    })
   })
-  const r2dtHere = $derived(!!member && member.member_id in r2dtAvail)
+  // R2DT diagram availability for the CURRENT conformation.
+  const avail = $derived(isTerm ? termAvail : r2dtAvail)
+  const r2dtHere = $derived(!!member && member.member_id in avail)
   const view = $derived<ViewMode>(chosen ?? (r2dtHere ? 'r2dt' : 'fornac'))
   const r2dtTemplate = $derived(member ? (r2dtAvail[member.member_id]?.template ?? 'T-box') : 'T-box')
 
@@ -80,17 +116,19 @@
   let r2dtLoading = $state(false)
   $effect(() => {
     const id = member?.member_id
+    const term = isTerm
     // Drop the previous element's diagram synchronously so a stale one is never
-    // painted with the new element's stems while the new fetch is in flight
-    // (mirrors the fornac path's el.innerHTML='' reset).
+    // painted with the new element's stems / wrong conformation while the new fetch is
+    // in flight (mirrors the fornac path's el.innerHTML='' reset).
     r2dtData = null
-    if (view !== 'r2dt' || !id || !(id in r2dtAvail)) {
+    if (view !== 'r2dt' || !id || !(id in (term ? termAvail : r2dtAvail))) {
       r2dtLoading = false
       return
     }
     let cancelled = false
     r2dtLoading = true
-    loadR2dtDiagram(id).then((d) => {
+    const load = term ? loadTerminatorDiagram : loadR2dtDiagram
+    load(id).then((d) => {
       if (!cancelled) {
         r2dtData = d
         r2dtLoading = false
@@ -167,6 +205,7 @@
     const el = host
     const ctor = Forna
     const m = model
+    const term = isTerm
     const name = member?.unique_name ?? ''
     const stems = member?.stems ?? []
     const feats = member ? overlayFeatures(member) : []
@@ -207,11 +246,19 @@
       })
       container.addRNA(m.structure, { sequence: m.sequence, name })
 
-      // Per-stem color overlay (PLAN §9): paint each nucleotide by the structural
-      // domain it sits in. fornac returns a non-numeric custom value verbatim as the
-      // node fill, so we map nucleotide number → hex via the shared helper that the
-      // R2DT diagram also uses — so both viewers color identically (structName === name).
-      const colorValues = buildStemColorMap(stems, m.sequence.length, feats)
+      // Per-nucleotide color overlay (PLAN §9). fornac returns a non-numeric custom value
+      // verbatim as the node fill, so we map nucleotide number → hex. Antiterminator: the
+      // shared stem + motif map the R2DT diagram also uses (so both viewers match). Terminator:
+      // the paired residues (the terminator stem) in the terminator hue, rest quiet grey.
+      let colorValues: Record<number, string>
+      if (term) {
+        colorValues = {}
+        for (let i = 1; i <= m.structure.length; i++) {
+          colorValues[i] = m.structure[i - 1] === '.' ? STEM_LINKER_COLOR : TERMINATOR_COLOR
+        }
+      } else {
+        colorValues = buildStemColorMap(stems, m.sequence.length, feats)
+      }
       container.addCustomColors({ colorValues: { [name]: colorValues } })
       container.changeColorScheme('custom')
     } catch {
@@ -281,40 +328,83 @@
       <span></span>
     {/if}
 
-    <!-- Viewer toggle: R2DT (canonical template) vs fornac (force layout). A
-         segmented toggle-button group (aria-pressed), distinct from the element
-         tablist above so the two never conflate. -->
-    <div
-      role="group"
-      aria-label="Structure viewer"
-      class="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-hairline p-0.5"
-    >
-      <button
-        type="button"
-        aria-pressed={view === 'r2dt'}
-        title="RF00230 / T-box template layout (R2DT), antiterminator folded in"
-        class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
-        class:bg-brand-subtle={view === 'r2dt'}
-        class:text-ink={view === 'r2dt'}
-        class:text-muted={view !== 'r2dt'}
-        class:hover:text-ink={view !== 'r2dt'}
-        onclick={() => (chosen = 'r2dt')}
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Conformation toggle: Antiterminator (gene-ON) vs Terminator (gene-OFF). The
+           two competing folds of the same leader; orthogonal to the viewer toggle. The
+           Terminator option disables for the elements with no terminator. -->
+      <div
+        role="group"
+        aria-label="Conformation"
+        class="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-hairline p-0.5"
       >
-        R2DT
-      </button>
-      <button
-        type="button"
-        aria-pressed={view === 'fornac'}
-        title="Force-directed layout of the antiterminator conformation (fornac)"
-        class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
-        class:bg-brand-subtle={view === 'fornac'}
-        class:text-ink={view === 'fornac'}
-        class:text-muted={view !== 'fornac'}
-        class:hover:text-ink={view !== 'fornac'}
-        onclick={() => (chosen = 'fornac')}
+        <button
+          type="button"
+          aria-pressed={!isTerm}
+          title="Antiterminator (gene-ON) conformation"
+          class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
+          class:bg-brand-subtle={!isTerm}
+          class:text-ink={!isTerm}
+          class:text-muted={isTerm}
+          class:hover:text-ink={isTerm}
+          onclick={() => (conformation = 'antiterm')}
+        >
+          Antiterminator
+        </button>
+        <button
+          type="button"
+          aria-pressed={isTerm}
+          disabled={!hasTerminator}
+          title={hasTerminator
+            ? 'Terminator (gene-OFF) conformation'
+            : 'No terminator annotated for this element'}
+          class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard disabled:cursor-not-allowed disabled:opacity-40"
+          class:bg-brand-subtle={isTerm}
+          class:text-ink={isTerm}
+          class:text-muted={!isTerm}
+          class:hover:text-ink={!isTerm && hasTerminator}
+          onclick={() => (conformation = 'term')}
+        >
+          Terminator
+        </button>
+      </div>
+
+      <!-- Viewer toggle: R2DT (canonical template) vs fornac (force layout). A
+           segmented toggle-button group (aria-pressed), distinct from the element
+           tablist above so the two never conflate. -->
+      <div
+        role="group"
+        aria-label="Structure viewer"
+        class="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-hairline p-0.5"
       >
-        Fornac
-      </button>
+        <button
+          type="button"
+          aria-pressed={view === 'r2dt'}
+          title={isTerm
+            ? 'Terminator hairpin layout (R2DT)'
+            : 'RF00230 / T-box template layout (R2DT), antiterminator folded in'}
+          class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
+          class:bg-brand-subtle={view === 'r2dt'}
+          class:text-ink={view === 'r2dt'}
+          class:text-muted={view !== 'r2dt'}
+          class:hover:text-ink={view !== 'r2dt'}
+          onclick={() => (chosen = 'r2dt')}
+        >
+          R2DT
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === 'fornac'}
+          title="Force-directed layout (fornac)"
+          class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
+          class:bg-brand-subtle={view === 'fornac'}
+          class:text-ink={view === 'fornac'}
+          class:text-muted={view !== 'fornac'}
+          class:hover:text-ink={view !== 'fornac'}
+          onclick={() => (chosen = 'fornac')}
+        >
+          Fornac
+        </button>
+      </div>
     </div>
   </div>
 
@@ -326,7 +416,12 @@
       {#if view === 'r2dt'}
         {#if showR2dt && r2dtData}
           <div class="h-full w-full p-2">
-            <R2dtDiagram diagram={r2dtData} stems={member.stems} {features} />
+            <R2dtDiagram
+              diagram={r2dtData}
+              stems={member.stems}
+              {features}
+              variant={isTerm ? 'terminator' : 'antiterm'}
+            />
           </div>
         {:else}
           <div class="absolute inset-0 grid place-items-center p-6 text-center">
@@ -363,39 +458,62 @@
       {/if}
     </div>
 
-    <!-- Stem color key + conserved-motif key (only what's present) — shared by both viewers -->
-    {#if (showR2dt || showFornac) && (legendStems.length || legendFeatures.length)}
-      <ul
-        class="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted"
-        aria-label="Stem and motif color key"
-      >
-        {#each legendStems as s (s.key)}
+    <!-- Color key — the antiterminator stems + motifs, or (terminator conformation) the
+         single terminator-stem key. Shown for whichever viewer is active. -->
+    {#if showR2dt || showFornac}
+      {#if isTerm}
+        <ul
+          class="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted"
+          aria-label="Terminator color key"
+        >
           <li class="inline-flex items-center gap-1.5">
             <span
               class="size-2.5 rounded-sm ring-1 ring-ink/10"
-              style:background={s.color}
+              style:background={TERMINATOR_COLOR}
               aria-hidden="true"
             ></span>
-            <span>{s.label}</span>
+            <span>Terminator stem</span>
           </li>
-        {/each}
-        {#each legendFeatures as f (f.key)}
-          <li class="inline-flex items-center gap-1.5">
-            <span
-              class="size-2.5 rounded-full ring-1 ring-ink/60"
-              style:background={f.color}
-              aria-hidden="true"
-            ></span>
-            <span>{f.label}</span>
-          </li>
-        {/each}
-      </ul>
+        </ul>
+      {:else if legendStems.length || legendFeatures.length}
+        <ul
+          class="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted"
+          aria-label="Stem and motif color key"
+        >
+          {#each legendStems as s (s.key)}
+            <li class="inline-flex items-center gap-1.5">
+              <span
+                class="size-2.5 rounded-sm ring-1 ring-ink/10"
+                style:background={s.color}
+                aria-hidden="true"
+              ></span>
+              <span>{s.label}</span>
+            </li>
+          {/each}
+          {#each legendFeatures as f (f.key)}
+            <li class="inline-flex items-center gap-1.5">
+              <span
+                class="size-2.5 rounded-full ring-1 ring-ink/60"
+                style:background={f.color}
+                aria-hidden="true"
+              ></span>
+              <span>{f.label}</span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     {/if}
 
     <!-- Caption + the GUARANTEED VARNA deep-link (always shown, per element) -->
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
       <p class="inline-flex items-center gap-1 text-caption text-muted">
-        {#if showR2dt}
+        {#if showR2dt && isTerm}
+          <span>
+            Terminator (gene-OFF) conformation · R2DT — the alternative terminator hairpin laid out
+            standalone from its own sequence + structure; the terminator stem is colored. The tbdb.io
+            VARNA diagram is the reference drawing.
+          </span>
+        {:else if showR2dt}
           <span>
             {r2dtTemplate} template (RF00230) · R2DT, with the antiterminator folded in (antiterminator
             conformation); nucleotides are colored by structural domain{#if legendFeatures.length}, with

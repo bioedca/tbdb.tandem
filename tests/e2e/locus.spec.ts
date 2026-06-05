@@ -35,4 +35,38 @@ test.describe('LocusDetail (/locus/T0342)', () => {
       page.getByRole('link', { name: /VARNA structure on tbdb\.io/ }).first(),
     ).toBeVisible()
   })
+
+  test('the conformation toggle switches both viewers between antiterminator and terminator', async ({
+    page,
+  }) => {
+    await gotoRoute(page, '/locus/T0342')
+    await expect(page.locator('.tv-rna')).toBeVisible({ timeout: 30_000 })
+
+    const term = page.getByRole('button', { name: 'Terminator', exact: true })
+    const antiterm = page.getByRole('button', { name: 'Antiterminator', exact: true })
+    await expect(antiterm).toBeVisible()
+    await expect(term).toBeEnabled() // T0342 carries a terminator on both elements
+
+    // R2DT antiterminator (the default): the stem + motif color key is shown.
+    await expect(page.getByRole('list', { name: 'Stem and motif color key' })).toBeVisible({
+      timeout: 30_000,
+    })
+
+    // Switch conformation → the terminator-stem key replaces the stem/motif key (R2DT).
+    await term.click()
+    const termKey = page.getByRole('list', { name: 'Terminator color key' })
+    await expect(termKey).toBeVisible()
+    // exact: the caption also says "…the terminator stem is colored…" (substring match)
+    await expect(termKey.getByText('Terminator stem', { exact: true })).toBeVisible()
+
+    // The OTHER viewer also switches: fornac in terminator mode renders its host.
+    await page.getByRole('button', { name: 'Fornac', exact: true }).click()
+    await expect(
+      page.locator('.tv-rna [aria-label="RNA secondary structure"]'),
+    ).toBeVisible({ timeout: 30_000 })
+
+    // Back to the antiterminator conformation restores the stem + motif key.
+    await antiterm.click()
+    await expect(page.getByRole('list', { name: 'Stem and motif color key' })).toBeVisible()
+  })
 })

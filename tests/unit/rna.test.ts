@@ -4,7 +4,7 @@
 // artifact drift guard that all 949 members yield a renderable model (the S2.3
 // empirical "0 null / 0 length-mismatch / 0 unbalanced").
 import { describe, expect, test } from 'vitest'
-import { isBalancedDotBracket, leaderRnaModel, toRna, varnaLink } from '../../src/lib/rna'
+import { isBalancedDotBracket, leaderRnaModel, terminatorRnaModel, toRna, varnaLink } from '../../src/lib/rna'
 import type { Member, MembersMap } from '../../src/lib/data/types'
 import { makeMember } from '../fixtures'
 import membersJson from '../../public/data/members.json'
@@ -49,6 +49,32 @@ describe('leaderRnaModel', () => {
   })
 })
 
+describe('terminatorRnaModel (the gene-OFF conformation)', () => {
+  test('builds a renderable model from term_sequence + term_structure (T→U)', () => {
+    const m = makeMember({
+      member_id: 'X.m1', tandem_id: 'X',
+      term_sequence: 'ACGTACGT',
+      term_structure: '((....))',
+    })
+    const model = terminatorRnaModel(m)!
+    expect(model).not.toBeNull()
+    expect(model.sequence).toBe('ACGUACGU')
+    expect(model.structure).toBe('((....))')
+    expect(model.pairs).toBe(2)
+    expect(model.source).toMatch(/terminator/i)
+  })
+
+  test('returns null when the terminator is missing, length-mismatched, unbalanced, or pairless', () => {
+    const base = { member_id: 'X.m1', tandem_id: 'X', term_sequence: 'ACGTACGT' }
+    expect(terminatorRnaModel(makeMember({ ...base, term_structure: null }))).toBeNull()
+    expect(terminatorRnaModel(makeMember({ ...base, term_sequence: null, term_structure: '((....))' }))).toBeNull()
+    expect(terminatorRnaModel(makeMember({ ...base, term_structure: '((..))' }))).toBeNull() // len 6 ≠ 8
+    expect(terminatorRnaModel(makeMember({ ...base, term_structure: '(((...))' }))).toBeNull() // unbalanced
+    // pairless (all dots): a terminator is a hairpin, so 0 bp ⇒ null (matches the build gate)
+    expect(terminatorRnaModel(makeMember({ ...base, term_structure: '........' }))).toBeNull()
+  })
+})
+
 describe('varnaLink', () => {
   test('prefers the tbdb VARNA page when a unique_name exists', () => {
     const m = makeMember({ member_id: 'X.m1', tandem_id: 'X', unique_name: 'ABCDEF' })
@@ -70,5 +96,16 @@ describe('committed members.json', () => {
     expect(members).toHaveLength(949)
     const unrenderable = members.filter((m) => leaderRnaModel(m) === null)
     expect(unrenderable).toHaveLength(0)
+  })
+
+  test('922 members produce a renderable TERMINATOR model (matches the committed r2dt/term set)', () => {
+    const withTerm = members.filter((m) => terminatorRnaModel(m) !== null)
+    // 949 − 14 (no term_sequence) − 13 (balanced but pairless) = 922, == the build's committed count
+    expect(withTerm).toHaveLength(922)
+    for (const m of withTerm) {
+      const model = terminatorRnaModel(m)!
+      expect(model.sequence.length).toBe(model.structure.length) // sequence threads the structure
+      expect(model.pairs).toBeGreaterThan(0) // every renderable terminator is a real hairpin
+    }
   })
 })

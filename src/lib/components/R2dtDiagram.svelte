@@ -17,19 +17,39 @@
   import type { MemberStem } from '../data/types'
   import type { R2dtDiagram } from '../r2dt'
   import { diagramViewBox, nucleotideSpacing } from '../r2dt'
-  import { buildStemColorMap, featurePositions, STEM_LINKER_COLOR, type OverlayFeature } from '../color'
+  import {
+    buildStemColorMap,
+    buildTerminatorColorMap,
+    featurePositions,
+    STEM_LINKER_COLOR,
+    type OverlayFeature,
+  } from '../color'
 
   let {
     diagram,
-    stems,
+    stems = [],
     features = [],
-  }: { diagram: R2dtDiagram; stems: MemberStem[]; features?: OverlayFeature[] } = $props()
+    variant = 'antiterm',
+  }: {
+    diagram: R2dtDiagram
+    stems?: MemberStem[]
+    features?: OverlayFeature[]
+    /** 'antiterm' = the RF00230 stems + motif overlay; 'terminator' = the standalone
+     *  terminator hairpin, coloured purely by its own pairing (no stems/motifs apply). */
+    variant?: 'antiterm' | 'terminator'
+  } = $props()
 
   const n = $derived(diagram.seq.length)
-  // Feature spans (specifier loop / UGGN) are painted a deeper shade of their parent
-  // stem in the same shared map; their residues additionally take a discrete ring.
-  const colorAt = $derived(buildStemColorMap(stems, n, features))
-  const featureSet = $derived(featurePositions(stems, n, features))
+  // Antiterminator: stems + the deeper-shaded motif overlay (with a ring). Terminator:
+  // the stem (paired residues) in the terminator hue, no stems/feature overlay.
+  const colorAt = $derived(
+    variant === 'terminator'
+      ? buildTerminatorColorMap(diagram.pairs, n)
+      : buildStemColorMap(stems, n, features),
+  )
+  const featureSet = $derived(
+    variant === 'terminator' ? new Set<number>() : featurePositions(stems, n, features),
+  )
   const viewBox = $derived(diagramViewBox(diagram))
   const spacing = $derived(nucleotideSpacing(diagram))
 

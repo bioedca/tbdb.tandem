@@ -613,6 +613,172 @@ def graft(
     return len(manifest), dropped
 
 
+# --- stage 4: standalone terminator-conformation diagrams -------------------
+#
+# The R2DT/RF00230 template + graft draw the ANTITERMINATOR (gene-ON) fold. The
+# alternative TERMINATOR (gene-OFF) hairpin is a separate conformation with its own
+# sequence (``term_sequence``) + dot-bracket (``term_structure``); it is not on the
+# template, so it is laid out fresh here and committed under ``public/data/r2dt/term/``
+# for the in-app conformation toggle. A simple hairpin reuses the deterministic
+# ``_ladder_hairpin`` (collinear rails + spread bulges, matching the antiterminator
+# diagrams); a branched terminator (a second hairpin / multiloop) is laid out by NAView.
+
+#: Fixed nucleotide spacing for the synthesised terminator diagrams (the served
+#: antiterminator diagrams keep R2DT's own ~12-22u spacing; the terminator layout is
+#: built from scratch, so it is scaled to one consistent step for a uniform glyph size).
+TERMINATOR_STEP = 20.0
+
+
+def _balanced_round(dot: str) -> bool:
+    """True iff ``dot`` is balanced round-bracket dot-bracket (``(`` ``)`` ``.`` only)."""
+    depth = 0
+    for ch in dot:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+        elif ch != ".":
+            return False
+    return depth == 0
+
+
+def _spread_coincident(
+    cx: list[float], cy: list[float], min_dist: float, passes: int = 6
+) -> tuple[list[float], list[float]]:
+    """Push residues that landed on (nearly) the same point apart so no two glyphs overlap.
+
+    A degenerate sub-structure -- a lone base pair flanked by an unpaired run on EACH
+    strand -- makes the two flanking bulges bow to the same point, so two residues can
+    share a coordinate. Separate any pair closer than ``min_dist`` along their offset
+    (or, when exactly coincident, perpendicular to the local backbone), iterating a few
+    passes so a cascade settles. Operates on 0-based ``cx``/``cy`` in place; returns them.
+    """
+    n = len(cx)
+    for _ in range(passes):
+        moved = False
+        for i in range(n):
+            for j in range(i + 1, n):
+                dx, dy = cx[j] - cx[i], cy[j] - cy[i]
+                d = math.hypot(dx, dy)
+                if d >= min_dist:
+                    continue
+                moved = True
+                if d < 1e-9:  # exactly coincident -> separate along the backbone normal
+                    bx, by = 0.0, 0.0
+                    for k in (i - 1, i + 1, j - 1, j + 1):  # nearest non-degenerate neighbour
+                        if 0 <= k < n and math.hypot(cx[k] - cx[i], cy[k] - cy[i]) > 1e-9:
+                            bx, by = cx[k] - cx[i], cy[k] - cy[i]
+                            break
+                    bl = math.hypot(bx, by)
+                    ux, uy = (-by / bl, bx / bl) if bl > 1e-9 else (1.0, 0.0)
+                else:
+                    ux, uy = dx / d, dy / d
+                shift = (min_dist - d) / 2 + 1e-3
+                cx[i] -= ux * shift
+                cy[i] -= uy * shift
+                cx[j] += ux * shift
+                cy[j] += uy * shift
+        if not moved:
+            break
+    return cx, cy
+
+
+def _terminator_layout(structure: str) -> tuple[list[float], list[float]] | None:
+    """2D coordinates for a standalone terminator structure (no template, no graft).
+
+    A SIMPLE hairpin (one nested stem, with bulges -- 624/935 members) uses the
+    deterministic :func:`_ladder_hairpin` and drops the 5'/3' single-stranded ends
+    straight off the helix base (so the loop caps the top in the served diagram). A
+    branched terminator (a second hairpin / a multiloop -- 298/935) is laid out by
+    NAView, which handles arbitrary topology. Returns 0-based ``(xs, ys)`` scaled to
+    :data:`TERMINATOR_STEP`, or ``None`` for a pairless terminator (no hairpin to draw).
+    """
+    n = len(structure)
+    pt = _pair_table(structure)
+    paired = [i for i in range(1, n + 1) if pt[i]]
+    if not paired:
+        return None
+    p_lo, p_hi = min(paired), max(paired)
+    core = structure[p_lo - 1 : p_hi]
+    local = _ladder_hairpin(core)
+    if local is not None:
+        lx, ly = local
+        xs = [0.0] * (n + 1)
+        ys = [0.0] * (n + 1)
+        for k in range(len(core)):
+            xs[p_lo + k], ys[p_lo + k] = lx[k], -ly[k]  # negate y so the loop caps the TOP
+        # the 5'/3' single strands hang straight off the helix base, away from the loop
+        for step, idx in enumerate(range(p_lo - 1, 0, -1), start=1):
+            xs[idx], ys[idx] = xs[p_lo], ys[p_lo] + step
+        for step, idx in enumerate(range(p_hi + 1, n + 1), start=1):
+            xs[idx], ys[idx] = xs[p_hi], ys[p_hi] + step
+        cx, cy = xs[1 : n + 1], ys[1 : n + 1]
+    else:
+        lx, ly = _naview_hairpin(structure)
+        cx, cy = list(lx), list(ly)
+    if any(not math.isfinite(v) for v in cx + cy):
+        return None
+    steps = sorted(math.hypot(cx[i] - cx[i - 1], cy[i] - cy[i - 1]) for i in range(1, n))
+    med = (steps[len(steps) // 2] if steps else 1.0) or 1.0
+    sc = TERMINATOR_STEP / med
+    # Resolve coincident residues (degenerate lone-pair-between-bulges cases) so no two
+    # glyphs render on top of each other -- covers BOTH the ladder and NAView branches.
+    return _spread_coincident([v * sc for v in cx], [v * sc for v in cy], 0.5 * TERMINATOR_STEP)
+
+
+def terminator_member(member: dict) -> dict | None:
+    """The compact terminator diagram for one member, or ``None`` when it has no drawable
+    terminator -- missing/short ``term_sequence``/``term_structure``, unbalanced, or
+    pairless. ``seq`` is the terminator sequence (T->U), validated equal-length with its
+    structure (the conformation render threads the two together base-for-base)."""
+    seq = member.get("term_sequence")
+    dot = member.get("term_structure")
+    if not seq or not dot or len(seq) != len(dot) or not _balanced_round(dot) or "(" not in dot:
+        return None
+    layout = _terminator_layout(dot)
+    if layout is None:
+        return None
+    xs, ys = layout
+    pt = _pair_table(dot)
+    pairs = sorted([min(i, pt[i]), max(i, pt[i])] for i in range(1, len(dot) + 1) if i < pt[i])
+    return {
+        "seq": to_rna(seq),
+        "x": [round(v, 1) for v in xs],
+        "y": [round(v, 1) for v in ys],
+        "pairs": pairs,
+        "template": None,
+        "source": None,
+    }
+
+
+def terminator(members: dict, out_dir: Path) -> tuple[int, list[str]]:
+    """Lay out every member's terminator hairpin -> committed ``r2dt/term/`` assets.
+
+    Clears stale per-member files first, then writes one ``<member_id>.json`` per member
+    with a drawable terminator plus ``manifest.json``. Returns ``(n_written, skipped)``
+    where ``skipped`` lists members with no drawable terminator (the toggle disables them).
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for stale in out_dir.glob("*.json"):
+        stale.unlink()
+    manifest: dict[str, dict] = {}
+    skipped: list[str] = []
+    for member_id in sorted(members):
+        diagram = terminator_member(members[member_id])
+        if diagram is None:
+            skipped.append(member_id)
+            continue
+        with (out_dir / f"{member_id}.json").open("w", encoding="utf-8") as fh:
+            json.dump(diagram, fh, separators=(",", ":"), ensure_ascii=True)
+        manifest[member_id] = {"template": None, "source": None}
+    manifest_obj = {"count": len(manifest), "diagrams": dict(sorted(manifest.items()))}
+    with (out_dir / "manifest.json").open("w", encoding="utf-8") as fh:
+        json.dump(manifest_obj, fh, separators=(",", ":"), ensure_ascii=True)
+    return len(manifest), skipped
+
+
 # --- CLI --------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
@@ -640,6 +806,10 @@ def main(argv: list[str] | None = None) -> int:
     p_graft.add_argument("--out", type=Path, default=default_out, help="public/data/r2dt output dir")
     p_graft.add_argument("--max-step-ratio", type=float, default=GRAFT_MAX_STEP_RATIO)
 
+    p_term = sub.add_parser("terminator", help="lay out each member's standalone terminator hairpin")
+    p_term.add_argument("--members", type=Path, default=default_members)
+    p_term.add_argument("--out", type=Path, default=default_out / "term", help="public/data/r2dt/term output dir")
+
     args = parser.parse_args(argv)
     members = load_members(args.members)
 
@@ -655,6 +825,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  DROPPED {d}")
         if dropped:
             print(f"{len(dropped)} member(s) fall back to fornac (see above).")
+        return 0
+
+    if args.cmd == "terminator":
+        n, skipped = terminator(members, args.out)
+        print(f"wrote {n} terminator diagrams + manifest.json -> {args.out}")
+        print(f"{len(skipped)} member(s) without a drawable terminator hairpin.")
         return 0
 
     n, problems = ingest(args.results, members, args.out, args.metadata)
