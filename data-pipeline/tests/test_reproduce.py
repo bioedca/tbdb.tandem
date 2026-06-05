@@ -126,6 +126,12 @@ def run_default_again(tmp_path_factory) -> Path:
     return _run_pipeline(tmp_path_factory.mktemp("default2"))
 
 
+@pytest.fixture(scope="session")
+def run_legacy(tmp_path_factory) -> Path:
+    """A run with --legacy-empty-structure (the pre-fix str(NaN)->'...' behavior)."""
+    return _run_pipeline(tmp_path_factory.mktemp("legacy"), "--legacy-empty-structure")
+
+
 # --- tests -----------------------------------------------------------------
 def test_golden_baseline_intact():
     """The committed golden files still match their SHA256SUMS (no CSV needed)."""
@@ -197,3 +203,64 @@ def test_determinism(run_default, run_default_again):
         if _sha256(run_default / n) != _sha256(run_default_again / n)
     ]
     assert not differing, f"nondeterministic outputs: {differing}"
+
+
+# --- Phase 2: the structure null-guard ------------------------------------
+def test_phase2_fix_nulls_missing_structure():
+    """The default null-guard maps a missing source Structure to None, not "...".
+
+    No CSV needed -- exercises the Phase-2 helper directly. This is what *proves*
+    the fix is correct, since the full-dataset diff (below) is empty: no selected
+    member on the published source has a missing Structure.
+    """
+    # The latent bug the guard prevents: NaN -> "nan" -> a balanced, fake "...".
+    assert repro.wuss_to_dotbracket(str(float("nan"))) == "..."
+    # Default mode null-guards; legacy mode reproduces the bug; present values match.
+    assert repro._member_structure(float("nan"), legacy=False) is None
+    assert repro._member_structure(float("nan"), legacy=True) == "..."
+    assert repro._member_structure("   ", legacy=False) is None
+    assert repro._member_structure("<<<...>>>", legacy=False) == "(((...)))"
+    assert repro._member_structure("<<<...>>>", legacy=True) == "(((...)))"
+
+
+@needs_master
+def test_phase2_legacy_reproduces_golden(run_legacy):
+    """--legacy-empty-structure reproduces the published bytes exactly.
+
+    The golden baseline was captured from the pre-fix script, so legacy mode is
+    its exact source of truth -- a robust anchor even if a future source makes
+    the fix non-trivial.
+    """
+    shas = _golden_shas()
+    mismatched = [n for n in OUTPUT_FILES if _sha256(run_legacy / n) != shas[n]]
+    assert not mismatched, f"legacy mode differs from golden: {mismatched}"
+
+
+@needs_master
+def test_phase2_bounded_diff(run_default):
+    """The Phase-2 fix (default) changes members.json ONLY by flipping
+    ``structure`` from "..." to null on members whose source Structure is missing;
+    the seven other outputs stay byte-identical to golden, and no other key on any
+    member changes. The affected-member count is reported so the diff is auditable.
+    """
+    shas = _golden_shas()
+    for name in OUTPUT_FILES:
+        if name != "members.json":
+            assert _sha256(run_default / name) == shas[name], f"{name} unexpectedly changed"
+
+    golden_members = json.loads((GOLDEN_DIR / "members.json").read_text())
+    new_members = json.loads((run_default / "members.json").read_text())
+    assert set(golden_members) == set(new_members), "member_id set changed"
+
+    changed = [mid for mid in golden_members if golden_members[mid] != new_members[mid]]
+    for mid in changed:
+        old, new = dict(golden_members[mid]), dict(new_members[mid])
+        assert old.pop("structure") == "...", f"{mid}: changed member's golden structure was not '...'"
+        assert new.pop("structure") is None, f"{mid}: new structure is not null"
+        assert old == new, f"{mid}: a key other than `structure` changed"
+
+    print(f"\nPhase-2 affected members: {len(changed)} {sorted(changed)}")
+    # On the published source the affected set is empty (the lone missing-Structure
+    # row is not a selected member) -- so members.json is also byte-identical.
+    if not changed:
+        assert _sha256(run_default / "members.json") == shas["members.json"]

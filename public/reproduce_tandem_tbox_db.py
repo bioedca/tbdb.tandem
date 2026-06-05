@@ -95,8 +95,11 @@ THE PIPELINE, STEP BY STEP (the logic behind every number)
                    corrupt ``codon`` column.
    * Structure:    the Stem-I ``Structure`` column is WUSS notation and is
                    converted to dot-bracket (< -> (, > -> ), all marks -> .);
-                   ``whole_antiterm_structure`` / ``term_structure`` are already
-                   dot-bracket and pass through untouched.
+                   a missing ``Structure`` is null-guarded to ``None`` (pass
+                   ``--legacy-empty-structure`` to instead reproduce the
+                   published artifact's old fake ``"..."`` -- a no-op on the
+                   current source). ``whole_antiterm_structure`` /
+                   ``term_structure`` are already dot-bracket and pass through.
    * Coordinates:  each feature offset is projected onto genome coordinates.
    * func_class:   a two-tier classifier -- EC number first, then an ordered regex
                    over the downstream protein name (tagged EC / text / none).
@@ -544,7 +547,25 @@ def derive_stems(row) -> list:
     return [{"key": key, "start": lo, "end": hi} for key, (lo, hi) in stems]
 
 
-def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) -> dict:
+def _member_structure(value, *, legacy: bool):
+    """The member's Stem-I dot-bracket structure, or ``None`` when it is absent.
+
+    Default: a missing/blank source ``Structure`` is null-guarded to ``None``,
+    like every other field. ``legacy=True`` reproduces the published artifact's
+    historical quirk, where a missing ``Structure`` (NaN) went ``str(nan)`` ->
+    ``"nan"`` -> a fake three-base unpaired ``"..."`` (balanced, so it slipped
+    past verification). On the published source no selected member has a missing
+    ``Structure``, so the two modes emit identical bytes -- the guard is a
+    forward fix for any future source revision.
+    """
+    if legacy:
+        return wuss_to_dotbracket(str(value))
+    struct = _clean_str(value)
+    return wuss_to_dotbracket(struct) if struct else None
+
+
+def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str,
+                     legacy_structure: bool = False) -> dict:
     """Build one ``members.json`` element record from its representative Master row."""
     locus_start, locus_end = int(row["locus_start_n"]), int(row["locus_end_n"])
 
@@ -575,7 +596,7 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
         "coords": {"leader": [locus_start, locus_end], "window": window, "genome": genome},
         "fasta_sequence": _clean_str(row["FASTA_sequence"]),
         "aligned_sequence": _clean_str(row["Sequence"]),
-        "structure": wuss_to_dotbracket(str(row["Structure"])),
+        "structure": _member_structure(row["Structure"], legacy=legacy_structure),
         "whole_antiterm_structure": _clean_str(row["whole_antiterm_structure"]),
         "term_structure": _clean_str(row["term_structure"]),
         # Terminator-hairpin sequence; pairs 1:1 with term_structure WHERE PRESENT.
@@ -653,7 +674,8 @@ def _summarize_locus(loc: dict, member_objs: list[dict], master: pd.DataFrame) -
     }
 
 
-def assemble(detected: list[dict], master: pd.DataFrame) -> tuple[list[dict], dict[str, dict]]:
+def assemble(detected: list[dict], master: pd.DataFrame,
+             legacy_structure: bool = False) -> tuple[list[dict], dict[str, dict]]:
     """Build the locus list and member map (steps 5-6)."""
     members_map: dict[str, dict] = {}
     locus_objs: list[dict] = []
@@ -664,7 +686,7 @@ def assemble(detected: list[dict], master: pd.DataFrame) -> tuple[list[dict], di
         member_objs: list[dict] = []
         for ordinal, idx in enumerate(loc["core_indices"], start=1):
             stub = {"member_id": f"{tandem_id}.m{ordinal}", "tandem_id": tandem_id, "ordinal": ordinal}
-            obj = _assemble_member(master.loc[idx], stub, accession, strand)
+            obj = _assemble_member(master.loc[idx], stub, accession, strand, legacy_structure)
             members_map[obj["member_id"]] = obj
             member_objs.append(obj)
 
@@ -1038,6 +1060,12 @@ def main(argv: list[str] | None = None) -> int:
         "--golden", action=argparse.BooleanOptionalAction, default=True,
         help="also assert the published counts + golden locus (default: on; --no-golden to skip)",
     )
+    parser.add_argument(
+        "--legacy-empty-structure", action="store_true",
+        help="reproduce the published artifact's legacy quirk: a missing Stem-I "
+             "Structure becomes a fake \"...\" instead of null (no-op on the "
+             "current source; here only for strict historical reproduction)",
+    )
     args = parser.parse_args(argv)
 
     print(f"Reading {args.master} ...")
@@ -1045,7 +1073,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("Detecting tandem loci (cluster -> collapse -> tandem test) ...")
     detected = detect_loci(master)
-    locus_objs, members_map = assemble(detected, master)
+    locus_objs, members_map = assemble(detected, master, legacy_structure=args.legacy_empty_structure)
     print(f"  {len(locus_objs)} loci, {len(members_map)} canonical members.")
 
     print("Computing intra-locus pairwise identities ...")
