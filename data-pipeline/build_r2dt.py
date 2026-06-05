@@ -215,8 +215,9 @@ def ingest(
 # R2DT dumps the AT residues into one big unpaired loop and the variable inter-stem
 # single strands stretch into backbone "breaks". This stage keeps R2DT's coordinates
 # for the recognisable Stem I/II/III, but:
-#   * folds the antiterminator span into a real NAView hairpin (ViennaRNA), oriented
-#     to hang off the backbone where R2DT placed it;
+#   * folds the antiterminator span into a real hairpin on a deterministic straight
+#     ladder (collinear helices + spread bulge; see ``_ladder_hairpin``), its axis
+#     aimed outward from the layout centroid so it radiates parallel to the other stems;
 #   * drops R2DT's template pairs that touch the AT span and substitutes the
 #     antiterminator pairs from ``whole_antiterm_structure`` (the SAME fold fornac
 #     shows) -- so one consistent conformation is drawn, with no cross-region rungs;
@@ -315,29 +316,128 @@ def _place_arc(xs, ys, s, e, lo, hi, med, cen) -> None:
 
 
 def _place_tail(xs, ys, s, e, anchor, med, n, partner, reverse=False) -> None:
-    """Lay a dangling 5'/3' tail straight along the local backbone exit tangent.
+    """Reattach a dangling 5'/3' tail, retracing R2DT's curve at an even median step.
 
-    The anchor is a hairpin base residue; its closing-pair partner gives the exterior
-    tangent (oriented along the backbone flow by the graft's handedness), so the tail
-    leaves the hairpin without crossing it.
+    The tail residues still carry R2DT's coordinates at graft time. Rather than fan
+    them into one long straight ray (which balloons the bounding box and shoots the 3'
+    leader off at a steep angle), OR rigid-replay R2DT verbatim (which would carry over
+    any interior R2DT jump as a fresh backbone break), we re-trace R2DT's per-step
+    HEADINGS at a uniform median step, starting from the anchor along the local exit
+    tangent. That keeps R2DT's curve shape while guaranteeing every tail step is ~one
+    median apart -- no break survives inside the run. The tangent continues the
+    backbone OUT through the anchor (down the helix rail it caps), not across the
+    hairpin. A degenerate (coincident) R2DT step falls back to the tangent direction.
     """
     ax, ay = xs[anchor], ys[anchor]
-    p = partner.get(anchor)
-    if p is not None:
-        dx, dy = ax - xs[p], ay - ys[p]
+    prev = anchor - 1 if not reverse else anchor + 1
+    if 1 <= prev <= n:
+        tx, ty = ax - xs[prev], ay - ys[prev]
     else:
-        prev = anchor - 1 if not reverse else anchor + 1
-        dx, dy = (ax - xs[prev], ay - ys[prev]) if 1 <= prev <= n else (1.0, 0.0)
-    dl = math.hypot(dx, dy) or 1
-    dx, dy = dx / dl, dy / dl
-    seq = range(s, e + 1) if not reverse else range(e, s - 1, -1)
-    for step, idx in enumerate(seq, start=1):
-        xs[idx] = ax + dx * med * step
-        ys[idx] = ay + dy * med * step
+        p = partner.get(anchor)
+        tx, ty = (ax - xs[p], ay - ys[p]) if p is not None else (1.0, 0.0)
+    tl = math.hypot(tx, ty) or 1.0
+    tx, ty = tx / tl, ty / tl
+
+    walk = list(range(s, e + 1)) if not reverse else list(range(e, s - 1, -1))
+    ox = [xs[k] for k in walk]  # capture R2DT coords before mutating
+    oy = [ys[k] for k in walk]
+    # rotate R2DT's whole heading field so the tail's launch step aligns with the tangent
+    rot = (
+        math.atan2(ty, tx) - math.atan2(oy[1] - oy[0], ox[1] - ox[0])
+        if len(walk) >= 2
+        else 0.0
+    )
+    c, sn = math.cos(rot), math.sin(rot)
+    px, py = ax + tx * med, ay + ty * med  # first residue: one step out along the tangent
+    xs[walk[0]], ys[walk[0]] = px, py
+    for i in range(1, len(walk)):
+        hx, hy = ox[i] - ox[i - 1], oy[i] - oy[i - 1]
+        hl = math.hypot(hx, hy)
+        if hl < 1e-9:
+            ux, uy = tx, ty
+        else:
+            ux = (hx * c - hy * sn) / hl  # R2DT heading, rotated into place + unit length
+            uy = (hx * sn + hy * c) / hl
+        px, py = px + ux * med, py + uy * med
+        xs[walk[i]], ys[walk[i]] = px, py
+
+
+#: Base-pair rung length of the antiterminator ladder, in units of the backbone
+#: step. ~1.9 matches the rung/step ratio R2DT draws the canonical Stem I/II/III
+#: helices at (measured 1.88 over the committed diagrams), so the grafted
+#: antiterminator helix reads at the SAME width as its neighbours.
+LADDER_WIDTH = 1.9
+
+
+def _ladder_hairpin(subdot: str) -> tuple[list[float], list[float]] | None:
+    """Deterministic straight-ladder coordinates for a SIMPLE hairpin sub-structure.
+
+    The antiterminator is, on every member in the data, a single nested hairpin (one
+    hairpin loop, with one or more helices stacked through bulges / internal loops).
+    This lays it out as a textbook ladder: every base-PAIRED residue sits on one of
+    two vertical rails (5' at ``-WIDTH/2``, 3' at ``+WIDTH/2``) advancing one step per
+    stacked pair, so the helices stay collinear / parallel no matter where the bulges
+    fall -- unlike NAView, which pivots each helix around its loop and crushes the
+    conserved 5' bulge. The unpaired runs (bulges + the apical loop) are then spread
+    by the shared :func:`_place_arc`, bowing away from the ladder base so each bulge
+    fans out to the side (every base ~one step apart) and the apical loop caps the
+    tip as a clean semicircle.
+
+    Returns local ``(xs, ys)`` (length == ``len(subdot)``), or ``None`` for a branched
+    / multiloop sub-structure (>=2 hairpin loops), which the caller folds with NAView
+    instead. The coordinates are unit-scaled (one step per stacked pair); the caller
+    rescales to the diagram's own nucleotide spacing and rotates the axis outward.
+    """
+    length = len(subdot)
+    pt = _pair_table(subdot)
+    # A simple (caterpillar) hairpin never opens a helix after one has closed; a '('
+    # following any ')' marks a branch (multiloop), which the ladder can't lay flat.
+    seen_close = False
+    for ch in subdot:
+        if ch == ")":
+            seen_close = True
+        elif ch == "(" and seen_close:
+            return None
+    opens = [i for i in range(1, length + 1) if 0 < i < pt[i]]  # 1-based, i < partner
+    if not opens:
+        return None
+
+    # 1-based working coordinates; stack each pair one step up the ladder (ascending
+    # position == ascending nesting depth for a caterpillar hairpin -> outermost first).
+    xs = [0.0] * (length + 1)
+    ys = [0.0] * (length + 1)
+    half = LADDER_WIDTH / 2.0
+    for level, i in enumerate(opens):
+        j = pt[i]
+        xs[i], ys[i] = -half, float(level)  # 5' rail
+        xs[j], ys[j] = +half, float(level)  # 3' rail
+
+    # Spread each internal unpaired run. p_lo / p_hi (the sub-structure's ends) are
+    # paired by construction, so every run is flanked by a pair on both sides -- there
+    # are no dangling tails here. A centroid far below the base makes side bulges fan
+    # out perpendicular to the rails while the apical loop bows up over the tip.
+    base_cen = (0.0, -1000.0)
+    k = 1
+    while k <= length:
+        if pt[k] != 0:
+            k += 1
+            continue
+        s = k
+        while k <= length and pt[k] == 0:
+            k += 1
+        e = k - 1
+        lo, hi = s - 1, e + 1
+        if lo >= 1 and hi <= length and pt[lo] and pt[hi]:
+            _place_arc(xs, ys, s, e, lo, hi, 1.0, base_cen)
+    return xs[1 : length + 1], ys[1 : length + 1]
 
 
 def _naview_hairpin(subdot: str) -> tuple[list[float], list[float]]:
-    """NAView local coordinates for the antiterminator sub-structure (lazy ViennaRNA)."""
+    """NAView local coordinates for the antiterminator sub-structure (lazy ViennaRNA).
+
+    Fallback for the (data-absent but possible) branched/multiloop antiterminator that
+    :func:`_ladder_hairpin` declines; the straight ladder handles every simple hairpin.
+    """
     import RNA  # build-time-only dependency; never imported by the frontend/runtime
 
     co = RNA.naview_xy_coordinates(subdot)
@@ -371,7 +471,10 @@ def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP
             for i, j in at_pairs:
                 sub[i - p_lo] = "("
                 sub[j - p_lo] = ")"
-            lx, ly = _naview_hairpin("".join(sub))
+            local = _ladder_hairpin("".join(sub))
+            if local is None:
+                local = _naview_hairpin("".join(sub))  # branched AT (none in data) → NAView
+            lx, ly = local
             # scale the local hairpin to the diagram's own nucleotide spacing
             med = _median_step(xs, ys)
             lsteps = sorted(math.hypot(lx[k] - lx[k - 1], ly[k] - ly[k - 1]) for k in range(1, length))
@@ -386,23 +489,27 @@ def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP
             fx, fy = xs[p_lo] - xs[pa], ys[p_lo] - ys[pa]
             fl = math.hypot(fx, fy) or 1
             fx, fy = fx / fl, fy / fl
+            # Aim the hairpin axis OUTWARD from the layout centroid so it radiates
+            # parallel to the other stems, instead of perpendicular to local flow. The
+            # ladder is built base(level 0) → apex(top), so its local axis runs from the
+            # midpoint of the base to the local centroid; rotate that onto the outward
+            # direction (the AT region's own centre, in R2DT coords, minus the centroid).
             cx, cy = sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n
-            perp = next(
-                ((px, py) for px, py in ((-fy, fx), (fy, -fx)) if px * (xs[p_lo] - cx) + py * (ys[p_lo] - cy) >= 0),
-                (-fy, fx),
-            )
+            span = p_hi - p_lo + 1
+            ax, ay = sum(xs[p_lo : p_hi + 1]) / span, sum(ys[p_lo : p_hi + 1]) / span
+            ox, oy = ax - cx, ay - cy
+            ol = math.hypot(ox, oy) or 1.0
+            ox, oy = ox / ol, oy / ol
             mid0 = ((lx[0] + lx[length - 1]) / 2, (ly[0] + ly[length - 1]) / 2)
             cen0 = (sum(lx) / length, sum(ly) / length)
             axis = (cen0[0] - mid0[0], cen0[1] - mid0[1])
-            rot = math.atan2(perp[1], perp[0]) - math.atan2(axis[1], axis[0])
+            rot = math.atan2(oy, ox) - math.atan2(axis[1], axis[0])
             cr, srot = math.cos(rot), math.sin(rot)
             rx = [lx[k] * cr - ly[k] * srot for k in range(length)]
             ry = [lx[k] * srot + ly[k] * cr for k in range(length)]
             # handedness: base(5')->base(3') should align with +flow so the tail exits forward
             if (rx[length - 1] - rx[0]) * fx + (ry[length - 1] - ry[0]) * fy < 0:
-                ux, uy = perp
-                ul = math.hypot(ux, uy) or 1
-                ux, uy = ux / ul, uy / ul
+                ux, uy = ox, oy
                 for k in range(length):
                     dd = rx[k] * ux + ry[k] * uy
                     rx[k] = 2 * dd * ux - rx[k]
