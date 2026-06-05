@@ -14,6 +14,7 @@
   // direction — no ancestral / redeployed / abandoned / gained / lost language.
   import { link } from 'svelte-spa-router'
   import { store } from '../lib/stores/filters.svelte'
+  import { fitText } from '../lib/actions/fitText'
   import Card from '../lib/components/Card.svelte'
   import TbdbLink from '../lib/components/TbdbLink.svelte'
   import NoPolarityBanner from '../lib/components/NoPolarityBanner.svelte'
@@ -44,7 +45,10 @@
   <div
     class="flex flex-col rounded-md border border-hairline bg-surface-subtle px-3 py-2 text-center"
   >
-    <span class="font-mono text-h2 text-ink">{value}</span>
+    <span
+      use:fitText={{ minPx: 12 }}
+      class="block overflow-hidden font-mono text-h2 whitespace-nowrap text-ink"
+    >{value}</span>
     <span class="text-caption text-muted">{label}</span>
   </div>
 {/snippet}
@@ -181,7 +185,7 @@
           run:
         </p>
         <pre
-          class="overflow-x-auto rounded-md border border-hairline bg-surface-subtle px-4 py-3 font-mono text-[0.8rem] leading-relaxed text-ink"><code
+          class="overflow-x-auto rounded-md border border-hairline bg-surface-subtle px-4 py-3 font-mono text-[0.72rem] leading-relaxed text-ink sm:text-[0.8rem]"><code
             >pip install "pandas&gt;=2.0" "biopython&gt;=1.81"
 
 python3 reproduce_tandem_tbox_db.py \

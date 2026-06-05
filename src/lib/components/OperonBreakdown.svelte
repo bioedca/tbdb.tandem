@@ -24,7 +24,8 @@
   import { store } from '../stores/filters.svelte'
   import { FUNC_CLASS_SHADE } from '../color'
   import { fontFamily, neutral } from '../design/tokens'
-  import { fitOnResize } from '../plotly'
+  import { fitOnResize, widthTier } from '../plotly'
+  import { naturalWidthPx, truncateToWidth } from '../text/measure'
   import {
     buildOperonBars,
     buildSankey,
@@ -60,6 +61,9 @@
   let barEl: HTMLDivElement
   let sankeyEl: HTMLDivElement
   let barBound = false
+  // Live bar-panel width (debounced) so the left margin + func_class tick labels adapt
+  // to the available space (responsive).
+  let containerW = $state(0)
   // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
   // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
   const CONFIG = { displayModeBar: false }
@@ -86,6 +90,20 @@
   $effect(() => {
     if (!plotly || !barEl || !bars) return
     const b = bars
+    // Adapt the left margin + tick font to the container width; truncate long
+    // func_class names (e.g. "oxidoreductase") with pretext on phones, keeping the
+    // full value on the y data so the click cross-filter still resolves it.
+    void containerW
+    const tier = widthTier(containerW || barEl.clientWidth || 600)
+    const tickPx = tier === 'sm' ? 10 : 11
+    const labelFont = `${tickPx}px ${fontFamily.mono}`
+    const capL = tier === 'sm' ? 72 : tier === 'md' ? 96 : 104
+    let labelMax = 0
+    for (const fc of b.funcClasses) labelMax = Math.max(labelMax, naturalWidthPx(fc, labelFont))
+    // Desktop keeps the original fixed margin; only phone/tablet tighten it.
+    const marginL = tier === 'lg' ? 104 : Math.round(Math.min(labelMax + 10, capL))
+    const yTickVals = b.funcClasses.map((_, i) => i)
+    const yTickText = b.funcClasses.map((fc) => truncateToWidth(fc, labelFont, capL - 12))
     const colors = b.funcClasses.map((fc) => FUNC_CLASS_SHADE[fc])
     const data: Partial<PlotData>[] = TIERS.map((tier) => ({
       type: 'bar',
@@ -105,7 +123,7 @@
     const layout = {
       autosize: true,
       barmode: 'stack',
-      margin: { l: 104, r: 14, t: 6, b: 30 },
+      margin: { l: marginL, r: 14, t: 6, b: 30 },
       font: { family: fontFamily.sans, size: 12, color: neutral.text },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
@@ -125,7 +143,11 @@
       },
       yaxis: {
         autorange: 'reversed',
-        tickfont: { family: fontFamily.mono, size: 11 },
+        // Display pretext-truncated labels while keeping full func_class as the data.
+        tickmode: 'array',
+        tickvals: yTickVals,
+        ticktext: yTickText,
+        tickfont: { family: fontFamily.mono, size: tickPx },
         fixedrange: true,
       },
       showlegend: true,
@@ -188,8 +210,25 @@
       plotly = mod.default ?? (mod as unknown as PlotlyStatic)
       teardown = fitOnResize(plotly, [barEl, sankeyEl])
     })
+    // Re-issue the bar layout (adapted margin/labels) when the bar panel crosses a
+    // width tier; fitOnResize handles the smooth width refit in between (debounced).
+    containerW = barEl?.clientWidth ?? 0
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined
+    let ro: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined' && barEl) {
+      ro = new ResizeObserver((entries) => {
+        const w = entries[0]?.contentRect.width ?? barEl.clientWidth
+        clearTimeout(resizeTimer)
+        resizeTimer = setTimeout(() => {
+          containerW = w
+        }, 150)
+      })
+      ro.observe(barEl)
+    }
     return () => {
       disposed = true
+      clearTimeout(resizeTimer)
+      ro?.disconnect()
       teardown?.()
     }
   })
@@ -218,9 +257,12 @@
     {/each}
   </div>
 
-  <div class="grid gap-6 lg:grid-cols-5">
+  <!-- grid-cols-1 + min-w-0: the mobile track is minmax(0,1fr) (not an `auto` track
+       sized to the Plotly plot's max-content), so the charts refit to the real column
+       width instead of overflowing the page. -->
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
     <!-- ① Stacked bars by func_class (solid = EC · hatched = text-inferred* · dotted = none) -->
-    <div class="lg:col-span-2">
+    <div class="min-w-0 lg:col-span-2">
       <div class="mb-1 flex items-center gap-1">
         <h3 class="text-small font-medium text-ink">By function class</h3>
         <InfoTip term="func_class" />
@@ -236,7 +278,7 @@
         from the gene's text annotation (<span class="font-mono">*</span>lower confidence) · dotted = no
         annotation. Click a bar to cross-filter.
       </p>
-      <div class="relative h-[18rem] w-full">
+      <div class="relative h-[clamp(14rem,34vh,18rem)] w-full">
         <div bind:this={barEl} class="h-full w-full"></div>
         {#if store.status !== 'ready'}
           <div class="absolute inset-0 grid place-items-center">
@@ -251,14 +293,14 @@
     </div>
 
     <!-- ② specifier → func_class Sankey (responder; narrows with the dashboard) -->
-    <div class="lg:col-span-3">
+    <div class="min-w-0 lg:col-span-3">
       <h3 class="mb-1 text-small font-medium text-ink">Specifier → function coupling</h3>
       <p class="mb-2 text-caption text-muted">
         Each band counts the loci whose specifier amino acid (left, colored by amino acid) regulates a
         given function class (right, neutral grey). Width = number of loci — an observed association, not a
         cause.
       </p>
-      <div class="relative h-[30rem] w-full">
+      <div class="relative h-[clamp(20rem,50vh,30rem)] w-full">
         <div bind:this={sankeyEl} class="h-full w-full"></div>
         {#if store.status !== 'ready'}
           <div class="absolute inset-0 grid place-items-center">

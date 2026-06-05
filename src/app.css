@@ -48,11 +48,16 @@
   /* Type ramp (§8.3): display / h1 / h2 / small / caption as size utilities.
      "body" is the base default size (1rem/1.5rem, set in @layer base), so there
      is deliberately NO `text-body` size utility — that name is the body COLOR
-     above (`--color-body`). Mirrored in tokens.ts `type`. */
-  --text-display: 2.25rem;
+     above (`--color-body`). Mirrored in tokens.ts `type`.
+     The top of the ramp (display, h1) is FLUID via clamp() so big headings/KPI
+     numbers shrink on phones and grow on wide screens; the lower steps stay fixed
+     (already comfortable at every width). The `type` token in tokens.ts is
+     reference-only (never parsed at runtime — Plotly/D3 font sizes are literals),
+     so the clamp() strings live safely on both sides of the mirror. */
+  --text-display: clamp(1.6rem, 1.1rem + 2.2vw, 2.25rem); /* ≈26px → 36px */
   --text-display--line-height: 2.5rem;
   --text-display--font-weight: 700;
-  --text-h1: 1.5rem;
+  --text-h1: clamp(1.3rem, 1.15rem + 0.9vw, 1.5rem); /* ≈21px → 24px */
   --text-h1--line-height: 2rem;
   --text-h1--font-weight: 600;
   --text-h2: 1.25rem;
@@ -95,6 +100,24 @@
     outline-offset: 2px;
     border-radius: 2px;
   }
+
+  /* Headings balance their line breaks where supported — keeps a 2–3-word heading
+     from leaving one orphan word on its own line as the viewport narrows. Cheap
+     (browsers cap balancing at a few lines) and degrades to normal wrapping. */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+/* ── Horizontal scroll regions (mobile nav, etc.) — keep them scrollable and
+   keyboard-focusable but hide the scrollbar chrome. ── */
+.tv-no-scrollbar {
+  scrollbar-width: none;
+}
+.tv-no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* ── fornac interop guard (PLAN §7.1, §13) ──────────────────────────────────────

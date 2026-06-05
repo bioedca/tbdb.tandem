@@ -15,7 +15,8 @@
   import { scaleLinear } from 'd3'
   import type { FuncClass, FuncSource, Member, Strand } from '../data/types'
   import { aaColor, FUNC_CLASS_SHADE } from '../color'
-  import { neutral } from '../design/tokens'
+  import { fontFamily, neutral } from '../design/tokens'
+  import { truncateToWidth } from '../text/measure'
   import { buildArchitecture, type ElementLayout, type FeatureBox } from '../architecture'
 
   let {
@@ -109,6 +110,16 @@
   const orfFill = $derived(FUNC_CLASS_SHADE[funcClass])
   const orfDark = $derived(funcClass !== 'unknown' && funcClass !== 'transporter')
 
+  // Downstream-gene sublabel, fitted to the ORF zone's pixel width with pretext so a
+  // long gene name truncates on a grapheme boundary (no mid-word cut) instead of the
+  // old fixed 22-char slice. The viewBox font is 9 units, so we measure at 9px and the
+  // px width equals the width in viewBox units (~130 usable; reserve a little padding).
+  const orfSubLabel = $derived(
+    downstreamGene
+      ? truncateToWidth(downstreamGene, `9px ${fontFamily.sans}`, 126)
+      : 'downstream operon',
+  )
+
   // Strand chevrons along the baseline — they point in the transcription direction,
   // which on this axis is always rightward (the axis IS biological 5′→3′).
   const CHEVRONS = 6
@@ -135,10 +146,14 @@
 </script>
 
 <figure class="tv-arch w-full">
+  <!-- On phones the dense diagram keeps a legible minimum width and scrolls
+       horizontally rather than shrinking its labels to a few px; it fits the box
+       normally once the container is wide enough. -->
+  <div class="relative overflow-x-auto">
   <svg
     viewBox="0 0 {W} {H}"
     preserveAspectRatio="xMidYMid meet"
-    class="w-full"
+    class="w-full min-w-[34rem]"
     role="img"
     aria-label="Tandem architecture: {model.elements.length} T-box elements, biological 5′ to 3′, {strand} strand; downstream {funcClass} gene or operon."
   >
@@ -350,7 +365,7 @@
         {funcClass}{#if funcSource === 'text'}*{/if}
       </text>
       <text x={orf.cx} y={Y_BODY_B + 14} class="tv-arch-orf-sub" text-anchor="middle">
-        {downstreamGene ? (downstreamGene.length > 22 ? downstreamGene.slice(0, 21) + '…' : downstreamGene) : 'downstream operon'}
+        {orfSubLabel}
       </text>
     </g>
 
@@ -362,6 +377,7 @@
       <text x={TRACK_L + scaleW + 6} y={Y_SCALE + 3.5} class="tv-arch-scale-label" text-anchor="start">{scaleBp} bp</text>
     </g>
   </svg>
+  </div>
 
   <figcaption class="mt-2 border-t border-hairline pt-2.5">
     <span class="sr-only">

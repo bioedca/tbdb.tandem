@@ -66,7 +66,7 @@
      *  dashboard panel). */
     height?: string
   }
-  let { selectable = false, height = '68vh' }: Props = $props()
+  let { selectable = false, height = 'clamp(26rem, 68vh, 52rem)' }: Props = $props()
 
   // ── Controls (local to this view; the dashboard cross-filter is the store) ───────
   let mode = $state<'locus' | 'element'>('locus')

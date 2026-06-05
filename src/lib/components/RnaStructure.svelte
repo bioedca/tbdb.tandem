@@ -24,7 +24,9 @@
 
   let { members }: { members: Member[] } = $props()
 
-  const HOST_H = 384 // px — fornac reads the host's offsetHeight; needs a real size
+  const HOST_H = 384 // px — fallback host height when clientHeight is 0 (fornac reads
+  // the host's offsetHeight at construction; the host box itself is a responsive clamp
+  // in the template, and fornac's own resize listener + the 100%-fill svg keep it fitted)
 
   const els = $derived([...members].sort((a, b) => a.ordinal - b.ordinal))
   let active = $state(0)
@@ -124,10 +126,11 @@
 
     try {
       const width = el.clientWidth || 600
+      const height = el.clientHeight || HOST_H
       const container = new ctor(el, {
         applyForce: !reducedMotion,
         allowPanningAndZooming: true,
-        initialSize: [width, HOST_H],
+        initialSize: [width, height],
       })
       container.addRNA(m.structure, { sequence: m.sequence, name })
 
@@ -212,8 +215,7 @@
   {#if member}
     <!-- fornac mount target (explicit height — fornac measures offsetHeight) -->
     <div
-      class="tv-rna relative w-full overflow-hidden rounded-md border border-hairline bg-surface-subtle"
-      style:height="{HOST_H}px"
+      class="tv-rna relative h-[clamp(18rem,46vh,24rem)] w-full overflow-hidden rounded-md border border-hairline bg-surface-subtle"
     >
       {#if showViewer}
         <div bind:this={host} use:lockWheel class="h-full w-full" aria-label="RNA secondary structure"></div>

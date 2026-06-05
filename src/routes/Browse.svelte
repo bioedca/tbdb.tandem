@@ -13,5 +13,5 @@
     </p>
   </header>
 
-  <FacetTable height="72vh" />
+  <FacetTable height="clamp(26rem, 72vh, 56rem)" />
 </section>

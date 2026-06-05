@@ -18,6 +18,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@chenglou/pretext": "0.0.7",
     "d3": "^7.9.0",
     "fornac": "^1.1.0",
     "phylotree": "^2.0.0",

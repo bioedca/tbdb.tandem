@@ -226,14 +226,18 @@
   title="Specificity overview"
   subtitle="Each T-box element senses one amino acid via a specifier codon in its Stem I — the “specifier” shown here is that amino acid (3-letter code). The bar counts loci by specifier; the matrix counts two-element loci by the specifiers of their two elements. Click a bar or cell to cross-filter."
 >
-  <div class="grid gap-6 lg:grid-cols-5">
+  <!-- grid-cols-1 makes the mobile track minmax(0,1fr) (not an `auto` track sized to
+       the Plotly plot's max-content), and min-w-0 lets each panel shrink below the
+       plot's intrinsic width so Plotly refits to the real column width instead of
+       overflowing the page. -->
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
     <!-- Specifier-AA bar (locus-level; boots from summary.json) -->
-    <div class="lg:col-span-2">
+    <div class="min-w-0 lg:col-span-2">
       <div class="mb-1 flex items-center gap-1">
         <h3 class="text-small font-medium text-ink">Specifier (per locus)</h3>
         <InfoTip term="specifier" />
       </div>
-      <div bind:this={barEl} class="h-[26rem] w-full"></div>
+      <div bind:this={barEl} class="h-[clamp(18rem,46vh,26rem)] w-full"></div>
       <p class="mt-2 text-caption text-muted">
         Each locus counted once by its overall specifier; mixed loci appear as
         <span class="font-mono">A;B</span> (e.g. ILE;LEU).
@@ -241,7 +245,7 @@
     </div>
 
     <!-- Symmetric element-pair matrix (element-level; needs members.json) -->
-    <div class="lg:col-span-3">
+    <div class="min-w-0 lg:col-span-3">
       <div class="mb-1 flex items-center gap-1">
         <h3 class="text-small font-medium text-ink">Element-pair matrix (symmetric)</h3>
         <InfoTip
@@ -249,7 +253,7 @@
           tip="Each cell counts the two-element loci whose two elements carry those two specifiers (row × column). The grid is folded, so every pair appears on both sides of the diagonal."
         />
       </div>
-      <div class="relative h-[26rem] w-full">
+      <div class="relative h-[clamp(18rem,46vh,26rem)] w-full">
         <div bind:this={matrixEl} class="h-full w-full"></div>
         {#if store.membersStatus !== 'ready'}
           <div class="absolute inset-0 grid place-items-center">

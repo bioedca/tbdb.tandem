@@ -13,6 +13,16 @@
 import type { PlotlyStatic } from 'plotly.js-dist-min'
 
 /**
+ * Coarse container-width tier for adapting chart margins, tick fonts, and label
+ * truncation to the available space (responsive scaling). Phone / tablet / desktop.
+ */
+export function widthTier(width: number): 'sm' | 'md' | 'lg' {
+  if (width < 480) return 'sm'
+  if (width < 768) return 'md'
+  return 'lg'
+}
+
+/**
  * Keep `els` fitted to their containers on window resize (replacing Plotly's
  * leak-prone `responsive: true`), and return a teardown that removes the listener,
  * cancels any pending refit, and purges every div. The refit is rAF-coalesced (a
