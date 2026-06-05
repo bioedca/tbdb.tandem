@@ -3,6 +3,10 @@
 pandas==3.0.0          # tabular load/transform of the two TBDB sources
 biopython==1.85        # pairwise %-identity for identity.json (PLAN §5.2)
 ViennaRNA==2.7.2       # NAView hairpin layout for build_r2dt.py `graft` (build-time only)
+numpy>=1.26            # classical MDS / PCoA eigendecomposition for build_cloud.py (the
+                       # /cloud embedding). A direct, explicit dependency (also pulled in
+                       # transitively by pandas); ranged — not exact-pinned like the rest —
+                       # so it can't fight pandas's own numpy resolution across platforms.
 
 # Test runner. CI's `data` job runs `pytest` after installing this file
 # (PLAN §10.1, §11.3), so it is pinned here for a deterministic suite.
