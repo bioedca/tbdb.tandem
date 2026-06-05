@@ -14,11 +14,11 @@
 import { fitMeasureFontPx, onFontsReady } from '../text/measure'
 
 export interface FitMeasureParams {
-  /** Smallest font-size (px). Default 15. */
+  /** Smallest font-size (px). Default 16. */
   minPx?: number
-  /** Largest font-size (px) — the cap on a wide screen. Default 24. */
+  /** Largest font-size (px) — the cap on a wide screen. Default 26. */
   maxPx?: number
-  /** Target characters per full-width line — the held reading measure. Default 92. */
+  /** Target characters per full-width line — the held reading measure. Default 90. */
   targetChars?: number
 }
 
