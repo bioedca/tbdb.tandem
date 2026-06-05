@@ -13,6 +13,7 @@
 // pure functions with no reactive state — the reactive store in
 // `stores/filters.svelte.ts` orchestrates and holds the results.
 
+import type { CloudData } from '../cloud/types'
 import type {
   IdentityFile,
   LociFile,
@@ -113,6 +114,12 @@ export function loadTreeLocusMap(): Promise<TreeLocusMap> {
  *  UNROOTED (PLAN §6). Lazy on `/tree`. */
 export function loadNewick(which: Extract<TreeName, 'main' | 'fallback'>): Promise<string> {
   return fetchText(which === 'main' ? 'tree.nwk' : 'tree_fallback.nwk')
+}
+
+/** `cloud.json` — the 3D similarity-cloud embedding (PCoA coords + k-NN edges +
+ *  per-point metadata). Lazy on `/cloud` (PLAN /cloud §6.2). */
+export function loadCloud(): Promise<CloudData> {
+  return fetchJson<CloudData>('cloud.json')
 }
 
 /** Group an intra-locus identity list into `Map<tandem_id, IdentityFile>` for the

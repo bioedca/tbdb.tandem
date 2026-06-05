@@ -1,0 +1,471 @@
+tandem_id	accession	strand	organism	phylum	tax_id	n_cores	n_complete_cores	core_span	specifier_aa	same_specifier	confidence	type	func_class	func_source	downstream_gene	mean_pairwise_identity	member_unique_names
+T0001	AAAC01000001	+	Bacillus anthracis str. A2012	Firmicutes	191218	2	2	258	THR	True	high	Transcriptional	unknown	none		85.9	EEEPHBX6;YPNACYK7
+T0002	AAEK01000010	-	Bacillus cereus G9241	Firmicutes	269801	2	2	280	THR	True	high	Transcriptional	unknown	none	phenylalanine-4-hydroxylase	76.4	ETNLUYKK;EYB4HYJ9
+T0003	AAJM01000342	-	Bacillus thuringiensis serovar israelensis ATCC 35646	Firmicutes	339854	2	2	347	THR	True	high	Transcriptional	oxidoreductase	EC	Homoserine dehydrogenase	92.7	AF1JOJWT;DHXXUDZD
+T0004	AAOX01000008	+	Bacillus sp. NRRL B-14911	Firmicutes	313627	2	2	290	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	51.1	ZBEQDIZV;TQXL8QD7
+T0005	AAQK01003204	-	metagenome		256318	2	2	138	ILE;LEU	False	high	Transcriptional	unknown	none		47.0	IVBJPEF9;WJCZAXR
+T0006	AARM02000030	+	Listeria monocytogenes FSL J2-003	Firmicutes	393120	2	2	291	TRP	True	high	Transcriptional	unknown	none		56.3	RWTH3P33;VGWEJQDL
+T0007	AARN04000011	-	Listeria monocytogenes FSL J2-071	Firmicutes	393121	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	55.4	DLVLB5FH;GN2DOUPG
+T0008	AATL02000003	-	Listeria monocytogenes HPB2262	Firmicutes	401650	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	54.6	FLAFHLM7;KKJZPI56
+T0009	AAVL02000032	+	Eubacterium ventriosum ATCC 27560	Firmicutes	411463	2	1	137	ASN	True	low	Transcriptional	aaRS	EC	aspartate--tRNA ligase	45.3	LQL1OIT9;4A8WQPWG
+T0010	AAWL01000014	-	Thermosinus carboxydivorans Nor1	Firmicutes	401526	2	1	264	TRP	True	low	Transcriptional	biosynthesis	EC	trpE - anthranilate phosphoribosyltransferase	52.9	1GTHJSKN;JUDVNPOI
+T0011	ABCF01000001	+	Bacillus sp. SG-1	Firmicutes	161544	2	2	298	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	51.0	0FMOOTJT;XPF2HKDI
+T0012	ABCF01000004	+	Bacillus sp. SG-1	Firmicutes	161544	2	2	268	THR	True	high	Transcriptional	aaRS	EC	threonyl-tRNA synthetase	77.0	B2YQQKY;KEETB94N
+T0013	ABCZ02000001	+	Bacillus cereus W	Firmicutes	405917	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)/phospho-2-dehydro-3-deoxyheptonate aldolase	79.3	NG8AWY1O;EYYVD3I6
+T0014	ABDA02000001	+	Bacillus cereus AH1134	Firmicutes	405533	2	2	280	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	54.3	SDV7GT1Z;0CXJCBTQ
+T0015	ABDK02000024	-	Bacillus cereus NVH0597-99	Firmicutes	451707	2	2	347	THR	True	high	Transcriptional	unknown	none		92.6	ELTWPIKR;YVHZFLAD
+T0016	ABDL02000001	+	Bacillus cereus H3081.97	Firmicutes	451708	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)/phospho-2-dehydro-3-deoxyheptonate aldolase	77.2	WAMSJRC;W7COMZMW
+T0017	ABDQ01000073	+	Clostridium botulinum C str. Eklund	Firmicutes	445337	2	2	220	ILE	True	high	Transcriptional	unknown	none		62.2	6ZGCUPEM;CPVBMC9R
+T0018	ABEZ02000019	+	Intestinibacter bartlettii DSM 16795	Firmicutes	445973	2	2	383	THR	True	high	Transcriptional	oxidoreductase	EC	homoserine dehydrogenase	77.0	R7UXNQ59;SAVN2MX
+T0019	ABFU01000028	+	Bacillus coahuilensis m4-4	Firmicutes	441769	2	2	288	TRP	True	high	Transcriptional	unknown	none		56.3	X73HBCK6;AKTH4T6
+T0020	ABHH01000004	+	Carnobacterium sp. AT7	Firmicutes	333990	2	2	335	MET	True	high	Transcriptional	transporter	text	ABC transporter, ATP-binding protein	57.9	DSTANHUU;07JDCINB
+T0021	ABJK02000016	-	Streptococcus infantarius subsp. infantarius ATCC BAA-102	Firmicutes	471872	2	1	270	TRP	True	low	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	63.5	SLSMXHPV;1TPPLUD7
+T0022	ACAL01000021	-	Enterococcus casseliflavus EC10	Firmicutes	565654	2	2	289	MET	True	high	Transcriptional	unknown	none		54.9	C14TAZKN;KYOMCRJF
+T0023	ACAO01000013	+	Enterococcus casseliflavus EC20	Firmicutes	565655	2	2	279	TRP	True	high	Transcriptional	unknown	none		57.5	MBXJ7G5S;PVF2DNLI
+T0024	ACBB01000068	+	Enterococcus faecium 1,231,408	Firmicutes	565661	2	2	276	MET	True	high	Transcriptional	unknown	none		56.5	XKRC0AFG;NF54CFKN
+T0025	ACCR02000005	+	Listeria grayi DSM 20601	Firmicutes	525367	2	2	282	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	55.7	ZGURLEHE;POOARLII
+T0026	ACDK01000023	+	Clostridium sp. 7_2_43FAA	Firmicutes	457396	2	2	123	PHE;TYR	False	high	Transcriptional	unknown	none		42.1	PCS32M4U;KQVKVBMJ
+T0027	ACDK01000088	-	Clostridium sp. 7_2_43FAA	Firmicutes	457396	2	1	146	ASN	True	low	Transcriptional	unknown	none		43.7	LIJBJD61;3NLENMRJ
+T0028	ACDZ02000004	-	Gemella haemolysans ATCC 10379	Firmicutes	546270	2	2	277	MET	True	high	Transcriptional	biosynthesis	EC	5-methyltetrahydropteroyltriglutamate--homocysteine S-methyltransferase	55.5	PRSF64JJ;VJ5FMC5S
+T0029	ACGG01000032	-	Lactobacillus brevis subsp. gravesensis ATCC 27305	Firmicutes	525310	2	1	362	MET	True	low	Transcriptional	transporter	text	amino acid permease	42.0	DZWUH2WG;WSQFSQ4C
+T0030	ACIH01000172	+	Paenibacillus sp. oral taxon 786 str. D14	Firmicutes	621372	2	1	223	ILE	True	low	Transcriptional	unknown	none		42.8	HXMSQLHL;LCFOG8Z0
+T0031	ACIM02000001	-	Dialister invisus DSM 15470	Firmicutes	592028	2	2	145	ILE;LEU	False	high	Transcriptional	unknown	text	hypothetical protein	48.4	NEP7R4PX;OB4YC3VC
+T0032	ACJB01000032	-	Staphylococcus caprae M23864:W1	Firmicutes	525378	2	1	249	MET	True	low	Transcriptional	biosynthesis	EC	cystathionine gamma-synthase	47.6	JIOHR12I;PZ6EUT3S
+T0033	ACJB01000061	+	Staphylococcus caprae M23864:W1	Firmicutes	525378	2	2	198	TRP	True	high	Transcriptional	biosynthesis	EC	Chorismate binding enzyme (Phe/Trp/Tyr synthesis)	54.4	J1XT54CI;C1X2VDUT
+T0034	ACJC01000114	+	Staphylococcus epidermidis W23144	Firmicutes	525376	2	2	193	TRP	True	high	Transcriptional	biosynthesis	EC	Chorismate binding enzyme (Phe/Trp/Tyr synthesis)	57.7	RP5EQMD;K3BBPQ09
+T0035	ACKU01000010	+	Weissella paramesenteroides ATCC 33313	Firmicutes	585506	2	2	268	MET	True	high	Transcriptional	oxidoreductase	EC	diacetyl reductase ((R)-acetoin forming)	43.6	EAVR8HAX;KPBIKXUF
+T0036	ACLS01000070	-	Bacillus cereus m1293	Firmicutes	526973	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	79.0	OAWXJ9FS;BIMXXX4I
+T0037	ACLT01000091	+	Bacillus cereus ATCC 10876	Firmicutes	526980	2	2	280	THR	True	high	Transcriptional	unknown	none	Phenylalanine 4-monooxygenase	76.2	YVWUYJNM;G5ICSOMA
+T0038	ACLW01000048	+	Bacillus wiedmannii	Firmicutes	1890302	2	2	348	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	92.3	IJQVYT7O;HKM4EXEQ
+T0039	ACLW01000063	-	Bacillus wiedmannii	Firmicutes	1890302	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	80.8	FMQSOK3Q;DZNUTX5T
+T0040	ACLW01000088	+	Bacillus wiedmannii	Firmicutes	1890302	2	2	280	THR	True	high	Transcriptional	unknown	none	Phenylalanine 4-monooxygenase	75.8	2PVAHX8S;ERWQ48WG
+T0041	ACLX01000039	+	Bacillus mycoides	Firmicutes	1405	2	2	281	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	54.2	YPJQAEA7;IRWF4IXF
+T0042	ACLX01000049	+	Bacillus mycoides	Firmicutes	1405	2	2	313	ILE	True	high	Transcriptional	biosynthesis	text	Branched-chain amino acid aminotransferase	73.2	SVXXLPVR;G2IH6OAF
+T0043	ACLX01000064	-	Bacillus mycoides	Firmicutes	1405	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	81.0	L7FHNPKH;79NL2L6O
+T0044	ACLY01000028	+	Bacillus cereus R309803	Firmicutes	526968	2	2	280	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	55.9	XIRNFBV;LE5DO6LS
+T0045	ACLY01000038	+	Bacillus cereus R309803	Firmicutes	526968	2	2	346	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	90.1	OIO5CFS9;X3YE7HXL
+T0046	ACLY01000042	+	Bacillus cereus R309803	Firmicutes	526968	2	1	187	?	False	low	Transcriptional	aaRS	text	Threonyl-tRNA synthetase	60.9	2OATWQ2;ZDSYF4GF
+T0047	ACLY01000049	-	Bacillus cereus R309803	Firmicutes	526968	2	2	293	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	79.6	BJDL3UJ4;NMNDPHZ
+T0048	ACLZ01000019	+	Bacillus cereus ATCC 4342	Firmicutes	526977	2	2	280	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	53.7	ZDUCXC7N;XOZ3NPZX
+T0049	ACMA01000037	+	Bacillus cereus m1550	Firmicutes	526969	2	2	347	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	90.7	MM9EBHP;GJ2GLC9I
+T0050	ACMI01000107	+	Bacillus cereus Rock3-28	Firmicutes	526983	2	2	280	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	55.0	DISPDE9M;FI31LTOZ
+T0051	ACMI01000139	-	Bacillus cereus Rock3-28	Firmicutes	526983	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	79.3	UFLR1RK4;UDLHBUUO
+T0052	ACMJ01000038	+	Bacillus cereus Rock3-29	Firmicutes	526984	2	2	347	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	92.3	PHOXKML;VH1WDBY
+T0053	ACMJ01000072	+	Bacillus cereus Rock3-29	Firmicutes	526984	2	2	281	THR	True	high	Transcriptional	unknown	none	Phenylalanine 4-monooxygenase	74.7	9KNT9DKI;5DZNHFT9
+T0054	ACML01000082	+	Bacillus cereus Rock3-44	Firmicutes	526986	2	2	400	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	57.2	5BS9HPCQ;LHAZJOO
+T0055	ACML01000111	+	Bacillus cereus Rock3-44	Firmicutes	526986	2	2	349	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	89.9	CLAA0J5T;DHJZDBDG
+T0056	ACML01000121	+	Bacillus cereus Rock3-44	Firmicutes	526986	2	1	194	?	False	low	Transcriptional	aaRS	text	Threonyl-tRNA synthetase	63.0	DMT3Y9KX;M0CZMW4
+T0057	ACML01000135	-	Bacillus cereus Rock3-44	Firmicutes	526986	2	2	289	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	78.0	22UTIGN0;EUAYVSGP
+T0058	ACMN01000027	+	Bacillus cereus Rock4-18	Firmicutes	526988	2	2	280	TRP	True	high	Transcriptional	unknown	text	hypothetical protein	55.0	EJOXKWR9;WCDCGVN
+T0059	ACMP01000060	+	Bacillus mycoides	Firmicutes	1405	2	2	345	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	87.6	G1A5LWHC;AXWQW3GG
+T0060	ACMP01000113	+	Bacillus mycoides	Firmicutes	1405	2	2	282	THR	True	high	Transcriptional	unknown	none	Phenylalanine 4-monooxygenase	77.8	W06OM7L;YRDSYINV
+T0061	ACMR01000060	+	Bacillus cereus AH1271	Firmicutes	526992	2	2	280	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	56.6	QO2FMH4P;ODIRMH8
+T0062	ACMT01000068	+	Bacillus cereus AH1273	Firmicutes	526994	2	2	281	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	55.3	CIKV2BKZ;XYHJ6ERK
+T0063	ACMU01000030	+	Bacillus mycoides DSM 2048	Firmicutes	526997	2	2	280	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	54.5	XLHTB3E;QIQIX8TW
+T0064	ACMU01000037	+	Bacillus mycoides DSM 2048	Firmicutes	526997	2	2	313	ILE	True	high	Transcriptional	biosynthesis	text	Branched-chain amino acid aminotransferase	72.8	WBZXGUW;V6NCJHMW
+T0065	ACMU01000038	+	Bacillus mycoides DSM 2048	Firmicutes	526997	2	2	347	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	92.2	TXOJNE0F;QIDLFLB9
+T0066	ACMU01000052	-	Bacillus mycoides DSM 2048	Firmicutes	526997	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	80.7	SLJJRAQT;IF1HJ9WG
+T0067	ACMV01000125	+	Bacillus pseudomycoides	Firmicutes	64104	2	2	349	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	90.9	7KHXKHGU;HXYHH377
+T0068	ACMV01000136	+	Bacillus pseudomycoides	Firmicutes	64104	2	2	263	?	False	high	Transcriptional	aaRS	text	Threonyl-tRNA synthetase	75.5	X568HCC;8EDLEPMT
+T0069	ACMV01000453	-	Bacillus pseudomycoides	Firmicutes	64104	2	2	311	VAL	True	high	Transcriptional	unknown	none	Branched-chain amino acid transport protein	63.8	R3M0LBJM;YNDKBOKK
+T0070	ACMW01000069	-	Bacillus pseudomycoides	Firmicutes	64104	2	2	288	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	80.5	IVB9G5KS;WDZV48JR
+T0071	ACMX01000028	+	Bacillus pseudomycoides DSM 12442	Firmicutes	527000	2	2	288	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	56.7	EYUXDLFM;26TUOB3V
+T0072	ACMX01000031	+	Bacillus pseudomycoides DSM 12442	Firmicutes	527000	2	2	349	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	91.3	5V1HP8XE;2DNIEPEH
+T0073	ACMY01000059	+	Bacillus thuringiensis serovar tochigiensis BGSC 4Y1	Firmicutes	527024	2	2	261	THR	True	high	Transcriptional	aaRS	text	Threonyl-tRNA synthetase	85.6	9OMTSEWH;V7RSHCRC
+T0074	ACNA01000067	-	Bacillus thuringiensis serovar thuringiensis str. T01001	Firmicutes	527025	2	2	290	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	79.2	W7IEOUB;MEBBRKI
+T0075	ACNC01000071	+	Bacillus thuringiensis serovar pakistani str. T13001	Firmicutes	527027	2	2	348	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	92.2	DRW7YULK;K0PTOHSX
+T0076	ACND01000114	+	Bacillus thuringiensis serovar kurstaki str. T03a001	Firmicutes	527023	2	2	279	THR	True	high	Transcriptional	unknown	none	Phenylalanine 4-monooxygenase	77.2	HU5JQ3VY;MAWGNYB2
+T0077	ACNI01000040	+	Bacillus thuringiensis serovar huazhongensis BGSC 4BD1	Firmicutes	527030	2	2	346	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	92.3	YNSMHRE3;9F3Y9UDP
+T0078	ACNK01000041	+	Bacillus thuringiensis IBL 200	Firmicutes	527019	2	2	347	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	92.0	SMWHKUCG;9LLDIZI2
+T0079	ACNK01000078	+	Bacillus thuringiensis IBL 200	Firmicutes	527019	2	2	279	THR	True	high	Transcriptional	unknown	none	Phenylalanine 4-monooxygenase	76.1	3ZDWM9O;AZBZ44ZP
+T0080	ACPZ01000035	+	Staphylococcus warneri L37603	Firmicutes	596319	2	2	203	TRP	True	high	Transcriptional	biosynthesis	EC	Chorismate binding enzyme (Phe/Trp/Tyr synthesis)	56.0	0AQDOZ20;7RACXZS
+T0081	ACRH01000021	+	Staphylococcus capitis C87	Firmicutes	435838	2	2	200	TRP	True	high	Transcriptional	unknown	none		57.7	HF4AFTJ;MG0DEABR
+T0082	ACRO01000008	+	Gemella haemolysans M341	Firmicutes	562981	2	2	276	MET	True	high	Transcriptional	unknown	none	5-methyltetrahydropteroyltriglutamate-homocysteine methyltransferase	54.9	EHJU2L3;SZLTD2YT
+T0083	ACRX01000009	+	Gemella morbillorum M424	Firmicutes	562982	2	2	275	MET	True	high	Transcriptional	unknown	none	5-methyltetrahydropteroyltriglutamate-homocysteine S-methyltransferase	55.4	38SUVITQ;AJMRBB8
+T0084	ACRY01000007	+	Gemella sanguinis M325	Firmicutes	562983	2	2	268	MET	True	high	Transcriptional	unknown	none		51.9	XUSKW4NN;5O9O4GPI
+T0085	ACVI01000008	+	Clostridium carboxidivorans P7	Firmicutes	536227	2	2	241	LEU	True	high	Transcriptional	unknown	none	major facilitator superfamily MFS_1	61.7	GBKZLZJZ;X0HVXJW
+T0086	ACVI01000010	+	Clostridium carboxidivorans P7	Firmicutes	536227	2	2	200	GLY	True	high	Transcriptional	unknown	none	ACT domain-containing protein;protein of unknown function DUF711	77.4	AWEHLUH;CBJEABF5
+T0087	ACVI01000113	+	Clostridium carboxidivorans P7	Firmicutes	536227	2	2	196	GLY	True	high	Transcriptional	aaRS	text	glycyl-tRNA synthetase	75.9	S2EIIVPR;IGTUPVU
+T0088	ACWD01000039	+	Bacillus sp. 2_A_57_CT2	Firmicutes	665959	2	2	447	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	50.3	MEPAAVIN;STZSMLNH
+T0089	ACWD01000065	+	Bacillus sp. 2_A_57_CT2	Firmicutes	665959	2	2	274	THR	True	high	Transcriptional	unknown	none		55.6	I0R6LHGQ;LSUDJGQL
+T0090	ACZZ01000011	+	Enterococcus faecium D344SRF	Firmicutes	565665	2	2	275	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	57.0	JISBHAUV;WDGCGHXP
+T0091	ADEJ01000951	+	Clostridioides difficile 6534	Firmicutes	691161	2	2	306	THR	True	high	Transcriptional	unknown	none		73.1	Q8GLG7EC;I0U1URHE
+T0092	ADFM01000093	+	Bacillus cereus SJ1	Firmicutes	699184	2	2	321	ILE	True	high	Transcriptional	unknown	none		37.8	FVGK3JON;I0IXMDE
+T0093	ADHJ01000049	-	Paenibacillus vortex V453	Firmicutes	715225	2	2	464	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	44.4	KMEQH0BA;DOXYWN
+T0094	ADXE01001448	-	Listeria monocytogenes FSL F2-208	Firmicutes	702458	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	56.1	S70GHFR;3UUSZOX9
+T0095	ADXK01000815	-	Listeria seeligeri FSL S4-171	Firmicutes	702452	2	2	290	GLY;TRP	False	high	Transcriptional	unknown	none		32.0	5QZWYYV;SWUNE2TY
+T0096	AE017194	+	Bacillus cereus ATCC 10987	Firmicutes	222523	2	2	280	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	54.0	YFB4USAB;O1Q9QK3
+T0097	AE017194	+	Bacillus cereus ATCC 10987	Firmicutes	222523	2	2	314	ILE	True	high	Transcriptional	biosynthesis	EC	branched-chain amino acid aminotransferase	38.9	2IODZ4KD;EUH7WOZ5
+T0098	AE017194	-	Bacillus cereus ATCC 10987	Firmicutes	222523	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)/phospho-2-dehydro-3-deoxyheptonate aldolase	80.6	RO1MAQO1;GVHS1FGC
+T0099	AE017262	-	Listeria monocytogenes serotype 4b str. F2365	Firmicutes	265669	2	2	290	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	55.0	ZDPVJRMA;VNYR37D5
+T0100	AEBK01000040	+	Enterococcus faecalis TX1302	Firmicutes	749513	2	2	388	HIS	True	high	Transcriptional	transporter	text	ABC transporter, permease protein	61.8	DXSIA83J;YRKNVTMX
+T0101	AEEM01000011	+	Streptococcus gallolyticus subsp. gallolyticus TX20005	Firmicutes	545774	2	1	311	TRP	True	low	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis);trpE - anthranilate synthase component I	60.3	9BKDI4IE;OOWTCWZM
+T0102	AEHM01000061	-	Bacillus subtilis gtP20b	Firmicutes	903507	3	3	448	THR	True	high	Transcriptional	unknown	none		70.6	AYPNQCUZ;RENMF1DJ;594Z4AY6
+T0103	AELK01000041	-	Lactobacillus coryniformis subsp. coryniformis KCTC 3167 = DSM 20001	Firmicutes	913848	2	1	144	VAL	True	low	Transcriptional	unknown	none		46.0	D4XMUM3R;FCTMJWL
+T0104	AEQA01000017	-	Staphylococcus lugdunensis M23590	Firmicutes	525377	2	1	228	MET	True	low	Transcriptional	biosynthesis	EC	Cys/Met metabolism PLP-dependent enzyme	47.2	AQEHZXOH;4LEGJFHT
+T0105	AEUN01000192	+	Staphylococcus simiae CCM 7213 = CCUG 51256	Firmicutes	911238	2	2	206	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	60.6	JD1NUI;WXTD06GZ
+T0106	AEVF01000012	-	Streptococcus peroris ATCC 700780	Firmicutes	888746	2	2	317	GLY;TRP	False	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	55.4	C616XPRD;9CLQTOX
+T0107	AEWH01000042	-	Ornithinibacillus scapharcae TW25	Firmicutes	981383	2	2	330	THR	True	high	Transcriptional	unknown	none		76.7	UMAHTFDM;IDZZFJIR
+T0108	AEWT01000002	-	Enterococcus casseliflavus ATCC 12755	Firmicutes	888066	2	2	291	MET	True	high	Transcriptional	transporter	text	ABC transporter, ATP-binding protein	55.1	JYKLCTR;IESMDEKD
+T0109	AEWT01000016	+	Enterococcus casseliflavus ATCC 12755	Firmicutes	888066	2	2	279	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	56.9	EYIENOJ;KEKPIKNA
+T0110	AEXQ01000060	-	Turicibacter sp. HGF1	Firmicutes	910310	2	2	314	ARG	True	high	Transcriptional	transporter	text	ABC transporter, substrate-binding protein, family 3	82.3	SAOWZG0D;2KAMJUXF
+T0111	AFDH01000100	-	Paenibacillus sp. HGF7	Firmicutes	944559	2	2	591	LEU	True	high	Transcriptional	biosynthesis	text	hypothetical protein;2-isopropylmalate synthase	51.6	8BU8EP1T;BJG948VH
+T0112	AFEC01000142	+	Staphylococcus warneri VCU121	Firmicutes	904338	2	2	203	TRP	True	high	Transcriptional	biosynthesis	text	putative para-aminobenzoate synthase, component 1	57.8	VGZFLRO2;FJ0OP0W
+T0113	AFQV01000018	-	Streptococcus mitis SK1080	Firmicutes	1008453	2	2	405	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	57.8	GP9VHZVU;KTOEDOVR
+T0114	AFWM01000139	+	Bacillus coagulans XZL4	Firmicutes	1071395	2	2	289	TRP	True	high	Transcriptional	unknown	none		48.8	XFSA95E;EO0FUBG
+T0115	AFWZ01000113	-	Enterococcus mundtii crl1656	Firmicutes	1072576	2	2	274	MET	True	high	Transcriptional	unknown	none		54.7	CA6GPET;UV7V0CJ8
+T0116	AGAC01000045	-	Clostridioides difficile 70-100-2010	Firmicutes	1002369	2	2	306	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	73.8	EUZAVOI;KMQOTTX4
+T0117	AGAV01000003	-	Lentibacillus jeotgali	Firmicutes	558169	2	2	462	TRP	True	high	Transcriptional	unknown	none		56.8	CWTHOXMH;DFLXZOG
+T0118	AGBB01000122	+	Peptoniphilus indolicus ATCC 29427	Firmicutes	997350	2	2	286	ILE	True	high	Transcriptional	unknown	text	hypothetical protein;ketol-acid reductoisomerase	92.4	RO0JSMJ;AUWSEAYX
+T0119	AGFW01000001	+	Bacillus subtilis subsp. subtilis str. SC-8	Firmicutes	1089443	2	2	193	THR	True	high	Transcriptional	aaRS	EC	threonyl-tRNA synthetase	56.3	GTL1SBNG;4XM1UKC2
+T0120	AGHI01000074	+	Streptococcus sobrinus TCI-384	Firmicutes	1074086	2	1	442	TRP	True	low	Transcriptional	unknown	none		70.8	7VNNMK0O;CEYDI5BT
+T0121	AGHO01000296	-	Streptococcus sobrinus TCI-157	Firmicutes	1074132	2	2	266	THR	True	high	Transcriptional	unknown	none		65.8	NXZEXCM;GPOVVO36
+T0122	AHKH01000025	+	Paenibacillus dendritiformis C454	Firmicutes	1131935	2	2	356	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	59.2	WSP0XLHS;JVR5CRJD
+T0123	AL009126	-	Bacillus subtilis subsp. subtilis str. 168	Firmicutes	224308	2	2	515	THR	True	high	Transcriptional	aaRS	EC	T-box riboswitch specific of threonine tRNA ligase;threonyl-tRNA synthetase	68.6	1LMWE45;RH4P3FUU
+T0124	AL596169	-	Listeria innocua Clip11262	Firmicutes	272626	2	2	292	TRP	True	high	Transcriptional	unknown	none		53.6	YNUINBT7;5UWMNN2
+T0125	AM263198	-	Listeria welshimeri serovar 6b str. SLCC5334	Firmicutes	386043	2	2	290	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	53.7	Y7YTFRH9;406YNGNZ
+T0126	AM295250	+	Staphylococcus carnosus subsp. carnosus TM300	Firmicutes	396513	2	2	229	TRP	True	high	Transcriptional	biosynthesis	EC	putative trpE - anthranilate synthase component I	57.1	UEHQADM5;DHON4K4A
+T0127	AMPQ01000023	+	Salimicrobium jeotgali	Firmicutes	1230341	2	2	253	THR	True	high	Transcriptional	aaRS	EC	threonyl-tRNA ligase	84.9	TQRUNTB1;YF5UHNSF
+T0128	AODF01000009	+	Listeria floridensis FSL S10-1187	Firmicutes	1265817	2	2	293	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate phosphoribosyltransferase	52.3	4OAKB9YV;VGC6XOYE
+T0129	AP006627	-	Bacillus clausii KSM-K16	Firmicutes	66692	2	2	263	THR	True	high	Transcriptional	aaRS	EC	threonyl-tRNA synthetase	80.5	3TC4TQOY;IB8JKAK8
+T0130	AP006716	-	Staphylococcus haemolyticus JCSC1435	Firmicutes	279808	2	2	221	LEU;TRP	False	high	Transcriptional	unknown	none		55.6	JIDIQ5F2;SHQYVKK8
+T0131	AP006840	+	Symbiobacterium thermophilum IAM 14863	Firmicutes	292459	2	1	275	SER	True	low	Transcriptional	biosynthesis	text	class-V aminotransferase	100.0	DWWUPTBX;TPY15R6
+T0132	AP006840	-	Symbiobacterium thermophilum IAM 14863	Firmicutes	292459	2	0	189	?	False	low	Transcriptional	unknown	none	gamma-glutamyl kinase	100.0	QY764U8C;IXYZXDDH
+T0133	AP008934	-	Staphylococcus saprophyticus subsp. saprophyticus ATCC 15305 = NCTC 7292	Firmicutes	342451	2	2	225	TRP	True	high	Transcriptional	biosynthesis	text	hypothetical protein;trpE - anthranilate synthase component I	57.3	9X80UNM4;RNNIJQD
+T0134	AP008955	+	Brevibacillus brevis NBRC 100599	Firmicutes	358681	2	2	311	LEU	True	high	Transcriptional	biosynthesis	EC	probable 2-isopropylmalate synthase	60.4	NOJGHTU;WEEYX3G1
+T0135	AP008955	+	Brevibacillus brevis NBRC 100599	Firmicutes	358681	2	2	289	SER	True	high	Transcriptional	unknown	text	conserved hypothetical membrane protein	63.0	BBXJGQNM;9EUKFNXF
+T0136	AP009049	-	Clostridium kluyveri NBRC 12016	Firmicutes	583346	2	2	280	LEU	True	high	Transcriptional	unknown	text	hypothetical protein	74.9	HZQRWGQ7;1P4XJWC
+T0137	AP009389	-	Pelotomaculum thermopropionicum SI	Firmicutes	370438	2	2	66	THR	True	high	Transcriptional	aaRS	text	threonyl-tRNA synthetase	76.4	YZUSO6K3;AXVRO6N
+T0138	AP012046	-	Tetragenococcus halophilus NBRC 12172	Firmicutes	945021	2	2	274	MET	True	high	Transcriptional	transporter	text	hypothetical protein;methionine ABC transporter ATP-binding protein	54.9	XGCROF7V;SBVHHZOL
+T0139	AP012050	-	Amphibacillus xylanus NBRC 15112	Firmicutes	698758	2	2	333	TRP	True	high	Transcriptional	biosynthesis	EC	putative trpE - anthranilate synthase component I	54.4	XBBZYXLU;FZLH8B6U
+T0140	AP013036	-	Enterococcus mundtii QU 25	Firmicutes	1300150	2	2	271	MET	True	high	Transcriptional	transporter	text	D-methionine ABC superfamily ATP binding cassette transporter, ABC protein	55.6	SW9CNED0;KM3GWGSK
+T0141	AP014880	-	Streptococcus intermedius	Firmicutes	1338	2	0	118	?	False	low	Transcriptional	aaRS	text	aspartyl-tRNA synthetase	100.0	WSPSISN;CN50JP9Z
+T0142	AP014924	+	Limnochorda pilosa	Firmicutes	1555112	2	0	176	?	False	low	Transcriptional	aaRS	text	seryl-tRNA synthetase	100.0	OVWJL3IO;9G44SCME
+T0143	AP022643	+	Bacillus wiedmannii	Firmicutes	1890302	2	2	313	ILE	True	high	Transcriptional	biosynthesis	text	branched chain amino acid aminotransferase	75.2	PK8WMLO;B96NCWRN
+T0144	APBN01000002	-	Brevibacillus borstelensis AK1	Firmicutes	1300222	2	2	311	PHE	True	high	Transcriptional	unknown	text	hypothetical protein	66.7	4D56XXVV;M8YIEG9
+T0145	APML01000016	-	Gracilibacillus halophilus YIM-C55.5	Firmicutes	1308866	2	2	323	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	46.7	EGCBPAHK;4TVMJCYF
+T0146	AUPA01000032	-	Clostridium sp. BL8	Firmicutes	1354301	2	2	420	THR	True	high	Transcriptional	unknown	text	hypothetical protein	81.0	HFFEG6EZ;Y4QJETPZ
+T0147	AURB01000056	+	Alicyclobacillus acidoterrestris ATCC 49025	Firmicutes	1356854	2	2	265	TYR	True	high	Transcriptional	unknown	text	hypothetical protein	72.2	BAIOEGXK;LZJCAUKR
+T0148	AURB01000190	-	Alicyclobacillus acidoterrestris ATCC 49025	Firmicutes	1356854	2	2	359	LEU	True	high	Transcriptional	unknown	text	hypothetical protein	60.2	TF5NONR;HHK2GDZC
+T0149	AVPF01000032	+	Pontibacillus marinus BH030004 = DSM 16465	Firmicutes	1385511	2	2	252	THR	True	high	Transcriptional	unknown	none		75.6	SKPASCHO;UF30JLEQ
+T0150	AWUK01000014	-	Paenibacillus sp. MAEPY2	Firmicutes	1395587	2	2	423	LEU	True	high	Transcriptional	biosynthesis	text	hypothetical protein;2-isopropylmalate synthase	52.8	PO3SPSF;QPXHFEDR
+T0151	AYSH01000001	-	Vagococcus lutrae LBD1	Firmicutes	1408226	2	2	296	MET	True	high	Transcriptional	transporter	text	ABC transporter ATP-binding protein	61.1	EXMJDL65;RH1PRGEC
+T0152	AYSO01000020	-	Clostridium argentinense CDC 2741	Firmicutes	1418104	2	2	277	THR	True	high	Transcriptional	aaRS	EC	threonine--tRNA ligase	86.4	DA8GKVME;AO5Q9HL
+T0153	BA000028	-	Oceanobacillus iheyensis HTE831	Firmicutes	221109	2	2	284	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	54.1	LONJBMH4;NYIXPRWD
+T0154	BAAV01002588	+	human gut metagenome		408170	2	2	146	ILE;LEU	False	high	Transcriptional	unknown	none		50.6	OHSIIL9V;895I8SP
+T0155	BABG01012319	+	human gut metagenome		408170	2	2	254	CYS	True	high	Transcriptional	unknown	none		38.6	7BNOBJOH;C5WKBBWN
+T0156	BACP01000056	+	Lactobacillus mali KCTC 3596 = DSM 20444	Firmicutes	1046596	2	2	319	MET	True	high	Transcriptional	unknown	none		52.9	US2KLGTG;T7RQIPKB
+T0157	BACS01000228	+	Lactobacillus acidipiscis KCTC 13900	Firmicutes	1046599	2	2	270	MET	True	high	Transcriptional	unknown	none		42.3	7F5BOIBP;G38K29E
+T0158	BASE01000098	+	Bacillus selenatarsenatis SF-1	Firmicutes	1321606	2	2	306	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase, aminase component	56.7	KKBBV1ZV;D87EVGQO
+T0159	BAVR01000004	-	Hungateiclostridium straminisolvens JCM 21531	Firmicutes	1294263	2	2	320	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	85.1	06UQVUG3;KOYROIHH
+T0160	BAVS01000023	-	Gracilibacillus boraciitolerans JCM 21714	Firmicutes	1298598	2	2	338	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase	49.8	HGNHTSYW;GFKD4HY
+T0161	BAVZ01000005	+	Paenibacillus pini JCM 16418	Firmicutes	1236976	2	2	387	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	61.7	ZU4A8AWQ;D6EPPTMY
+T0162	CBXI010000014	-	Clostridium tyrobutyricum DIVETGP	Firmicutes	1408889	2	2	325	LEU	True	high	Transcriptional	biosynthesis	EC	Acetolactate synthase large subunit	74.2	APGCQS7F;0ZQCLC1P
+T0163	CBXI010000038	+	Clostridium tyrobutyricum DIVETGP	Firmicutes	1408889	2	2	254	LEU	True	high	Transcriptional	biosynthesis	EC	2-isopropylmalate synthase	85.2	8MVRSXDN;DTNEQYTY
+T0164	CCAX010000002	+	Oceanobacillus picturae	Firmicutes	171693	2	2	356	THR	True	high	Transcriptional	aaRS	text	Threonine--tRNA ligase 2	69.4	UONUCM7;CPONSHBT
+T0165	CCAX010000002	-	Oceanobacillus picturae	Firmicutes	171693	2	2	284	TRP	True	high	Transcriptional	unknown	none	T-box;trpE - anthranilate synthase component 1	52.9	PYI0GV2H;UWUZWZ2Y
+T0166	CCDI010000004	+	Halobacillus karajensis	Firmicutes	195088	2	2	251	THR	True	high	Transcriptional	aaRS	text	Threonine--tRNA ligase 2	84.9	H5YCZ7T;IVQUPWN
+T0167	CCDP010000002	+	Virgibacillus massiliensis	Firmicutes	1462526	2	2	289	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component 1	55.4	LHGVXCCG;0GKVHJLI
+T0168	CCRF01000035	+	Bacillus thermoamylovorans	Firmicutes	35841	2	2	289	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component 1	50.1	NCBFMSTL;7OLXWQ0I
+T0169	CCRF01000042	+	Bacillus thermoamylovorans	Firmicutes	35841	2	2	283	THR	True	high	Transcriptional	biosynthesis	EC	Protein AroA(G)	75.2	3KEV2BW;MCM1GYO
+T0170	CCXR01000001	-	Bacillus sp. B-jedd	Firmicutes	1476857	2	2	374	TRP	True	high	Transcriptional	unknown	none	T-box;trpE - anthranilate synthase component I	52.9	R5IOVALU;CBHKAQBY
+T0171	CDGG01000001	-	Oceanobacillus oncorhynchi	Firmicutes	545501	2	2	280	TRP	True	high	Transcriptional	biosynthesis	text	T-box;AminodeoxyChorismate synthase (Phe/Tyr synthesis) component 1	53.8	HZCX7O5N;K0QIT8V6
+T0172	CM000735	-	Bacillus cereus Rock4-18	Firmicutes	526988	2	2	259	?	False	high	Transcriptional	unknown	none	protein yybC	90.2	GG7HC53O;3FP4WX7
+T0173	CP000001	+	Bacillus cereus E33L	Firmicutes	288681	2	2	313	ILE	True	high	Transcriptional	biosynthesis	EC	branched-chain amino acid aminotransferase	75.3	9MDYGBYA;EUQJOHK9
+T0174	CP000141	+	Carboxydothermus hydrogenoformans Z-2901	Firmicutes	246194	2	1	147	PHE	True	low	Transcriptional	biosynthesis	EC	phospho-2-dehydro-3-deoxyheptonate aldolase	63.0	Z81DZIFU;U3LQWQYN
+T0175	CP000227	+	Bacillus cereus Q1	Firmicutes	361100	2	2	346	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	91.0	OWAK0AWJ;C0YN5Q1
+T0176	CP000382	+	Clostridium novyi NT	Firmicutes	386415	2	2	236	ILE	True	high	Transcriptional	oxidoreductase	EC	ketol-acid reductoisomerase	87.2	TPE8TIDC;8W4VCDSZ
+T0177	CP000612	+	Desulfotomaculum reducens MI-1	Firmicutes	349161	2	2	367	ILE;LEU	False	high	Transcriptional	biosynthesis	EC	dihydroxyacid dehydratase	72.1	FF7KTZC;EXTSMMDB
+T0178	CP000721	+	Clostridium beijerinckii NCIMB 8052	Firmicutes	290402	2	1	122	CYS	True	low	Transcriptional	biosynthesis	text	cysteine synthase	57.4	E71FZUZ;205SJFXC
+T0179	CP000721	+	Clostridium beijerinckii NCIMB 8052	Firmicutes	290402	2	2	133	VAL	True	high	Transcriptional	aaRS	text	valyl-tRNA synthetase	68.2	2N6M0UI;LSPONUSJ
+T0180	CP000721	-	Clostridium beijerinckii NCIMB 8052	Firmicutes	290402	2	1	235	LYS	True	low	Transcriptional	aaRS	text	lysyl-tRNA synthetase	43.8	0R89GUS;I7WGELE
+T0181	CP000764	+	Bacillus cytotoxicus NVH 391-98	Firmicutes	315749	2	2	268	TRP	True	high	Transcriptional	unknown	none		54.4	RMSBNHR5;VPWMQNQ
+T0182	CP000764	+	Bacillus cytotoxicus NVH 391-98	Firmicutes	315749	2	2	308	ILE	True	high	Transcriptional	biosynthesis	EC	branched-chain amino acid aminotransferase	73.7	2HYC5AK5;7L3YVT2F
+T0183	CP000764	+	Bacillus cytotoxicus NVH 391-98	Firmicutes	315749	2	2	274	?	False	high	Transcriptional	aaRS	text	threonyl-tRNA synthetase	65.7	RH2KBCGJ;QQIC5W2K
+T0184	CP000764	-	Bacillus cytotoxicus NVH 391-98	Firmicutes	315749	2	2	287	THR	True	high	Transcriptional	unknown	none	phospho-2-dehydro-3-deoxyheptonate aldolase	74.1	NCINJBJC;9V8H7XCN
+T0185	CP000813	+	Bacillus pumilus SAFR-032	Firmicutes	315750	2	2	260	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	80.7	LNSHJCP;QBYSTUI3
+T0186	CP000885	-	Lachnoclostridium phytofermentans ISDg	Firmicutes	357809	2	2	156	GLN;ILE	False	high	Transcriptional	unknown	none		57.3	7GW7DTUF;CFK0SLWB
+T0187	CP000903	+	Bacillus mycoides KBAB4	Firmicutes	315730	2	2	281	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	40.9	EDCFW8DM;NLGDQ9P
+T0188	CP000903	-	Bacillus mycoides KBAB4	Firmicutes	315730	2	2	291	THR	True	high	Transcriptional	unknown	none	phospho-2-dehydro-3-deoxyheptonate aldolase	78.6	PJVYRUCY;TNNYIDRP
+T0189	CP001022	+	Exiguobacterium sibiricum 255-15	Firmicutes	262543	2	2	280	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	56.4	FDEH85NK;1I6QR4F3
+T0190	CP001104	-	[Eubacterium] eligens ATCC 27750	Firmicutes	515620	2	1	83	VAL	True	low	Transcriptional	aaRS	text	valyl-tRNA synthetase	53.3	VL0UOPE;JG9EZWDH
+T0191	CP001186	+	Bacillus cereus G9842	Firmicutes	405531	2	2	347	THR	True	high	Transcriptional	oxidoreductase	EC	homoserine dehydrogenase	93.6	ITNB9BM2;HCF4YMRG
+T0192	CP001275	+	Thermomicrobium roseum DSM 5159	Chloroflexi	309801	2	1	82	THR	True	low	Transcriptional	aaRS	EC	threonyl-tRNA synthetase	50.0	L7KN6HHN;E50V53Q2
+T0193	CP001615	-	Exiguobacterium sp. AT1b	Firmicutes	360911	2	2	277	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate phosphoribosyltransferase	58.7	V0KN4NO1;GIQSMJOG
+T0194	CP001666	+	Clostridium ljungdahlii DSM 13528	Firmicutes	748727	2	2	275	SER	True	high	Transcriptional	biosynthesis	EC	predicted aminotransferase	86.9	UFUGRYYD;UQ89OID
+T0195	CP001814	-	Streptosporangium roseum DSM 43021	Actinobacteria	479432	2	0	134	?	False	low	Transcriptional	aaRS	EC	Aspartate--tRNA ligase	100.0	WOZ1PAA;6PXKLUD
+T0196	CP001982	-	Bacillus megaterium DSM 319	Firmicutes	592022	2	2	276	TYR	True	high	Transcriptional	biosynthesis	EC	Chorismate mutase (Phe/Tyr synthesis)/phospho-2-dehydro-3-deoxyheptonate aldolase	69.3	ZBASFNK;AGOABO2J
+T0197	CP001983	+	Bacillus megaterium QM B1551	Firmicutes	545693	3	2	265	THR	True	high	Transcriptional	aaRS	EC	threonyl-tRNA synthetase	67.7	TLEE1784;FYGA5EM;DWPXSFHM
+T0198	CP001983	-	Bacillus megaterium QM B1551	Firmicutes	545693	2	2	276	TYR	True	high	Transcriptional	biosynthesis	EC	Chorismate mutase (Phe/Tyr synthesis)/phospho-2-dehydro-3-deoxyheptonate aldolase	69.0	PA005QLZ;BCJH7XSD
+T0199	CP002001	-	Listeria monocytogenes J0161	Firmicutes	393130	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	55.5	DNONIVAS;L3R2HE4R
+T0200	CP002002	-	Listeria monocytogenes 10403S	Firmicutes	393133	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	56.5	ACWP7XTB;PO30R3XP
+T0201	CP002094	+	Lactococcus lactis subsp. cremoris NZ9000	Firmicutes	746361	2	1	91	TRP	True	low	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	45.3	ATZGOTJ;5UWAVP6Y
+T0202	CP002105	+	Acetohalobium arabaticum DSM 5501	Firmicutes	574087	2	2	220	ILE;LEU	False	high	Transcriptional	biosynthesis	EC	acetolactate synthase, large subunit	38.7	DAJLJQGH;XDPWIZGK
+T0203	CP002105	-	Acetohalobium arabaticum DSM 5501	Firmicutes	574087	2	2	371	PHE	True	high	Transcriptional	biosynthesis	EC	3-deoxy-D-arabinoheptulosonate-7-phosphate synthase	53.1	BHZHCGI7;1NEGBF
+T0204	CP002183	-	Bacillus subtilis subsp. spizizenii str. W23	Firmicutes	655816	2	2	254	THR	True	high	Transcriptional	aaRS	EC	threonyl-tRNA synthetase	90.7	DF08QYCD;RY7XDHU2
+T0205	CP002390	+	Filifactor alocis ATCC 35896	Firmicutes	546269	2	1	205	SER	True	low	Transcriptional	biosynthesis	text	aminotransferase, class V	54.5	SA09KREH;5UAYCUPM
+T0206	CP002416	+	Hungateiclostridium thermocellum DSM 1313	Firmicutes	637887	2	2	343	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	89.6	8NOBSDOP;G0WPCMU3
+T0207	CP002468	-	Bacillus subtilis BSn5	Firmicutes	936156	2	2	253	THR	True	high	Transcriptional	aaRS	EC	threonyl-tRNA synthetase	92.1	PVME2XTC;WVHR3ITT
+T0208	CP002472	-	Bacillus coagulans 2-6	Firmicutes	941639	2	2	287	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	50.6	5YIOUO2K;6X448F6U
+T0209	CP002508	+	Bacillus thuringiensis serovar finitimus YBT-020	Firmicutes	930170	2	2	314	ILE	True	high	Transcriptional	biosynthesis	EC	branched-chain amino acid aminotransferase	39.2	LE2A26HX;WR2AYTBU
+T0210	CP002508	+	Bacillus thuringiensis serovar finitimus YBT-020	Firmicutes	930170	2	2	346	THR	True	high	Transcriptional	oxidoreductase	EC	homoserine dehydrogenase	92.2	NJNNWIZR;R2VC4COD
+T0211	CP002559	-	Lactobacillus amylovorus	Firmicutes	1604	2	1	272	HIS	True	low	Transcriptional	transporter	text	amino acid ABC transporter, permease protein	100.0	PUM6WY13;ZJEYSSFN
+T0212	CP002563	-	Carnobacterium sp. 17-4	Firmicutes	208596	2	2	332	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN	60.2	FLJE94OM;YILCVAWF
+T0213	CP002905	-	Bacillus subtilis subsp. spizizenii TU-B-10	Firmicutes	1052585	3	3	444	THR	True	high	Transcriptional	aaRS	text	hypothetical protein;threonyl-tRNA synthetase	48.5	BDFJUNXA;O04NBFX;42UPKBI2
+T0214	CP003017	+	Bacillus megaterium WSH-002	Firmicutes	1006007	2	2	276	THR	True	high	Transcriptional	biosynthesis	text	Phospho-2-dehydro-3-deoxyheptonate aldolase : Chorismate mutase (Phe/Tyr synthesis)	68.2	FDM142O4;LHTTLVDW
+T0215	CP003017	-	Bacillus megaterium WSH-002	Firmicutes	1006007	2	1	188	THR	True	low	Transcriptional	aaRS	text	Ser-tRNA(Thr) hydrolase; threonyl-tRNA synthetase	62.1	ZFOIOKIL;WY8RSXO1
+T0216	CP003056	+	Bacillus coagulans 36D1	Firmicutes	345219	2	2	289	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	49.7	PULUBO5U;1AV6MXZK
+T0217	CP003096	-	Thermovirga lienii DSM 17291	Synergistetes	580340	2	1	61	ARG	True	low	Transcriptional	biosynthesis	text	argininosuccinate synthase	64.6	S4GG8LO;PMIILQ8M
+T0218	CP003108	+	Desulfosporosinus orientis DSM 765	Firmicutes	768706	2	2	308	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	56.3	LVF5WUFN;VT0L1LLD
+T0219	CP003179	-	Sulfobacillus acidophilus DSM 10332	Firmicutes	679936	2	2	95	SER	True	high	Translational	biosynthesis	EC	Serine--glyoxylate transaminase	55.7	T9IRVUH6;B6HR4HBQ
+T0220	CP003235	+	Paenibacillus mucilaginosus 3016	Firmicutes	1116391	2	2	319	LEU	True	high	Transcriptional	biosynthesis	text	putative 2-isopropylmalate synthase	66.7	FJBWM6RO;QV0QQWJY
+T0221	CP003261	-	Clostridium pasteurianum BC1	Firmicutes	86416	2	2	224	ILE;LEU	False	high	Transcriptional	biosynthesis	text	acetolactate synthase, large subunit, biosynthetic type	72.1	EKJ6SDA;VQKSI4QP
+T0222	CP003504	-	Enterococcus hirae ATCC 9790	Firmicutes	768486	2	2	275	MET	True	high	Transcriptional	transporter	text	ABC transporter ATP-binding protein	53.1	0EKOEMYU;CANJGYVE
+T0223	CP005076	-	Spiroplasma diminutum CUAS-1	Tenericutes	1276221	2	0	76	?	False	low	Transcriptional	aaRS	text	isoleucyl-tRNA synthetase	100.0	GIBIW8HG;AISNIA29
+T0224	CP005586	-	Bacillus sp. 1NLA3E	Firmicutes	666686	2	2	290	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	54.3	AQ4NYDX6;FBY0VLPV
+T0225	CP006763	-	Clostridium autoethanogenum DSM 10061	Firmicutes	1341692	2	2	234	LEU	True	high	Transcriptional	transporter	text	General substrate transporter	61.9	XHNXUKE;YMSOXZML
+T0226	CP006812	-	Carnobacterium inhibens subsp. gilichinskyi	Firmicutes	1266845	2	2	334	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	60.3	PJ1ALLWA;K8SRCAB
+T0227	CP006854	-	Pediococcus pentosaceus SL4	Firmicutes	1408206	2	1	292	HIS	True	low	Transcriptional	transporter	text	amino acid ABC transporter permease	100.0	2W4WCDH;MXVYLFN
+T0228	CP007161	-	Virgibacillus sp. SK37	Firmicutes	403957	2	2	319	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	53.1	URA593KY;B0A4MVOQ
+T0229	CP007452	+	Peptoclostridium acidaminophilum DSM 3953	Firmicutes	1286171	2	2	297	LEU	True	high	Transcriptional	biosynthesis	EC	2-isopropylmalate synthase LeuA	95.6	2FZRBFT;GMUIDRLW
+T0230	CP007453	+	Peptoclostridium acidaminophilum DSM 3953	Firmicutes	1286171	2	1	318	TRP	True	low	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component 1	100.0	FLQULHS;YBCXFBGG
+T0231	CP007601	+	Staphylococcus capitis subsp. capitis	Firmicutes	72758	2	2	196	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component 1	100.0	B0JCWOUC;GQ0RWWO
+T0232	CP007739	-	Bacillus methanolicus MGA3	Firmicutes	796606	2	2	427	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component 1	42.9	WAUCOPG;DRQ9KSVS
+T0233	CP007806	+	Brevibacillus laterosporus LMG 15441	Firmicutes	1042163	2	2	311	ILE	True	high	Transcriptional	unknown	none	branched-chain amino acid transport protein	66.4	QS2ZNGG;MRVEJ5XG
+T0234	CP008855	-	Bacillus sp. X1(2014)	Firmicutes	1565991	2	2	431	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	55.8	0QTHCXE;BCZP3132
+T0235	CP008876	-	Terribacillus goriensis	Firmicutes	386490	3	3	535	THR;TYR	False	high	Transcriptional	transporter	text	GABA permease (4-amino butyrate transport carrier)	88.7	ZVZFRUH;BXKD7NCU;SG2AO62Y
+T0236	CP008876	+	Terribacillus goriensis	Firmicutes	386490	2	2	237	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	50.9	JVEXGS7D;A86VXNBJ
+T0237	CP009268	+	Clostridium pasteurianum DSM 525 = ATCC 6013	Firmicutes	1262449	2	2	229	ILE;LEU	False	high	Transcriptional	biosynthesis	EC	acetolactate synthase large subunit	72.2	CHIGIE;U8Q2FEZD
+T0238	CP009282	+	Paenibacillus sp. FSL R5-0912	Firmicutes	1536771	2	2	339	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	40.8	LG9YS0HA;D6GA1XCY
+T0239	CP009416	-	Jeotgalibacillus malaysiensis	Firmicutes	1508404	2	2	357	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase	35.1	HIU16JVY;MYRCEBT0
+T0240	CP009922	+	Streptomyces xiamenensis	Actinobacteria	408015	2	1	205	ILE	True	low	Transcriptional	aaRS	text	isoleucyl-tRNA synthetase	100.0	53J7U38E;FBBW9ZYE
+T0241	CP010796	-	Carnobacterium sp. CP1	Firmicutes	1564681	2	2	329	MET	True	high	Transcriptional	transporter	text	Methionine ABC transporter ATP-binding protein	57.0	6NRG8JSY;2DSRS11C
+T0242	CP011013	-	Lactobacillus mucosae LM1	Firmicutes	1130798	2	1	268	HIS	True	low	Transcriptional	transporter	text	amino acid ABC transporter permease	100.0	6RG5JWX;HIQ7DTGM
+T0243	CP011855	+	Spiroplasma atrichopogonis	Tenericutes	1114980	2	1	114	VAL	True	low	Transcriptional	aaRS	text	valyl-tRNA synthetase	100.0	DYNBLDPE;GWZSGP7S
+T0244	CP011974	+	Bacillus filamentosus	Firmicutes	1402861	3	3	533	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	91.9	BDQUQAEI;KHJUVSTP;HFOEELLD
+T0245	CP012024	-	Bacillus smithii	Firmicutes	1479	2	2	287	TRP	True	high	Transcriptional	biosynthesis	text	hypothetical protein;trpE - anthranilate synthaseaminase component	55.4	EV1ZKTOH;2H0ZPLIQ
+T0246	CP012024	-	Bacillus smithii	Firmicutes	1479	2	1	72	VAL	True	low	Transcriptional	aaRS	EC	Valyl-tRNA synthetase	56.7	FNUED9UE;7L5HFT16
+T0247	CP012288	+	Pediococcus damnosus	Firmicutes	51663	2	1	269	HIS	True	low	Transcriptional	transporter	text	ABC transporter membrane-spanning permease - glutamine transport	100.0	BBFTOJCM;8NXTXNYH
+T0248	CP012602	+	Bacillus sp. FJAT-18017	Firmicutes	1705566	2	2	287	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	53.2	BRRRKZLC;OCSJRVMN
+T0249	CP012622	-	Spiroplasma cantharicola	Tenericutes	362837	2	1	65	?	False	low	Transcriptional	aaRS	text	isoleucyl-tRNA synthetase	100.0	ISTQWAL;ETY8DM5M
+T0250	CP013213	+	Erysipelothrix larvae	Firmicutes	1514105	2	1	61	ILE	True	low	Transcriptional	aaRS	EC	isoleucine--tRNA ligase	70.0	UNHVAFZY;GHPS90X4
+T0251	CP013652	-	Paenibacillus naphthalenovorans	Firmicutes	162209	2	2	293	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	66.9	DBOLHV7T;ZKAH3IZ
+T0252	CP013655	-	Enterococcus rotai	Firmicutes	118060	2	2	527	HIS	True	high	Transcriptional	transporter	text	hypothetical protein;amino acid ABC transporter permease	60.2	7FJTCEIF;IASO4B6Z
+T0253	CP013655	+	Enterococcus rotai	Firmicutes	118060	2	2	324	MET	True	high	Transcriptional	transporter	text	metal ABC transporter substrate-binding protein	52.5	FRGIR6RZ;PYJFNPRH
+T0254	CP013862	+	Lentibacillus amyloliquefaciens	Firmicutes	1472767	2	2	417	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	53.9	J8MZRH;P9N14NK
+T0255	CP014150	-	Paeniclostridium sordellii	Firmicutes	1505	2	1	310	ASP	True	low	Transcriptional	unknown	none	aspartate--tRNA(Asn) ligase	100.0	H6JXGL6;8WFZ75JZ
+T0256	CP014806	-	Rummeliibacillus stabekisii	Firmicutes	241244	2	2	280	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	87.5	QVZLIFDK;YE78FLH4
+T0257	CP014899	+	Lactobacillus backii	Firmicutes	375175	2	1	272	HIS	True	low	Transcriptional	transporter	text	amino acid ABC transporter permease	100.0	ZTVIJENK;F95PNVD9
+T0258	CP014907	-	Lactobacillus lindneri	Firmicutes	53444	2	1	243	SER	True	low	Transcriptional	unknown	none	serine/threonine protein kinase	100.0	K5DC1AG;P3NQP6SY
+T0259	CP015756	-	Clostridium estertheticum subsp. estertheticum	Firmicutes	1552	2	2	398	ILE	True	high	Transcriptional	unknown	text	hypothetical protein	54.4	VSXLNAIE;XA1PW4A6
+T0260	CP017196	-	Leuconostoc gelidum subsp. gelidum	Firmicutes	1607839	2	1	272	HIS	True	low	Transcriptional	transporter	text	amino acid ABC transporter permease	100.0	5TYMANMT;LKGNJRJ
+T0261	CP017267	+	Vagococcus teuberi	Firmicutes	519472	2	2	270	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	54.2	DAKVISPU;3LGYC8TB
+T0262	CP017267	+	Vagococcus teuberi	Firmicutes	519472	2	2	264	HIS	True	high	Transcriptional	transporter	text	amino acid ABC transporter permease	58.2	7DKJY1E;PW2DV2SG
+T0263	CP018796	-	Lactobacillus parabuchneri	Firmicutes	152331	2	1	273	HIS	True	low	Transcriptional	transporter	text	Arginine transport system permease protein ArtQ	100.0	GAJMBRWL;BDXBPUYY
+T0264	CP018906	-	Lactobacillus curieae	Firmicutes	1138822	2	1	280	HIS	True	low	Transcriptional	transporter	text	amino acid ABC transporter permease	100.0	U7XH1ZXP;UVIBSSMK
+T0265	CP019433	-	Jeotgalibaca sp. PTS2502	Firmicutes	1903686	2	2	314	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	54.4	QQOYOH6N;A9U4XJL
+T0266	CP019609	+	Vagococcus penaei	Firmicutes	633807	2	2	284	HIS	True	high	Transcriptional	transporter	text	amino acid ABC transporter permease	74.0	QWXKLMAQ;IRAX1CMV
+T0267	CP019609	+	Vagococcus penaei	Firmicutes	633807	2	2	290	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	50.3	56GSS4T5;ZKPGHKAE
+T0268	CP019698	+	Desulfotomaculum ferrireducens	Firmicutes	1833852	2	2	373	ILE;LEU	False	high	Transcriptional	biosynthesis	text	dihydroxy-acid dehydratase	44.7	A3GTSIN;YTRZIKG
+T0269	CP019728	+	Jeotgalibaca dankookensis	Firmicutes	708126	2	2	304	MET	True	high	Transcriptional	transporter	text	Methionine import ATP-binding protein MetN	57.1	W9ZZWDCW;EPSZN4MJ
+T0270	CP019985	+	Bacillus clausii	Firmicutes	79880	2	2	260	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	86.2	UPSDL97;OCAMZFLQ
+T0271	CP022315	+	Virgibacillus phasianinus	Firmicutes	2017483	2	2	292	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	51.8	FHYHESP7;LXPPAXF
+T0272	CP022315	-	Virgibacillus phasianinus	Firmicutes	2017483	2	2	365	ARG	True	high	Transcriptional	biosynthesis	text	carbamoyl phosphate synthase small subunit	71.8	HBWPZGY;OLRPZ8EG
+T0273	CP022315	-	Virgibacillus phasianinus	Firmicutes	2017483	2	2	261	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	72.9	YKHFH2MH;C7TS6XMJ
+T0274	CP022437	-	Virgibacillus necropolis	Firmicutes	163877	2	2	281	ARG	True	high	Transcriptional	unknown	none	ornithine carbamoyltransferase	76.6	AYFK7IB;M9ZK2OOB
+T0275	CP022437	-	Virgibacillus necropolis	Firmicutes	163877	2	2	264	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	76.6	LAGN9MS0;1LZPAELD
+T0276	CP022437	+	Virgibacillus necropolis	Firmicutes	163877	2	2	292	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	51.9	S9I6Y1VF;TVL4VZ2V
+T0277	CP022615	-	Gemella sp. ND 6198	Firmicutes	2040624	2	1	262	ARG	True	low	Transcriptional	transporter	text	arginine ABC transporter substrate-binding protein	100.0	RBBH9DMJ;KCC1JKIG
+T0278	CP028254	-	Pediococcus pentosaceus	Firmicutes	1255	2	1	100	GLY	True	low	Transcriptional	aaRS	EC	Glycine--tRNA ligase alpha subunit	57.6	RJCUA3ZE;6BYBLU6
+T0279	CP028255	+	Leuconostoc mesenteroides	Firmicutes	1245	2	1	89	ILE	True	low	Transcriptional	aaRS	EC	Isoleucine--tRNA ligase	64.9	SXWC2UQ;GWHHUDK
+T0280	CP028255	-	Leuconostoc mesenteroides	Firmicutes	1245	2	1	263	HIS	True	low	Transcriptional	transporter	text	L-cystine transport system permease protein YecS	45.4	VPKQWDJE;XO7GKHCG
+T0281	CP028269	-	Pediococcus pentosaceus	Firmicutes	1255	2	1	292	HIS	True	low	Transcriptional	transporter	text	Arginine transport system permease protein ArtQ	100.0	XRNIWONY;ALJERGVV
+T0282	CP029566	+	Clostridioides difficile	Firmicutes	1496	2	2	306	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	75.1	TY5DJCPP;QDYXQEAK
+T0283	CP029754	-	Lactobacillus amylovorus	Firmicutes	1604	2	0	65	?	False	low	Transcriptional	aaRS	text	serine--tRNA ligase	100.0	VKFTEJNV;LCGKCYUZ
+T0284	CP031208	+	Lactobacillus brevis	Firmicutes	1580	2	1	73	THR	True	low	Transcriptional	aaRS	text	Threonyl-tRNA synthetase	59.9	QZX41QLH;HSQ6EX2
+T0285	CP031500	-	Deinococcus radiodurans	Deinococcus-Thermus	1299	2	1	158	ILE	True	low	Transcriptional	aaRS	EC	benzoate transporter BenE	100.0	2AD6ORT;ODR318F
+T0286	CP031500	+	Deinococcus radiodurans	Deinococcus-Thermus	1299	2	1	108	GLY	True	low	Transcriptional	aaRS	EC	glycine--tRNA ligase	100.0	BN70IDM8;VAFXHKTW
+T0287	CP041693	-	Bacillus amyloliquefaciens	Firmicutes	1390	2	1	191	THR	True	low	Transcriptional	aaRS	EC	threonine--tRNA ligase	100.0	HI7O7EQR;AVSZASDN
+T0288	CP042393	-	Leuconostoc citreum	Firmicutes	33964	2	1	261	HIS	True	low	Transcriptional	transporter	text	amino acid ABC transporter permease	100.0	IJDYU7XP;CTSNIQMS
+T0289	CP043523	-	Lactococcus lactis subsp. lactis bv. diacetylactis	Firmicutes	44688	2	0	81	?	False	low	Transcriptional	aaRS	EC	Isoleucyl-tRNA synthetase	100.0	RIH26SRG;ETO1PMBH
+T0290	CP043615	+	Lactobacillus buchneri	Firmicutes	1581	2	1	280	HIS	True	low	Transcriptional	unknown	none		100.0	N42MKEL;PRWORMSV
+T0291	CP043998	+	Clostridium diolis	Firmicutes	223919	2	0	66	?	False	low	Transcriptional	aaRS	EC	glycine--tRNA ligase	100.0	MNXMGMU;M6RXPFCG
+T0292	CP045045	+	Enterococcus faecalis	Firmicutes	1351	2	2	388	HIS	True	high	Transcriptional	transporter	text	ABC transporter permease subunit	64.3	Q1RGEUXP;QNWYIZIB
+T0293	CP045049	+	Lactobacillus reuteri	Firmicutes	1598	2	1	108	GLY	True	low	Transcriptional	unknown	none		60.0	EIHGMNCE;SBK7UIO
+T0294	CP045085	+	Staphylococcus pseudintermedius	Firmicutes	283734	2	0	69	?	False	low	Transcriptional	unknown	none		100.0	WECMR5PH;FDSSTBOJ
+T0295	CP045927	-	Staphylococcus agnetis	Firmicutes	985762	2	2	199	TRP;VAL	False	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	100.0	GYROCCC;AWVAOC5
+T0296	CP046328	+	Streptococcus gordonii	Firmicutes	1302	2	1	93	VAL	True	low	Transcriptional	unknown	none	GNAT family N-acetyltransferase	74.2	XCSOIJYI;RH84SBQU
+T0297	CP046450	+	Clostridium botulinum	Firmicutes	1491	2	1	104	TRP	True	low	Transcriptional	aaRS	EC	Tryptophan--tRNA ligase	42.5	SXX99CM;NZZZ5RNX
+T0298	CP046528	+	Lactobacillus acetotolerans	Firmicutes	1600	2	0	61	?	False	low	Transcriptional	aaRS	EC	serine--tRNA ligase	100.0	KWUE3Q9B;WHEQ2W0P
+T0299	CP047021	+	Staphylococcus aureus	Firmicutes	1280	2	2	201	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	60.5	VIOJYPUT;YF7Z3QPV
+T0300	CP048003	+	Lactobacillus paracasei	Firmicutes	1597	2	1	100	GLY	True	low	Transcriptional	aaRS	EC	glycine--tRNA ligase subunit alpha	100.0	RYZP73TY;QXOMGA89
+T0301	CP048687	-	Bacillus paranthracis	Firmicutes	2026186	2	2	270	TRP	True	high	Transcriptional	unknown	none		36.4	8SKMXKCV;PSOEWEYS
+T0302	CP048750	-	Streptococcus thermophilus	Firmicutes	1308	2	1	107	PHE	True	low	Transcriptional	unknown	none		100.0	XGOQQE;ALEGGKOW
+T0303	CT573213	-	Frankia alni ACN14a	Actinobacteria	326424	2	1	229	ILE	True	low	Transcriptional	aaRS	EC	isoleucyl-tRNA synthetase	100.0	XIK9D1LR;BFX5IKI
+T0304	CTEI01000001	+	Paraliobacillus sp. PM-2	Firmicutes	1462524	2	2	281	TRP	True	high	Transcriptional	biosynthesis	text	AminodeoxyChorismate synthase (Phe/Tyr synthesis) component 1	54.9	OOBLUI3L;9JOAECKQ
+T0305	CVRB01000001	-	Bacillus sp. LF1	Firmicutes	1499688	2	2	260	TYR	True	high	Transcriptional	unknown	none	T-box;Na+/H+ antiporter NhaC	90.0	ZMXYRRL;SYTM72FS
+T0306	CVRB01000005	-	Bacillus sp. LF1	Firmicutes	1499688	3	3	656	VAL	True	high	Transcriptional	unknown	none	T-box;branched-chain amino acid transport system II carrier protein	89.5	HANBYNAD;14P9IXMZ;71VTNY58
+T0307	FJNB01000004	-	Trichococcus ilyis	Firmicutes	640938	2	2	325	MET	True	high	Transcriptional	transporter	text	abc transporter	56.2	REABDFJU;WAJGGRL
+T0308	FM211688	-	Listeria monocytogenes L99	Firmicutes	563174	2	2	290	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	56.1	XYAACS8N;LJ8VKDDZ
+T0309	FN557490	-	Listeria seeligeri serovar 1/2b str. SLCC3954	Firmicutes	683837	2	2	290	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	52.3	WNH13YZE;W290MKCA
+T0310	FN568063	+	Streptococcus mitis B6	Firmicutes	365659	2	2	413	TRP	True	high	Transcriptional	biosynthesis	text	conserved hypothetical protein;trpE - anthranilate synthase component I	35.8	ZD1MVF8E;XCIZSGY
+T0311	FN597254	+	Streptococcus gallolyticus UCN34	Firmicutes	637909	2	1	310	TRP	True	low	Transcriptional	biosynthesis	text	putative Chorismate mutase (Phe/Tyr synthesis);trpE - anthranilate synthase component I	61.2	YWEER0E6;XWUSYAFD
+T0312	FN665653	+	Clostridioides difficile M120	Firmicutes	699035	2	2	306	THR	True	high	Transcriptional	unknown	none		73.9	K76YJSML;Q1WOU9Z
+T0313	FNHF01000003	+	Sediminibacillus halophilus	Firmicutes	482461	2	2	289	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component 1	49.2	PDZCFGVF;YNMAQURN
+T0314	FPIU01000010	-	Paenibacillus sp. UNCCL117	Firmicutes	1502764	2	2	332	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	60.1	UELAMGW4;BMHEO0VP
+T0315	FQUF01000010	-	Atopostipes suicloacalis DSM 15692	Firmicutes	1121025	2	2	369	HIS	True	high	Transcriptional	unknown	none	polar amino acid transport system substrate-binding protein	65.0	ZSR2BHTM;G2I6IQD1
+T0316	FQXD01000004	-	Virgibacillus chiguensis	Firmicutes	411959	2	2	323	TRP	True	high	Transcriptional	biosynthesis	text	hypothetical protein;trpE - anthranilate synthase component 1	53.8	JAUGW6H;PPHUSOTE
+T0317	FQZB01000008	+	Clostridium cavendishii DSM 21758	Firmicutes	1121302	2	2	311	THR	True	high	Transcriptional	aaRS	text	threonyl-tRNA synthetase	86.5	XCOP1UQA;VUI4LQH
+T0318	FR687253	-	Listeria ivanovii subsp. ivanovii PAM 55	Firmicutes	881621	2	2	291	TRP	True	high	Transcriptional	biosynthesis	text	Putative trpE - anthranilate synthase alpha subunit	54.4	INPWMIMC;0LB2TJ8X
+T0319	FR821777	+	Staphylococcus argenteus	Firmicutes	985002	2	2	201	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	60.3	E3QVC4FW;HLSDKEA
+T0320	FR824043	+	Streptococcus gallolyticus subsp. gallolyticus ATCC BAA-2069	Firmicutes	990317	2	1	310	TRP	True	low	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	60.8	IAWPETWX;CKEM6YXW
+T0321	FR873482	+	Streptococcus salivarius JIM8777	Firmicutes	347253	2	1	120	ILE	True	low	Transcriptional	unknown	text	hypothetical protein	44.6	IKY5QSW;ASBESCJ
+T0322	FR894623	+	Firmicutes bacterium CAG:308	Firmicutes	1263016	2	2	265	ARG	True	high	Transcriptional	transporter	text	amine acid ABC transporter permease protein 3-TM region His/Glu/Gln/Arg/opine family	97.0	FT8I0TI;WAJLHVZL
+T0323	FRAR01000008	-	Desulfotomaculum aeronauticum DSM 10349	Firmicutes	1121421	2	2	374	ILE;LEU	False	high	Transcriptional	biosynthesis	text	dihydroxyacid dehydratase	72.0	ON9IXB7Y;4GDILAKH
+T0324	FRCZ01000001	-	Gracilibacillus kekensis	Firmicutes	1027249	2	2	281	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase, component I	48.6	PJKHRATB;M4IJ6N12
+T0325	FTLX01000001	-	Domibacillus enclensis	Firmicutes	1017273	2	2	255	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component 1	56.8	AYP4AY7U;HTCK4XGQ
+T0326	FUWM01000004	-	Selenihalanaerobacter shriftii	Firmicutes	142842	2	2	278	LEU	True	high	Transcriptional	biosynthesis	text	fatty-acyl-CoA synthase	94.3	I8GTDCZ;RZH7IR6Q
+T0327	FUWM01000004	-	Selenihalanaerobacter shriftii	Firmicutes	142842	2	2	325	PHE	True	high	Transcriptional	biosynthesis	text	3-deoxy-D-arabinoheptulosonate-7-phosphate synthase	51.9	QUDFFRUI;ZEOTNWD
+T0328	FUYH01000009	-	Caloramator quimbayensis	Firmicutes	1147123	2	2	361	THR	True	high	Transcriptional	biosynthesis	text	threonine synthase	97.4	PJBXIPFW;W5UPNOFZ
+T0329	FWFD01000003	-	Vagococcus fluvialis bH819	Firmicutes	1255619	2	2	279	MET	True	high	Transcriptional	transporter	text	Methionine ABC transporter ATP-binding protein	56.6	TGSAENY;DK5QDS
+T0330	HE575140	+	Weissella thailandensis fsh4-2	Firmicutes	1056112	2	2	263	MET	True	high	Transcriptional	oxidoreductase	EC	acetoin(diacetyl)reductase	47.4	DXUZYALM;WRAIOGRN
+T0331	HE999757	-	Carnobacterium maltaromaticum LMA28	Firmicutes	1234679	2	2	306	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I, N terminal region family protein	55.6	59MCW67Q;O3NFK1LR
+T0332	HE999757	-	Carnobacterium maltaromaticum LMA28	Firmicutes	1234679	2	1	126	PHE	True	low	Transcriptional	aaRS	EC	phenylalanyl-tRNA synthetase, alpha subunit	45.8	ZEOACXXP;HDXMHN
+T0333	HE999757	+	Carnobacterium maltaromaticum LMA28	Firmicutes	1234679	2	2	342	MET	True	high	Transcriptional	transporter	text	ABC transporter family protein	57.0	URUS2SGR;DIWA292I
+T0334	HF999320	-	Clostridium bartlettii CAG:1329	Firmicutes	1263063	2	2	383	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	80.0	GSNQNZLL;GTXVIM1M
+T0335	JJMM01000026	+	Peptoclostridium litorale DSM 5388	Firmicutes	1121324	2	2	333	CYS	True	high	Transcriptional	biosynthesis	EC	cysteine synthase CysK	78.6	6MPPOGT5;OVABUIHS
+T0336	JNEZ01000047	-	Listeriaceae bacterium FSL A5-0209	Firmicutes	1497679	2	2	475	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	52.8	64UZPFV;7HUEGV9A
+T0337	JNFA01000029	+	Listeria booriae	Firmicutes	1552123	2	2	384	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	52.5	SKPFZEJK;DHCTEM
+T0338	JOTM01000001	+	Bacillus gaemokensis	Firmicutes	574375	2	2	281	THR	True	high	Transcriptional	oxidoreductase	EC	phenylalanine 4-monooxygenase	80.9	SEWA2H;T8M0AWER
+T0339	JOTM01000009	+	Bacillus gaemokensis	Firmicutes	574375	3	3	696	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	95.6	SUVQGIYE;APGMSVZ;WUDCHDXZ
+T0340	JOTM01000022	-	Bacillus gaemokensis	Firmicutes	574375	2	2	313	ILE	True	high	Transcriptional	biosynthesis	EC	branched-chain amino acid aminotransferase	76.2	XKZ6R6QT;VQ455AGP
+T0341	JOTM01000023	+	Bacillus gaemokensis	Firmicutes	574375	2	2	291	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	79.6	VHVZQWQH;BOHHENBU
+T0342	JOTM01000037	-	Bacillus gaemokensis	Firmicutes	574375	2	2	378	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	56.9	RNUZ8SIF;8RBW8APE
+T0343	JOTN01000003	+	Bacillus manliponensis	Firmicutes	574376	2	2	289	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	84.8	YLVPU7DY;NJPKG10D
+T0344	JOTN01000004	+	Bacillus manliponensis	Firmicutes	574376	2	2	278	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	56.0	YRIVDPD;0HLEC6IA
+T0345	JOTN01000006	+	Bacillus manliponensis	Firmicutes	574376	2	2	265	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	89.2	OIOJCJKN;VSCC96DO
+T0346	JOTN01000043	+	Bacillus manliponensis	Firmicutes	574376	3	3	694	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	97.6	47GLCFL;LZV6C9I;CNBRODF
+T0347	JPUW01000001	-	Lysinibacillus sp. BF-4	Firmicutes	1473546	2	2	265	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	53.7	S5MEUEA;XIIMNKCJ
+T0348	JPVT01000200	-	Tetragenococcus muriaticus 3MR10-3	Firmicutes	1302648	2	2	276	MET	True	high	Transcriptional	transporter	text	ATP-binding component of an ABC superfamily methionine transporter	52.9	3VMMALD;ND0LSAA1
+T0349	JQBH01000008	-	Fructobacillus fructosus KCTC 3544	Firmicutes	930946	2	2	412	HIS	True	high	Transcriptional	transporter	text	ABC-type amino acid transport system, permease component	72.3	GUSC40UH;OM8KY95
+T0350	JQBS01000003	-	Carnobacterium divergens DSM 20623	Firmicutes	1449336	2	2	320	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN	61.8	XAL0HRGL;VCWLGECM
+T0351	JRUN01000063	-	Bacillus ginsengihumi	Firmicutes	363870	2	2	303	TRP	True	high	Transcriptional	unknown	none		55.7	EUGBGSBE;8GBPWJF9
+T0352	JUEI01000043	-	Paenibacillus sp. IHB B 3415	Firmicutes	867080	2	2	340	LEU	True	high	Transcriptional	biosynthesis	text	hypothetical protein;2-isopropylmalate synthase	58.7	TQCKXMZ;EGL6DN5Z
+T0353	JWHR01000007	-	Terrisporobacter othiniensis	Firmicutes	1577792	2	2	268	THR	True	high	Transcriptional	biosynthesis	text	homoserine dehydrogenase	76.8	NPXFN17Q;FJMCDWPS
+T0354	JWIR02000043	-	Quasibacillus thermotolerans	Firmicutes	1221996	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	hypothetical protein;trpE - anthranilate synthase, aminase component	54.2	QQXPUWOH;7HV2OPMD
+T0355	JXIQ01000062	+	Bacillus subterraneus	Firmicutes	285983	2	2	325	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	54.6	4MGQW95M;UF8YZOMG
+T0356	JXKD01000004	+	Enterococcus aquimarinus	Firmicutes	328396	2	2	295	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	62.2	FOVXVJSB;ELS4ZBAI
+T0357	JXKH01000004	+	Enterococcus canis	Firmicutes	214095	2	2	281	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	56.1	JXHTLR14;VPPKMF8R
+T0358	JXKM01000004	+	Enterococcus devriesei	Firmicutes	319970	2	2	351	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	65.8	ONZQ0B1Y;BVIHNBTO
+T0359	JXKQ01000003	-	Enterococcus hermanniensis	Firmicutes	249189	2	2	281	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	64.0	Y8E1SBVV;VOEWKEM9
+T0360	JXLP01000004	+	Bacillus badius	Firmicutes	1455	2	2	285	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase, aminase component	54.5	GEMVJTDT;KRFSC6QG
+T0361	JXLP01000016	+	Bacillus badius	Firmicutes	1455	2	2	261	THR	True	high	Transcriptional	aaRS	text	Threonyl-tRNA synthetase	91.6	4LF5GA;7J3FJQF1
+T0362	JXRP01000018	-	Jeotgalibacillus soli	Firmicutes	889306	2	2	274	TRP	True	high	Transcriptional	biosynthesis	text	hypothetical protein;trpE - anthranilate synthase	49.7	PTRDERB;VLGZ4MIS
+T0363	JXRR01000014	-	Jeotgalibacillus campisalis	Firmicutes	220754	2	2	282	TRP	True	high	Transcriptional	biosynthesis	text	hypothetical protein;trpE - anthranilate synthase	52.0	PTIUIAMH;3KAGFYP
+T0364	KB946285	-	Enterococcus villorum ATCC 700913	Firmicutes	1158604	2	2	274	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	52.0	JLA4GZB;UGMLDCBZ
+T0365	KB946316	-	Enterococcus haemoperoxidus ATCC BAA-382	Firmicutes	1158608	2	2	307	HIS	True	high	Transcriptional	transporter	text	His/Glu/Gln/Arg/opine family amino ABC transporter, permease, 3-TM region	60.0	RRJSJNBT;X8JYNDE
+T0366	KB946316	+	Enterococcus haemoperoxidus ATCC BAA-382	Firmicutes	1158608	2	2	328	MET	True	high	Transcriptional	unknown	none	YaeC family lipoprotein	51.6	RHNMQJW;2MRPS4QZ
+T0367	KB946328	-	Enterococcus phoeniculicola ATCC BAA-412	Firmicutes	1158610	2	2	261	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	56.4	6J0DEGYO;VO5VJU4
+T0368	KB946867	-	Enterococcus gilvus ATCC BAA-350	Firmicutes	1158614	2	2	356	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	64.2	BGLPUUQ3;WC72NZLZ
+T0369	KE136354	-	Enterococcus dispar ATCC 51266	Firmicutes	1139219	2	2	274	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	53.4	I1BFGWTV;HOAZGH2A
+T0370	KE136357	+	Enterococcus avium ATCC 14025	Firmicutes	1140002	2	2	314	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	63.8	L66988L;H7WLC6N
+T0371	KE136389	+	Enterococcus saccharolyticus subsp. saccharolyticus ATCC 43076	Firmicutes	1139996	2	2	269	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	55.7	WTH5IKEJ;XJYSDYXA
+T0372	KE136512	+	Enterococcus durans ATCC 6056	Firmicutes	1140001	2	2	277	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	53.8	7ABMRJAC;O3OKK0AB
+T0373	KE136514	+	Enterococcus durans ATCC 6056	Firmicutes	1140001	2	2	270	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	70.6	RJC3LGX;TTIOGKCO
+T0374	KI535340	-	Abiotrophia defectiva ATCC 49176	Firmicutes	592010	2	2	278	MET	True	high	Transcriptional	transporter	text	ABC transporter, ATP-binding protein	54.1	XMRM0KBR;MYSLBY3Y
+T0375	KQ758482	-	Bacillus enclensis	Firmicutes	1402860	2	2	295	TRP	True	high	Transcriptional	biosynthesis	text	hypothetical protein;trpE - anthranilate synthase subunit I	54.3	MDVP9MX;6VR0AJWE
+T0376	KQ758629	-	Bacillus sp. SGD-V-76	Firmicutes	1414648	2	2	274	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	81.6	PQKEOFU;1F4NFDG1
+T0377	LATZ01000120	-	Bacillus sp. SA1-12	Firmicutes	1455638	2	2	270	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	89.8	OO9HLOV9;AFEVDD4O
+T0378	LAYY01000011	+	Bacillus campisalis	Firmicutes	1408103	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	52.2	NYQRTT9J;QYWPAWHX
+T0379	LAZH01000041	+	Bacilli bacterium VT-13-104	Firmicutes	1637974	2	2	284	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	49.8	RHIEEAA4;W8UI195Y
+T0380	LDPH01000002	+	Bacillus circulans	Firmicutes	1397	2	2	286	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	57.8	K8QJKQX6;YTQDLXMN
+T0381	LDPH01000012	-	Bacillus circulans	Firmicutes	1397	2	2	266	THR	True	high	Transcriptional	unknown	text	hypothetical protein	76.4	S2O1LTTQ;VLJ5ANR
+T0382	LDYG01000028	-	Bacillus coahuilensis p1.1.43	Firmicutes	1150625	2	2	288	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	55.7	CYVLKQKP;YO6P3SPE
+T0383	LFVU01000028	-	Clostridium cylindrosporum DSM 605	Firmicutes	1121307	2	2	332	ILE;LEU	False	high	Transcriptional	oxidoreductase	EC	ketol-acid reductoisomerase IlvC	69.7	WXXZSEYM;QPW2JK
+T0384	LFZU01000001	+	Bacillus sp. FJAT-27231	Firmicutes	1679168	2	2	284	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	54.2	AQ1ZSZRX;3GVMOCIP
+T0385	LFZV01000001	+	Bacillus sp. FJAT-27916	Firmicutes	1679169	2	2	294	TRP	True	high	Transcriptional	unknown	text	hypothetical protein	54.6	VBEV63OE;Z8DLDOCK
+T0386	LFZW01000001	+	Bacillus loiseleuriae	Firmicutes	1679170	2	2	269	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	45.5	SNYGHA2P;ZWEGHJJM
+T0387	LGPB01000140	-	Bacillus galactosidilyticus	Firmicutes	217031	2	2	593	TRP	True	high	Transcriptional	unknown	none		45.3	UJ02PNNH;HGTMZ1UC
+T0388	LGPD01000003	+	Virgibacillus soli	Firmicutes	480284	2	2	567	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate phosphoribosyltransferase	44.9	W5EW2WJD;ZHS4YXS3
+T0389	LGPD01000039	-	Virgibacillus soli	Firmicutes	480284	2	2	523	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	85.9	JB4RP7RT;TFYK8Q
+T0390	LGTO01000007	+	Virgibacillus pantothenticus	Firmicutes	1473	2	2	356	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	45.0	XIMOEYVB;XTW7ZFY2
+T0391	LGUE01000001	+	Bacillus marisflavi	Firmicutes	189381	2	2	299	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	55.1	ENLDNAQR;U4YS7R4
+T0392	LGUG01000004	+	Aneurinibacillus migulanus	Firmicutes	47500	2	2	251	THR	True	high	Transcriptional	oxidoreductase	EC	phenylalanine 4-monooxygenase	84.8	V5XKZRKO;GAEZXZX1
+T0393	LHOX01000015	+	Enterococcus sp. RIT-PI-f	Firmicutes	1690244	2	2	282	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	54.9	WAASYFI;D4LNV2T9
+T0394	LHUR01000005	-	Clostridium homopropionicum DSM 5847	Firmicutes	1121318	2	2	267	ILE	True	high	Transcriptional	biosynthesis	EC	acetolactate synthase large subunit	78.1	V34HQFFZ;L3KKP0A
+T0395	LILC01000021	-	Bacillus koreensis	Firmicutes	284581	2	2	267	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	65.9	X5FJMG6U;S3GYOJO5
+T0396	LITN01000002	-	Bacillus sp. FJAT-21945	Firmicutes	1581033	2	2	288	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	51.7	YOXIZBNQ;SVMJ9VDP
+T0397	LIUR01000001	-	Bacillus sp. FJAT-22058	Firmicutes	1581037	2	2	266	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	53.4	JFIEFZAU;NGWFUWBF
+T0398	LIUR01000001	+	Bacillus sp. FJAT-22058	Firmicutes	1581037	3	3	505	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	89.2	DMZ3X6K;L7RH4BZ;XLHINU6I
+T0399	LIXZ01000023	-	Bacillus vietnamensis	Firmicutes	218284	2	2	294	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	54.1	MRMJVSYA;TKJAMYKP
+T0400	LJCO01000011	+	Alicyclobacillus ferrooxydans	Firmicutes	471514	2	2	264	TYR	True	high	Transcriptional	unknown	none		65.7	YSLLCALO;IF5OCDBP
+T0401	LJIZ01000013	+	Bacillus sp. FJAT-25509	Firmicutes	1712029	2	2	293	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	53.1	04NHYEOI;63IULI8G
+T0402	LJIZ01000013	+	Bacillus sp. FJAT-25509	Firmicutes	1712029	2	2	275	THR	True	high	Transcriptional	unknown	none		85.2	LWWMTXCN;UZ6NIFUF
+T0403	LJIZ01000023	+	Bacillus sp. FJAT-25509	Firmicutes	1712029	2	2	274	SER;TYR	False	high	Transcriptional	transporter	text	GABA permease (4-amino butyrate transport carrier)	72.0	SBWWNWQI;1GDEVNV8
+T0404	LJJB01000007	+	Brevibacillus choshinensis	Firmicutes	54911	2	2	313	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	65.3	ULQTIW3L;QU3LDIN3
+T0405	LJJC01000004	+	Bacillus shackletonii	Firmicutes	157838	2	2	273	TYR	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	88.8	SSPDWJT5;RJQOGYZ1
+T0406	LJJC01000015	-	Bacillus shackletonii	Firmicutes	157838	2	2	303	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	41.0	RQINH5G5;BNONV07T
+T0407	LM997412	+	Peptoniphilus sp. ING2-D1G	Firmicutes	1912856	2	1	258	ARG	True	low	Transcriptional	biosynthesis	text	Argininosuccinate synthase	100.0	QVDAJTR;RAVV6NXG
+T0408	LMSD01000001	+	Paenibacillus sp. Soil750	Firmicutes	1736398	2	2	311	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	61.7	DROVLSSX;VTYV5LC
+T0409	LMSP01000006	-	Paenibacillus sp. Soil787	Firmicutes	1736411	2	2	410	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	59.3	EQWBAHIT;K8JB4WJ
+T0410	LN831776	+	Paenibacillus riograndensis SBR5	Firmicutes	1073571	2	2	407	LEU	True	high	Transcriptional	biosynthesis	text	hypothetical protein;2-isopropylmalate synthase	40.5	MSRZAHK;BKLQOOFZ
+T0411	LNZR01000047	-	Epulopiscium sp. Nele67-Bin005	Firmicutes	1764963	2	2	375	PHE;TYR	False	high	Transcriptional	unknown	text	hypothetical protein	81.4	X85V52ZP;4CQFTZPS
+T0412	LOES01000026	-	Clostridia bacterium BRH_c25	Firmicutes	1734399	2	2	256	THR	True	high	Transcriptional	unknown	none	aspartate kinase	93.9	WGCC9RGB;3XYVOYCN
+T0413	LQQV01000076	+	Brevibacillus parabrevis	Firmicutes	54914	2	2	284	PHE	True	high	Transcriptional	unknown	text	hypothetical protein	66.2	PPFZCYBD;LAZZHRK
+T0414	LQWY01000031	-	Domibacillus aminovorans	Firmicutes	29332	2	2	287	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase subunit I	53.1	JHYK5WGC;4BWIQFNR
+T0415	LQYN01000007	+	Bacillus sporothermodurans	Firmicutes	46224	2	2	260	ARG;PHE	False	high	Transcriptional	biosynthesis	EC	Chorismate mutase (Phe/Tyr synthesis) I	73.3	TEG0MG5M;LEX3QUS4
+T0416	LQYN01000007	+	Bacillus sporothermodurans	Firmicutes	46224	2	2	293	TRP	True	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase, aminase component	53.8	REFK8KLF;TSWNOXPJ
+T0417	LR134439	+	Erysipelothrix rhusiopathiae	Firmicutes	1648	2	0	62	?	False	low	Transcriptional	aaRS	EC	Isoleucine--tRNA ligase	100.0	JKQGCTZT;FIZQ3XO
+T0418	LR738724	-	Streptococcus suis	Firmicutes	1307	2	0	122	?	False	low	Transcriptional	unknown	none		100.0	RPF0ABI;BA1GCHGG
+T0419	LS483304	+	Staphylococcus hyicus	Firmicutes	1284	2	2	209	TRP;VAL	False	high	Transcriptional	biosynthesis	EC	trpE - anthranilate synthase component I	100.0	KH3H7B4V;CQBMX94U
+T0420	LS483440	-	Gemella morbillorum	Firmicutes	29391	2	1	247	ARG	True	low	Transcriptional	unknown	none	Arginine-binding extracellular protein ArtP precursor	100.0	EHAPDUDM;KSDSGJL0
+T0421	LSFN01000044	-	Paenibacillus crassostreae	Firmicutes	1763538	2	2	369	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	57.5	ZFOGD2;SN9ZSVS
+T0422	LSFY01000001	+	[Clostridium] paradoxum JW-YL-7 = DSM 7308	Firmicutes	1121328	2	2	255	ARG	True	high	Transcriptional	transporter	text	ABC-type transporter, periplasmic subunit family 3	97.5	67KWJ8A1;T6KQCV6O
+T0423	LSRN01000001	-	Alkalibacterium sp. 20	Firmicutes	1798803	2	2	327	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	61.2	EJ4LTEWA;PADHERZK
+T0424	LT840184	+	Paenibacillus uliginis N3/975	Firmicutes	1313296	2	2	360	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	60.2	WEW5EITB;MBEPCDJR
+T0425	LTBB01000005	+	Clostridium colicanis DSM 13634	Firmicutes	1121305	2	2	288	THR	True	high	Transcriptional	oxidoreductase	EC	homoserine dehydrogenase	77.8	9PUON2PE;GM3YH2ZF
+T0426	LTDM01000013	-	Tissierella creatinophila DSM 6911	Firmicutes	1123403	2	2	254	SER	True	high	Transcriptional	oxidoreductase	EC	hydroxypyruvate reductase	93.0	BSMGBCXG;H6WIVWNW
+T0427	LWAE01000003	-	Clostridium magnum DSM 2767	Firmicutes	1121326	2	2	286	LEU	True	high	Transcriptional	oxidoreductase	EC	ketol-acid reductoisomerase	78.6	KBMRCL3;MPCYVIZT
+T0428	LWBR01000026	+	Aeribacillus pallidus	Firmicutes	33936	2	2	304	ILE;VAL	False	high	Transcriptional	biosynthesis	text	branched chain amino acid aminotransferase	77.2	CZCZNY;MODVAJ3G
+T0429	LWMN01000017	-	Enterococcus thailandicus	Firmicutes	417368	2	2	275	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	54.3	EA7IZZ;LY3B7HBV
+T0430	LWSG01000046	-	Bacillus litoralis	Firmicutes	152268	2	2	270	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	82.2	9NBNK79A;YP7TKRI
+T0431	LYPC01000028	-	Paenibacillus pectinilyticus	Firmicutes	512399	2	2	346	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	62.9	BMTZQHV8;6BSKVMET
+T0432	LZFO01000037	-	Clostridium acetireducens DSM 10703	Firmicutes	1121290	2	2	239	SER	True	high	Transcriptional	oxidoreductase	EC	hydroxypyruvate reductase	90.3	SHMUEK4E;RDGNJSYV
+T0433	MAMP01000012	-	Domibacillus iocasae	Firmicutes	1714016	2	2	259	TRP	True	high	Transcriptional	unknown	text	hypothetical protein	53.0	BOJPLCWO;8J8QTGHQ
+T0434	MAYV01000016	-	Bacillus sp. FJAT-27986	Firmicutes	1743146	2	2	292	TRP	True	high	Transcriptional	unknown	text	hypothetical protein	55.5	TWAGKTLP;6PYGDZ7C
+T0435	MBTG01000024	-	Paenibacillus ferrarius	Firmicutes	1469647	2	2	301	LEU	True	high	Transcriptional	unknown	none	methyltransferase	60.9	EXADAVW;XXDG80RW
+T0436	MDER01000027	-	Paenibacillus nuruki	Firmicutes	1886670	2	2	390	LEU	True	high	Transcriptional	biosynthesis	EC	Homocitrate synthase	57.3	MNRCWKAH;EMUJOQLQ
+T0437	MIEK01000001	+	Enterococcus rivorum	Firmicutes	762845	2	2	275	HIS	True	high	Transcriptional	transporter	text	amino acid ABC transporter permease	65.2	DIFGZK;7SPCZN
+T0438	MIEK01000034	-	Enterococcus rivorum	Firmicutes	762845	2	2	279	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	52.1	W3ZZUTD;ZCOHSMSL
+T0439	MIJY01000001	+	Enterococcus termitis	Firmicutes	332950	2	2	300	MET	True	high	Transcriptional	transporter	text	methionine ABC transporter ATP-binding protein	54.6	NV8OAWIS;COVDQA
+T0440	MIJY01000003	-	Enterococcus termitis	Firmicutes	332950	2	2	368	HIS	True	high	Transcriptional	transporter	text	amino acid ABC transporter permease	62.0	5XTFQXSV;QSQSBSIK
+T0441	MLBF01000059	+	Desulfosporosinus sp. OL	Firmicutes	1888891	2	2	312	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase, aminase component	94.8	KMJMXOV;K5GQI7N9
+T0442	MLYQ01000088	-	Bacillus sp. MUM 13	Firmicutes	1678001	2	2	424	TRP	True	high	Transcriptional	biosynthesis	text	hypothetical protein;trpE - anthranilate synthase component I	58.9	NFA2YGDS;EIDCRFKJ
+T0443	MLYR01000110	-	Bacillus sp. MUM 116	Firmicutes	1678002	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	54.1	3WDQQTYU;DB9X1HMB
+T0444	MNJJ01000215	+	Ktedonobacter sp. 13_1_20CM_3_54_15	Chloroflexi	1805224	2	2	330	LYS	True	high	Transcriptional	unknown	none	lysine biosynthesis protein LysW;lysine biosynthesis enzyme LysX	87.7	4LYU1SRI;64B1TDP
+T0445	MPHG01000148	-	Bacillus obstructivus	Firmicutes	1914540	2	2	292	THR	True	high	Transcriptional	aaRS	text	threonine--tRNA ligase	77.7	POIIHHV6;U4NQ5P33
+T0446	MPHG01000332	+	Bacillus obstructivus	Firmicutes	1914540	2	2	296	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	54.0	RYXDTA8K;YS2GGCG
+T0447	MPHG01000335	+	Bacillus obstructivus	Firmicutes	1914540	2	2	283	PHE	True	high	Transcriptional	biosynthesis	text	Chorismate mutase (Phe/Tyr synthesis)	81.1	Q6AUOQFG;4OTFMZUK
+T0448	MRTH01000025	-	Paenibacillus sp. FSL H7-0331	Firmicutes	1920421	2	2	344	LEU	True	high	Transcriptional	biosynthesis	text	2-isopropylmalate synthase	65.1	7JOORLJU;M8EMG8OE
+T0449	MSDU01000017	-	Domibacillus antri	Firmicutes	1714264	2	2	262	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	54.0	VOJWYFHG;ASZBHRQI
+T0450	MSLS01000034	+	Bacillus sp. MRMR6	Firmicutes	1928617	2	2	290	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	51.7	IA8OZ8ET;3IEHLM6B
+T0451	MSRF01000049	+	Bacillus sp. VT-16-64	Firmicutes	1917019	2	2	281	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate phosphoribosyltransferase	51.3	QV7MICZP;YZ5PKFXE
+T0452	MSRF01000252	+	Bacillus sp. VT-16-64	Firmicutes	1917019	2	2	283	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	54.1	8JJCUYXZ;FWPHMDM
+T0453	MSZX01000012	-	Paenibacillus selenitireducens	Firmicutes	1324314	2	2	330	LEU	True	high	Transcriptional	biosynthesis	text	hypothetical protein;2-isopropylmalate synthase	65.5	E3Y3IS0K;OCIAZP0U
+T0454	MZGW01000001	+	[Clostridium] thermoalcaliphilum	Firmicutes	29349	2	2	284	ARG	True	high	Transcriptional	unknown	none	arginine-binding extracellular protein ArtP precursor	97.1	LPGNYQS;IRPCDAZE
+T0455	MZGW01000002	+	[Clostridium] thermoalcaliphilum	Firmicutes	29349	2	2	255	ARG	True	high	Transcriptional	biosynthesis	text	argininosuccinate synthase	98.7	IE6TE4CC;NIRWESFG
+T0456	NGKU01000001	+	Enterococcus sp. 8G7_MSG3316	Firmicutes	1834191	2	2	297	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	51.5	XO0LD6LY;IU7MOGG6
+T0457	NGKU01000001	+	Enterococcus sp. 8G7_MSG3316	Firmicutes	1834191	2	2	311	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	55.6	ZOC3WLRB;5CUVZC4T
+T0458	NGKX01000001	-	Enterococcus sp. 7F3_DIV0205	Firmicutes	1834189	2	2	311	MET	True	high	Transcriptional	unknown	text	hypothetical protein	54.1	JS2XFVWG;TEGPAAPJ
+T0459	NGKX01000001	+	Enterococcus sp. 7F3_DIV0205	Firmicutes	1834189	2	2	376	HIS	True	high	Transcriptional	transporter	text	amino acid ABC transporter permease	60.6	HZ9TY0SH;UY5BV2JS
+T0460	NGLE01000001	-	Enterococcus sp. 4G2_DIV0659	Firmicutes	1834181	2	2	307	HIS	True	high	Transcriptional	transporter	text	amino acid ABC transporter permease	63.2	0UNVUA0X;STMOHAQC
+T0461	NGLE01000001	+	Enterococcus sp. 4G2_DIV0659	Firmicutes	1834181	2	2	282	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	53.5	R1V4N3V8;VPYSV4RQ
+T0462	NGLL01000001	+	Enterococcus sp. 2G9_DIV0600	Firmicutes	1834173	2	2	280	TRP	True	high	Transcriptional	biosynthesis	text	trpE - anthranilate synthase component I	57.7	P2WTRPKZ;SQPI87UB
+T0463	NGMM01000003	+	Enterococcus sp. 9E7_DIV0242	Firmicutes	1834193	2	2	299	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	50.3	ASYYPMYT;X6JDRQOQ
+T0464	NGMO01000003	-	Enterococcus sp. 10A9_DIV0425	Firmicutes	1987383	2	2	269	MET	True	high	Transcriptional	transporter	text	ABC transporter ATP-binding protein	54.8	UHVACR9B;HJSYHFI
+T0465	NGMT01000002	+	Enterococcus sp. 6C8_DIV0013	Firmicutes	1987385	2	2	281	MET	True	high	Transcriptional	transporter	text	methionine import ATP-binding protein MetN 1	55.4	LI18LODK;QMBZNLP
+T0466	NIBQ01000002	-	Enterococcus sp. 9D6_DIV0238	Firmicutes	1834192	2	2	296	HIS	True	high	Transcriptional	transporter	text	amino acid ABC transporter permease	61.1	ZVU8KHAS;P4WMEAJV
+T0467	NIBQ01000002	+	Enterococcus sp. 9D6_DIV0238	Firmicutes	1834192	2	2	302	MET	True	high	Transcriptional	unknown	text	hypothetical protein	54.1	D4W9WKEI;3H04SUZQ
+T0468	NIQC01000002	-	Natranaerobius trueperi	Firmicutes	759412	2	2	257	ARG	True	high	Transcriptional	unknown	text	hypothetical protein;ornithine carbamoyltransferase	60.3	U9ONBVJ2;KRLL7KKW
+T0469	NZ_LT607411	+	Micromonospora viridifaciens	Actinobacteria	1881	2	0	91	?	False	low	Translational	aaRS	EC	aspartate--tRNA(Asn) ligase	100.0	BI5GZT6;VU6WQSXG
+T0470	NZ_LT607752	+	Micromonospora rifamycinica	Actinobacteria	291594	2	1	69	?	False	low	Translational	aaRS	EC	aspartate--tRNA(Asn) ligase	100.0	A4MFFRSA;NBYAYCF
