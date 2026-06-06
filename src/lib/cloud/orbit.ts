@@ -100,6 +100,44 @@ export function orbitZoom(orbit: Orbit, factor: number): Orbit {
 }
 
 /**
+ * Zoom by `factor` toward the CURSOR instead of the centre: the world point on the
+ * focal plane under the cursor stays fixed on screen, so you dolly into whatever you
+ * point at. `ndcX`/`ndcY` are the cursor in normalized device coords (−1..1, y up);
+ * (0, 0) reduces exactly to `orbitZoom`. Distance is clamped, and the target shift uses
+ * the EFFECTIVE (post-clamp) factor, so the pivot never drifts once zoom is pinned at a
+ * limit. (Derivation: a focal-plane point at offset `e` from the target projects to
+ * `e / (distance·tan(fov/2))`; scaling distance by `eff` and moving the target by
+ * `(1−eff)·e` leaves that projection unchanged.)
+ */
+export function orbitZoomToCursor(
+  orbit: Orbit,
+  factor: number,
+  ndcX: number,
+  ndcY: number,
+  fovDeg: number,
+  aspect: number,
+): Orbit {
+  const newDistance = clampDistance(orbit.distance * factor)
+  const eff = orbit.distance > 0 ? newDistance / orbit.distance : 1
+  // Cursor offset from the target on the focal plane (world units), in the camera basis.
+  const halfH = orbit.distance * Math.tan(((fovDeg * Math.PI) / 180) / 2)
+  const halfW = halfH * aspect
+  const ex = ndcX * halfW
+  const ey = ndcY * halfH
+  const { right, up } = cameraBasis(orbit)
+  const shift = 1 - eff // move the target toward the cursor point to keep it screen-fixed
+  return {
+    ...orbit,
+    distance: newDistance,
+    target: {
+      x: orbit.target.x + shift * (right.x * ex + up.x * ey),
+      y: orbit.target.y + shift * (right.y * ex + up.y * ey),
+      z: orbit.target.z + shift * (right.z * ex + up.z * ey),
+    },
+  }
+}
+
+/**
  * Pan the target in screen space by `(dx, dy)` (world units along the camera basis):
  * moving the pointer right slides the scene right (target moves −right), moving it
  * down slides the scene down (target moves +up). Returns a NEW orbit.
@@ -112,6 +150,107 @@ export function orbitPan(orbit: Orbit, dx: number, dy: number): Orbit {
       x: orbit.target.x - right.x * dx + up.x * dy,
       y: orbit.target.y - right.y * dx + up.y * dy,
       z: orbit.target.z - right.z * dx + up.z * dy,
+    },
+  }
+}
+
+// ── Auto-framing (pivot on the cloud, not the world origin) ───────────────────────
+// The PCoA embedding is centred on the origin only for the FULL element set; the
+// locus-centroid view and the antiterminator (fallback) embedding sit off-origin, and
+// every view has a lone far-divergence outlier streaking to the ±scale edge. Orbiting
+// the world origin therefore swings the visible mass lopsidedly and frames it from too
+// far out. These helpers pivot on the rendered points' centre of mass and pick a
+// distance that fills the view with the dense core (a robust radius), so a far outlier
+// doesn't shrink everything else to a speck. All pure + unit-tested.
+
+/** A point with x/y/z (renderable). */
+interface XYZ {
+  x: number
+  y: number
+  z: number
+}
+
+/** Centre of mass (mean position) of a set of points; the origin for an empty set. */
+export function centroidOf(points: ReadonlyArray<XYZ>): Vec3 {
+  const n = points.length
+  if (n === 0) return { x: 0, y: 0, z: 0 }
+  let x = 0
+  let y = 0
+  let z = 0
+  for (const p of points) {
+    x += p.x
+    y += p.y
+    z += p.z
+  }
+  return { x: x / n, y: y / n, z: z / n }
+}
+
+/** The `pct`-quantile (0..1) of distance from `centre` — a radius that ignores the
+ *  long tail so a single far outlier can't blow up the framing. */
+export function robustRadius(points: ReadonlyArray<XYZ>, centre: Vec3, pct = 0.95): number {
+  if (points.length === 0) return 0
+  const ds = points
+    .map((p) => Math.hypot(p.x - centre.x, p.y - centre.y, p.z - centre.z))
+    .sort((a, b) => a - b)
+  const q = Math.min(1, Math.max(0, pct))
+  const idx = Math.min(ds.length - 1, Math.max(0, Math.round(q * (ds.length - 1))))
+  return ds[idx]
+}
+
+/** An outlier-RESISTANT centre: the centre of mass of just the dense core (the points
+ *  within the `pct`-radius of the plain mean). This matches `robustRadius` so the pivot
+ *  sits ON the core rather than being dragged by a lone far outlier into the empty gap
+ *  between the core and that outlier — the exact "feels off-centre" failure mode. */
+export function robustCenter(points: ReadonlyArray<XYZ>, pct = 0.95): Vec3 {
+  if (points.length === 0) return { x: 0, y: 0, z: 0 }
+  const mean = centroidOf(points)
+  const r = robustRadius(points, mean, pct)
+  const core = points.filter((p) => Math.hypot(p.x - mean.x, p.y - mean.y, p.z - mean.z) <= r)
+  return centroidOf(core.length > 0 ? core : points)
+}
+
+/** Camera distance that frames a sphere of `radius` for a perspective camera of
+ *  vertical fov `fovDeg` at `aspect` (w/h). Uses the binding (smaller) of the
+ *  vertical/horizontal half-angles so a portrait viewport still fits, plus `margin`
+ *  breathing room. Clamped to the legal distance range. */
+export function framingDistance(radius: number, fovDeg: number, aspect: number, margin = 1): number {
+  const vHalf = ((fovDeg * Math.PI) / 180) / 2
+  const hHalf = Math.atan(Math.tan(vHalf) * Math.max(aspect, 1e-4))
+  const half = Math.max(Math.min(vHalf, hHalf), 1e-4)
+  return clampDistance((radius / Math.sin(half)) * margin)
+}
+
+/** Frame a point set: pivot the target on its centroid and pick a distance that fills
+ *  the view with the dense core. Returns the `target` + `distance` only — the caller
+ *  keeps the current azimuth/polar (a reframe re-centres without re-orienting). */
+export function framePoints(
+  points: ReadonlyArray<XYZ>,
+  fovDeg: number,
+  aspect: number,
+  opts: { pct?: number; margin?: number } = {},
+): { target: Vec3; distance: number } {
+  const pct = opts.pct ?? 0.95
+  const target = robustCenter(points, pct) // pivot on the core, consistent with the radius
+  const radius = robustRadius(points, target, pct)
+  const distance = framingDistance(Math.max(radius, 1), fovDeg, aspect, opts.margin ?? 1.4)
+  return { target, distance }
+}
+
+/** Ease `current` toward `target` by fraction `alpha` (0..1) each frame — a smooth,
+ *  framerate-light follow for orbit/zoom/pan (the OrbitControls "damping" feel).
+ *  `alpha = 1` snaps (used under prefers-reduced-motion). Azimuth is lerped directly:
+ *  callers advance current + target together, so their gap stays small (no wrap). */
+export function dampOrbit(current: Orbit, target: Orbit, alpha: number): Orbit {
+  const a = Math.min(1, Math.max(0, alpha))
+  const lerp = (x: number, y: number): number => x + (y - x) * a
+  return {
+    azimuth: lerp(current.azimuth, target.azimuth),
+    polar: clampPolar(lerp(current.polar, target.polar)),
+    distance: lerp(current.distance, target.distance),
+    target: {
+      x: lerp(current.target.x, target.target.x),
+      y: lerp(current.target.y, target.target.y),
+      z: lerp(current.target.z, target.target.z),
     },
   }
 }

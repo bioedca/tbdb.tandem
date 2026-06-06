@@ -6,16 +6,23 @@ import { describe, expect, test } from 'vitest'
 import {
   cameraBasis,
   cameraPosition,
+  centroidOf,
   clampDistance,
   clampPolar,
+  dampOrbit,
   defaultOrbit,
+  framePoints,
+  framingDistance,
   MAX_DISTANCE,
   MIN_DISTANCE,
   type Orbit,
   orbitPan,
   orbitRotate,
   orbitZoom,
+  orbitZoomToCursor,
   POLAR_EPSILON,
+  robustCenter,
+  robustRadius,
 } from '../../../src/lib/cloud/orbit'
 
 const base = (over: Partial<Orbit> = {}): Orbit => ({
@@ -68,6 +75,50 @@ describe('clamping', () => {
   })
 })
 
+describe('orbitZoomToCursor (dolly toward the pointer)', () => {
+  const fovDeg = 45
+  const aspect = 1.6
+  test('a centred cursor (0,0) reduces to a plain zoom — target unchanged', () => {
+    const o = base({ azimuth: 0.7, polar: 1.1, distance: 100, target: { x: 5, y: -2, z: 3 } })
+    const out = orbitZoomToCursor(o, 0.5, 0, 0, fovDeg, aspect)
+    expect(out.distance).toBeCloseTo(orbitZoom(o, 0.5).distance)
+    expect(out.target.x).toBeCloseTo(o.target.x)
+    expect(out.target.y).toBeCloseTo(o.target.y)
+    expect(out.target.z).toBeCloseTo(o.target.z)
+  })
+  test('keeps the world point under the cursor screen-fixed (the dolly-to-cursor invariant)', () => {
+    const o = base({ azimuth: 0.7, polar: 1.1, distance: 100, target: { x: 5, y: -2, z: 3 } })
+    const ndcX = 0.4
+    const ndcY = -0.3
+    // The world point H on the focal plane under the cursor (in the camera basis).
+    const { right, up } = cameraBasis(o)
+    const halfH = o.distance * Math.tan(((fovDeg * Math.PI) / 180) / 2)
+    const halfW = halfH * aspect
+    const H = {
+      x: o.target.x + ndcX * halfW * right.x + ndcY * halfH * up.x,
+      y: o.target.y + ndcX * halfW * right.y + ndcY * halfH * up.y,
+      z: o.target.z + ndcX * halfW * right.z + ndcY * halfH * up.z,
+    }
+    const out = orbitZoomToCursor(o, 0.5, ndcX, ndcY, fovDeg, aspect)
+    // Azimuth/polar are unchanged, so the basis is the same; re-project H under the new
+    // distance/target and confirm its NDC is still (ndcX, ndcY).
+    const halfH2 = out.distance * Math.tan(((fovDeg * Math.PI) / 180) / 2)
+    const dx = H.x - out.target.x
+    const dy = H.y - out.target.y
+    const dz = H.z - out.target.z
+    const projX = (dx * right.x + dy * right.y + dz * right.z) / (halfH2 * aspect)
+    const projY = (dx * up.x + dy * up.y + dz * up.z) / halfH2
+    expect(projX).toBeCloseTo(ndcX)
+    expect(projY).toBeCloseTo(ndcY)
+  })
+  test('clamped zoom pins the target (no drift once distance hits a limit)', () => {
+    const o = base({ distance: MIN_DISTANCE, target: { x: 1, y: 2, z: 3 } })
+    const out = orbitZoomToCursor(o, 0.0001, 0.5, 0.5, fovDeg, aspect)
+    expect(out.distance).toBe(MIN_DISTANCE)
+    expect(out.target).toEqual(o.target) // eff = 1 ⇒ zero shift
+  })
+})
+
 describe('cameraBasis + orbitPan', () => {
   test('basis vectors are orthonormal', () => {
     const { right, up, forward } = cameraBasis(base({ azimuth: 0.7, polar: 1.1 }))
@@ -97,5 +148,138 @@ describe('defaultOrbit', () => {
     expect(o.polar).toBe(clampPolar(o.polar))
     expect(o.distance).toBe(clampDistance(o.distance))
     expect(o.target).toEqual({ x: 0, y: 0, z: 0 })
+  })
+})
+
+describe('centroidOf (centre of mass)', () => {
+  test('averages the coordinates', () => {
+    const c = centroidOf([
+      { x: 0, y: 0, z: 0 },
+      { x: 2, y: 4, z: 6 },
+      { x: 4, y: 8, z: 12 },
+    ])
+    expect(c).toEqual({ x: 2, y: 4, z: 6 })
+  })
+  test('an empty set centres on the origin', () => {
+    expect(centroidOf([])).toEqual({ x: 0, y: 0, z: 0 })
+  })
+})
+
+describe('robustRadius (outlier-resistant framing radius)', () => {
+  // A dense unit-radius core plus one far outlier: the p95 radius tracks the core,
+  // NOT the outlier — so framing fills the view with the bulk, not the speck.
+  const centre = { x: 0, y: 0, z: 0 }
+  const core = Array.from({ length: 20 }, (_, i) => ({ x: Math.cos(i), y: Math.sin(i), z: 0 }))
+  const withOutlier = [...core, { x: 1000, y: 0, z: 0 }]
+  test('ignores a lone far outlier at p95', () => {
+    expect(robustRadius(withOutlier, centre, 0.95)).toBeCloseTo(1, 5)
+  })
+  test('p100 (max) DOES include the outlier', () => {
+    expect(robustRadius(withOutlier, centre, 1)).toBeCloseTo(1000)
+  })
+  test('an empty set has radius 0', () => {
+    expect(robustRadius([], centre)).toBe(0)
+  })
+})
+
+describe('framingDistance', () => {
+  test('a wider fov needs less distance to fit the same radius', () => {
+    const near = framingDistance(50, 90, 1, 1)
+    const far = framingDistance(50, 30, 1, 1)
+    expect(far).toBeGreaterThan(near)
+  })
+  test('a portrait (narrow) aspect pushes the camera further back', () => {
+    const landscape = framingDistance(50, 45, 2, 1)
+    const portrait = framingDistance(50, 45, 0.5, 1)
+    expect(portrait).toBeGreaterThan(landscape)
+  })
+  test('margin scales distance linearly (within the clamp range)', () => {
+    const base = framingDistance(50, 45, 1, 1)
+    const roomy = framingDistance(50, 45, 1, 1.5)
+    expect(roomy).toBeCloseTo(base * 1.5)
+  })
+  test('result is clamped into the legal distance range', () => {
+    expect(framingDistance(0.0001, 45, 1, 1)).toBe(MIN_DISTANCE)
+    expect(framingDistance(1e6, 45, 1, 1)).toBe(MAX_DISTANCE)
+  })
+})
+
+describe('robustCenter (outlier-resistant centre of mass)', () => {
+  // A dense ring core centred at (-4,0,0) plus one far outlier: the plain mean is
+  // dragged toward the outlier, but the robust centre stays ON the core.
+  const ring = Array.from({ length: 40 }, (_, i) => {
+    const t = (2 * Math.PI * i) / 40
+    return { x: -4 + 8 * Math.cos(t), y: 8 * Math.sin(t), z: 0 }
+  })
+  const pts = [...ring, { x: 200, y: 0, z: 0 }]
+  test('stays on the core where the plain mean is pulled toward the outlier', () => {
+    const robust = robustCenter(pts, 0.95)
+    const mean = centroidOf(pts)
+    expect(mean.x).toBeGreaterThan(0) // mean is dragged right by the outlier
+    expect(robust.x).toBeLessThan(-2) // robust centre sits back on the core (~ −4)
+    // …and is much closer to the true core centre (−4) than the mean is.
+    expect(Math.abs(robust.x - -4)).toBeLessThan(Math.abs(mean.x - -4))
+  })
+  test('an empty set centres on the origin', () => {
+    expect(robustCenter([])).toEqual({ x: 0, y: 0, z: 0 })
+  })
+  test('with no outliers it equals the plain mean', () => {
+    expect(robustCenter(ring, 0.95)).toEqual(centroidOf(ring))
+  })
+})
+
+describe('framePoints (pivot on the core, frame the core)', () => {
+  // A realistic view: a dense core (many points on a radius-8 ring around (-4,0,0))
+  // plus ONE far-divergence outlier — mirroring the real embedding (a tight bulk + a
+  // lone point streaking to the ±scale edge among hundreds).
+  const ring = Array.from({ length: 40 }, (_, i) => {
+    const t = (2 * Math.PI * i) / 40
+    return { x: -4 + 8 * Math.cos(t), y: 8 * Math.sin(t), z: 0 }
+  })
+  const pts = [...ring, { x: 200, y: 0, z: 0 }]
+
+  test('pivots on the dense core (robust centre), NOT pulled toward the outlier', () => {
+    const { target } = framePoints(pts, 45, 1.5)
+    expect(target).toEqual(robustCenter(pts, 0.95))
+    expect(target.x).toBeLessThan(-2) // on the core (~ −4), not in the gap toward +200
+  })
+  test('frames the dense core, not the lone outlier', () => {
+    const { distance } = framePoints(pts, 45, 1.5)
+    // Far less than the distance the 200-unit outlier alone would demand.
+    expect(distance).toBeLessThan(framingDistance(200, 45, 1.5, 1.4) / 3)
+    expect(distance).toBeGreaterThanOrEqual(MIN_DISTANCE)
+  })
+})
+
+describe('dampOrbit (per-frame easing toward the input orbit)', () => {
+  const a = (over: Partial<Orbit> = {}): Orbit => base(over)
+  test('alpha 1 snaps exactly to the target', () => {
+    const cur = a({ azimuth: 0, polar: 1, distance: 100, target: { x: 0, y: 0, z: 0 } })
+    const tgt = a({ azimuth: 2, polar: 1.4, distance: 300, target: { x: 5, y: 6, z: 7 } })
+    const out = dampOrbit(cur, tgt, 1)
+    expect(out.azimuth).toBeCloseTo(2)
+    expect(out.polar).toBeCloseTo(1.4)
+    expect(out.distance).toBeCloseTo(300)
+    expect(out.target).toEqual({ x: 5, y: 6, z: 7 })
+  })
+  test('alpha 0 holds the current orbit', () => {
+    const cur = a({ azimuth: 0.3, distance: 120 })
+    expect(dampOrbit(cur, a({ azimuth: 9, distance: 999 }), 0)).toEqual(cur)
+  })
+  test('alpha 0.5 moves halfway and clamps polar', () => {
+    const cur = a({ azimuth: 0, polar: Math.PI / 2, distance: 100 })
+    const tgt = a({ azimuth: 1, polar: Math.PI / 2, distance: 200 })
+    const out = dampOrbit(cur, tgt, 0.5)
+    expect(out.azimuth).toBeCloseTo(0.5)
+    expect(out.distance).toBeCloseTo(150)
+    expect(out.polar).toBe(clampPolar(out.polar))
+  })
+  test('repeated easing converges onto the target', () => {
+    let cur = a({ azimuth: 0, polar: 0.5, distance: 100, target: { x: 0, y: 0, z: 0 } })
+    const tgt = a({ azimuth: 2, polar: 1.2, distance: 400, target: { x: 10, y: -4, z: 2 } })
+    for (let i = 0; i < 200; i++) cur = dampOrbit(cur, tgt, 0.22)
+    expect(cur.azimuth).toBeCloseTo(2, 3)
+    expect(cur.distance).toBeCloseTo(400, 3)
+    expect(cur.target.x).toBeCloseTo(10, 3)
   })
 })
