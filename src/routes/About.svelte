@@ -77,12 +77,26 @@
     <div class="space-y-3 text-body leading-relaxed">
       <p>
         A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in the 5′
-        leader of a bacterial mRNA. It binds one specific tRNA and senses whether that tRNA is charged
-        with its amino acid: when the amino acid is scarce (the tRNA is uncharged), the T-box switches
-        its downstream gene <strong class="font-medium text-ink">on</strong>. The amino acid each T-box
-        responds to is its <em>specifier</em>. A <strong class="font-medium text-ink">tandem</strong> locus
-        stacks two or more complete T-box units in the same leader, regulating the same downstream gene
-        or operon.
+        leader of a bacterial mRNA. It binds one cognate tRNA and senses whether that tRNA is charged
+        with its amino acid: when the amino acid is scarce, the uncharged tRNA stabilizes an
+        <em>antiterminator</em> that lets transcription read through, switching the downstream gene
+        <strong class="font-medium text-ink">on</strong>; otherwise a <em>terminator</em> hairpin forms
+        and the gene stays off. Which tRNA a T-box reads is fixed by a codon-like <em>specifier</em> in
+        its Stem&nbsp;I, so each T-box is named for the amino acid it senses. Originally described in
+        <em>Bacillus subtilis</em>, T-boxes were the first riboswitch family to be discovered
+        (<TbdbLink href="https://doi.org/10.1093/nar/gkaa721">Marchand et al., 2021</TbdbLink>) and are
+        the most widespread RNA-based amino-acid sensors in the Firmicutes
+        (<TbdbLink href="https://doi.org/10.1128/MMBR.00026-08">Gutiérrez-Preciado et al., 2009</TbdbLink>).
+      </p>
+      <p>
+        A <strong class="font-medium text-ink">tandem</strong> locus stacks two or more complete T-box
+        elements in the same leader, all regulating the same downstream gene or operon. Tandem copies
+        extend the switch's regulatory range — each element must independently capture an uncharged tRNA
+        to permit read-through — and are expected to give tighter control than a single T-box. Such
+        arrangements were systematically surveyed across bacterial genomes by
+        <TbdbLink href="https://doi.org/10.1261/rna.819308">Vitreschak et al., 2008</TbdbLink>
+        and catalogued in the T-box review of
+        <TbdbLink href="https://doi.org/10.1128/MMBR.00026-08">Gutiérrez-Preciado et al., 2009</TbdbLink>.
       </p>
       <p>
         tbdb.tandem is a companion to {@render code('tbdb.io')} focused on the
@@ -386,13 +400,34 @@ python3 reproduce_tandem_tbox_db.py \
         the CC-BY license. tbdb.tandem adds only the tandem-level views and layout; the underlying
         annotations are TBDB's.
       </p>
-      <p class="rounded-md border border-hairline bg-surface px-4 py-3 text-small">
-        Marchand, Pierson Smela, Jordan, Narasimhan &amp; Church (2021). <em
-          >TBDB: a database of structurally annotated T-box riboswitch:tRNA pairs.</em
-        >
-        Nucleic Acids Research 49(D1):D229–D235.
-        <TbdbLink href="https://doi.org/10.1093/nar/gkaa721">doi:10.1093/nar/gkaa721</TbdbLink>
+      <p>
+        If you use this resource, please cite the TBDB database paper — the data source — together with
+        the foundational analyses of the T-box mechanism and its tandem arrangement:
       </p>
+      <ul class="space-y-2">
+        <li class="rounded-md border border-hairline bg-surface px-4 py-3 text-small">
+          Marchand, Pierson Smela, Jordan, Narasimhan &amp; Church (2021). <em
+            >TBDB: a database of structurally annotated T-box riboswitch:tRNA pairs.</em
+          >
+          Nucleic Acids Research 49(D1):D229–D235.
+          <TbdbLink href="https://doi.org/10.1093/nar/gkaa721">doi:10.1093/nar/gkaa721</TbdbLink>
+        </li>
+        <li class="rounded-md border border-hairline bg-surface px-4 py-3 text-small">
+          Vitreschak, Mironov, Lyubetsky &amp; Gelfand (2008). <em
+            >Comparative genomic analysis of T-box regulatory systems in bacteria.</em
+          >
+          RNA 14(4):717–735.
+          <TbdbLink href="https://doi.org/10.1261/rna.819308">doi:10.1261/rna.819308</TbdbLink>
+        </li>
+        <li class="rounded-md border border-hairline bg-surface px-4 py-3 text-small">
+          Gutiérrez-Preciado, Henkin, Grundy, Yanofsky &amp; Merino (2009). <em
+            >Biochemical features and functional implications of the RNA-based T-box regulatory
+            mechanism.</em
+          >
+          Microbiology and Molecular Biology Reviews 73(1):36–61.
+          <TbdbLink href="https://doi.org/10.1128/MMBR.00026-08">doi:10.1128/MMBR.00026-08</TbdbLink>
+        </li>
+      </ul>
       <p class="text-small text-muted">
         For citation guidance see <TbdbLink href="https://tbdb.io/citing.html"
           >tbdb.io/citing.html</TbdbLink
@@ -423,7 +458,8 @@ python3 reproduce_tandem_tbox_db.py \
       <div>
         <dt class="font-medium text-ink">Stem I</dt>
         <dd class="text-muted">
-          The specifier-presenting structural element; its sequence drives the similarity map.
+          The structural element that presents the specifier codon to the cognate tRNA's anticodon; its
+          sequence drives the similarity map.
         </dd>
       </div>
       <div>
