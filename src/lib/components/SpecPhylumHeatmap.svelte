@@ -34,9 +34,28 @@
     store.status === 'ready' ? buildSpecPhylumHeatmap(store.loci, store.selected) : null,
   )
 
+  // Floor cell size (px) so cells stay legible/tappable on a phone (§4.3). Below the
+  // resulting min-width the plot scrolls horizontally instead of squeezing ~25 specifier
+  // columns into 360px.
+  const MIN_CELL_PX = 16
+  // Reflow-free scroll min-width derived from the data + the MEASURED widest phylum label
+  // (pretext) rather than a magic constant, so it tracks the real font/dataset: enough room
+  // for the y-axis label reserve plus a legible cell per specifier column. On desktop the
+  // container is wider than this, so it never binds (no scroll); on a phone it engages.
+  const heatmapMinW = $derived.by<number>(() => {
+    const g = grid
+    if (!g) return 0
+    const labelFont = `10px ${fontFamily.mono}`
+    let labelMax = 0
+    for (const p of g.phyla) labelMax = Math.max(labelMax, naturalWidthPx(p, labelFont))
+    const marginL = Math.min(labelMax + 10, 128)
+    return Math.round(marginL + g.specifiers.length * MIN_CELL_PX + 16)
+  })
+
   // ── Plotly (dynamically imported; §7.1) ─────────────────────────────────────────
   let plotly = $state<PlotlyStatic | null>(null)
   let el: HTMLDivElement
+  let scrollWrap: HTMLDivElement
   let bound = false
   // Live container width (debounced) so the render effect can adapt the left margin,
   // tick font, and phylum-label truncation to the available space (responsive).
@@ -194,18 +213,21 @@
     // Track the container width (debounced) so a width-tier crossing re-issues the
     // layout with adapted margins/labels. fitOnResize handles the smooth width refit
     // in between; this only fires when the discrete tier inputs actually change.
-    containerW = el?.clientWidth ?? 0
+    // Track the WRAPPER width (the viewport-bound scroll box), not `el` — `el` is pinned to
+    // `heatmapMinW` when it overflows on a phone, so observing it would peg containerW to that
+    // min-width and the phone ('sm') width tier (tighter margins/fonts) could never apply.
+    containerW = scrollWrap?.clientWidth ?? el?.clientWidth ?? 0
     let resizeTimer: ReturnType<typeof setTimeout> | undefined
     let ro: ResizeObserver | null = null
-    if (typeof ResizeObserver !== 'undefined' && el) {
+    if (typeof ResizeObserver !== 'undefined' && scrollWrap) {
       ro = new ResizeObserver((entries) => {
-        const w = entries[0]?.contentRect.width ?? el.clientWidth
+        const w = entries[0]?.contentRect.width ?? scrollWrap.clientWidth
         clearTimeout(resizeTimer)
         resizeTimer = setTimeout(() => {
           containerW = w
         }, 150)
       })
-      ro.observe(el)
+      ro.observe(scrollWrap)
     }
     return () => {
       disposed = true
@@ -220,8 +242,14 @@
   title="Specifier × phylum"
   subtitle="Loci by specifier amino acid (the amino acid each T-box senses) and phylum. The dataset is strongly Firmicutes-dominated (454/470 Firmicutes), so cells use a neutral grey ramp and the 16 non-Firmicutes loci stand out. Click a cell to cross-filter."
 >
-  <div class="relative h-[clamp(17rem,44vh,24rem)] w-full">
-    <div bind:this={el} class="h-full w-full"></div>
+  <!-- overflow-x-auto + a measured min-width: on a phone the cells keep a tappable size
+       and the plot scrolls horizontally; on desktop the min never binds, so it fills. -->
+  <div bind:this={scrollWrap} class="relative h-[clamp(17rem,44vh,24rem)] w-full overflow-x-auto">
+    <div
+      bind:this={el}
+      class="h-full w-full"
+      style:min-width={heatmapMinW > 0 ? `${heatmapMinW}px` : undefined}
+    ></div>
     {#if store.status !== 'ready'}
       <div class="absolute inset-0 grid place-items-center">
         {#if store.status === 'error'}

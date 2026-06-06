@@ -186,6 +186,10 @@
         zeroline: false,
         fixedrange: true,
         constrain: 'domain',
+        // The matrix is square (scaleanchor below), so on a wide column its domain is
+        // height-bound; center it horizontally (§4.5) so any slack is symmetric padding
+        // rather than a single empty gap on the right.
+        constraintoward: 'center',
       },
       yaxis: {
         autorange: 'reversed',
@@ -237,7 +241,7 @@
         <h3 class="text-small font-medium text-ink">Specifier (per locus)</h3>
         <InfoTip term="specifier" />
       </div>
-      <div bind:this={barEl} class="h-[clamp(18rem,46vh,26rem)] w-full"></div>
+      <div bind:this={barEl} class="h-[clamp(18rem,46vh,26rem)] w-full 2xl:h-[clamp(26rem,40vh,40rem)]"></div>
       <p class="mt-2 text-caption text-muted">
         Each locus counted once by its overall specifier; mixed loci appear as
         <span class="font-mono">A;B</span> (e.g. ILE;LEU).
@@ -253,7 +257,7 @@
           tip="Each cell counts the two-element loci whose two elements carry those two specifiers (row × column). The grid is folded, so every pair appears on both sides of the diagonal."
         />
       </div>
-      <div class="relative h-[clamp(18rem,46vh,26rem)] w-full">
+      <div class="relative h-[clamp(18rem,46vh,26rem)] w-full 2xl:h-[clamp(26rem,40vh,40rem)]">
         <div bind:this={matrixEl} class="h-full w-full"></div>
         {#if store.membersStatus !== 'ready'}
           <div class="absolute inset-0 grid place-items-center">

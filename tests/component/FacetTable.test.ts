@@ -10,10 +10,19 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { vi } from 'vitest'
 
 const tab = vi.hoisted(() => {
-  const calls: { construct: Record<string, unknown>[]; replaceData: { tandem_id: string }[][]; download: string[][]; destroy: number } = {
+  const calls: {
+    construct: Record<string, unknown>[]
+    replaceData: { tandem_id: string }[][]
+    download: string[][]
+    setColumns: { title?: string; field?: string; width?: number; minWidth?: number }[][]
+    redraw: boolean[]
+    destroy: number
+  } = {
     construct: [],
     replaceData: [],
     download: [],
+    setColumns: [],
+    redraw: [],
     destroy: 0,
   }
   class MockTab {
@@ -28,6 +37,12 @@ const tab = vi.hoisted(() => {
     replaceData(rows: { tandem_id: string }[]) {
       calls.replaceData.push(rows)
       return Promise.resolve()
+    }
+    setColumns(defs: { title?: string; field?: string; width?: number; minWidth?: number }[]) {
+      calls.setColumns.push(defs)
+    }
+    redraw(force?: boolean) {
+      calls.redraw.push(!!force)
     }
     download(fmt: string, name: string) {
       calls.download.push([fmt, name])
@@ -50,6 +65,8 @@ beforeEach(() => {
   tab.calls.construct.length = 0
   tab.calls.replaceData.length = 0
   tab.calls.download.length = 0
+  tab.calls.setColumns.length = 0
+  tab.calls.redraw.length = 0
   tab.calls.destroy = 0
 })
 
@@ -63,6 +80,75 @@ describe('FacetTable', () => {
     expect((tab.calls.construct[0].data as { tandem_id: string }[]).map((l) => l.tandem_id)).toEqual([
       'T0001', 'T0002', 'T0003', 'T0004', 'T0005', 'T0006',
     ])
+  })
+
+  test('auto-fits header columns so a long label never clips, preserving Organism grow', async () => {
+    render(FacetTable)
+    // Header fit runs once the table is built AND fonts settle (pretext measurement).
+    await waitFor(() => expect(tab.calls.setColumns.length).toBeGreaterThanOrEqual(1))
+    const fitted = tab.calls.setColumns.at(-1)!
+    const byTitle = (t: string) => fitted.find((c) => c.title === t)!
+
+    // The two clipping columns (§4.1) are widened past their original data-driven widths.
+    expect(byTitle('Spec. agreement').width!).toBeGreaterThan(132)
+    expect(byTitle('Elements').width!).toBeGreaterThan(92)
+    // Their mobile minimums grow to match, so the header can't clip on a scrolled phone.
+    expect(byTitle('Spec. agreement').minWidth!).toBeGreaterThanOrEqual(byTitle('Spec. agreement').width!)
+
+    // A short-label column with room to spare keeps its width (fit only widens, never shrinks).
+    expect(byTitle('Accession').width).toBe(140)
+    // Organism flexes via widthGrow — it must NEVER be pinned to an explicit width.
+    expect(byTitle('Organism').width).toBeUndefined()
+
+    // The header fit ends with a forced redraw so fitColumns re-applies.
+    await waitFor(() => expect(tab.calls.redraw.some((f) => f === true)).toBe(true))
+  })
+
+  test('fires a SECOND deferred forced redraw after build, re-fitting at the settled width (#10)', async () => {
+    render(FacetTable)
+    // Two distinct forced redraws on mount: the header fit + the deferred post-build redraw
+    // (scheduleRedraw(60), the §4.5 fix for the standalone table filling only ~60% at 2560).
+    // With that deferred redraw removed, only the single fit redraw fires and this fails.
+    await waitFor(() => expect(tab.calls.redraw.filter((f) => f === true).length).toBeGreaterThanOrEqual(2))
+  })
+
+  test('the resize observer redraws only on a genuine WIDTH change (loop guard, #10)', async () => {
+    // jsdom has no ResizeObserver, so the width-guard (the anti-redraw-loop discipline) is
+    // never exercised by default. Install a minimal polyfill that captures the callback,
+    // then drive it: a redraw changes the table's HEIGHT, which must NOT feed back a redraw.
+    const callbacks: Array<(e: Array<{ contentRect: { width: number } }>) => void> = []
+    const realRO = (globalThis as { ResizeObserver?: unknown }).ResizeObserver
+    ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
+      constructor(cb: (e: Array<{ contentRect: { width: number } }>) => void) {
+        callbacks.push(cb)
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.useFakeTimers()
+    try {
+      render(FacetTable)
+      await vi.runAllTimersAsync() // settle the fit + deferred build-time redraws
+      expect(callbacks.length).toBeGreaterThanOrEqual(1)
+      const fire = (width: number) => callbacks[0]([{ contentRect: { width } }])
+      const base = tab.calls.redraw.length
+
+      fire(500)
+      await vi.advanceTimersByTimeAsync(200)
+      expect(tab.calls.redraw.length).toBe(base + 1) // first width → one redraw
+
+      fire(500)
+      await vi.advanceTimersByTimeAsync(200)
+      expect(tab.calls.redraw.length).toBe(base + 1) // SAME width → guarded, no redraw
+
+      fire(820)
+      await vi.advanceTimersByTimeAsync(200)
+      expect(tab.calls.redraw.length).toBe(base + 2) // changed width → redraw
+    } finally {
+      vi.useRealTimers()
+      ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = realRO
+    }
   })
 
   test('renders the store-driven filter UI', () => {

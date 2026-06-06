@@ -18,10 +18,10 @@
 </script>
 
 <section class="space-y-6">
-  <!-- Masthead (PLAN §8): the shared PageHeader — kicker, fitText hero, then a two-step
-       intro. The first paragraph is the LEAD (the definition); the second is a smaller
-       helper note, so the intro itself reads top-down (lead > helper) and both sit below
-       the section titles that follow. Prose is held to a readable measure, not the band. -->
+  <!-- Masthead (PLAN §8): the shared PageHeader — kicker, fitText hero, then the LEAD
+       (the definition). The smaller helper note is the masthead aside, so it sits
+       up-and-right of the lead on a wide screen (filling the otherwise-empty right half)
+       and stacks beneath the lead below xl. Prose stays measure-capped, never band-wide. -->
   <PageHeader kicker="Overview" title="Dashboard">
     <p class="max-w-measure text-lead text-body">
       A <strong class="font-medium text-ink">T-box riboswitch</strong> is a regulatory RNA in a bacterial
@@ -30,16 +30,18 @@
       <strong class="font-medium text-ink">tandem</strong> locus stacks two or more T-box elements in one
       leader. This explorer covers all 470 such loci.
     </p>
-    <p class="mt-3 max-w-measure text-small text-muted">
-      Filter once: every panel and the table update together, so a selection in any chart
-      narrows the whole dashboard live. New here? Start with
-      <a
-        use:link
-        href="/about"
-        class="text-brand underline decoration-brand/30 underline-offset-2 hover:text-brand-strong"
-        >About &amp; method</a
-      > for what a tandem T-box locus is and how these 470 loci were detected.
-    </p>
+    {#snippet aside()}
+      <p class="max-w-measure text-small text-muted">
+        Filter once: every panel and the table update together, so a selection in any chart
+        narrows the whole dashboard live. New here? Start with
+        <a
+          use:link
+          href="/about"
+          class="text-brand underline decoration-brand/30 underline-offset-2 hover:text-brand-strong"
+          >About &amp; method</a
+        > for what a tandem T-box locus is and how these 470 loci were detected.
+      </p>
+    {/snippet}
   </PageHeader>
 
   <KpiStrip />

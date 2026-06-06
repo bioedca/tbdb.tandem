@@ -116,6 +116,26 @@ export function countLeaves(root: NewickNode): number {
   return leafNames(root).length
 }
 
+/**
+ * Return a copy of `root` with every branch length transformed by `fn` (e.g. `Math.sqrt`
+ * to compress the few very long branches so the dense core spreads out and reads more
+ * legibly — §4.4). Null lengths and non-numeric tokens pass through unchanged. This is a
+ * LAYOUT-ONLY aid: it rescales the on-screen branch extents but changes nothing about the
+ * topology, the tip set, or the similarity ordering — and it is opt-in (the default view
+ * keeps true, distance-proportional branches).
+ */
+export function scaleBranchLengths(root: NewickNode, fn: (len: number) => number): NewickNode {
+  const map = (n: NewickNode): NewickNode => {
+    let length = n.length
+    if (length !== null) {
+      const v = Number(length)
+      if (Number.isFinite(v)) length = String(fn(v))
+    }
+    return { name: n.name, length, children: n.children.map(map) }
+  }
+  return map(root)
+}
+
 // ── Element → locus collapse (PLAN §6) ──────────────────────────────────────────
 
 /** `unique_name → tandem_id` for the tips that live in one tree (PLAN §5.2). */

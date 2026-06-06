@@ -16,6 +16,8 @@
   import { store, FACET_KEYS } from '../stores/filters.svelte'
   import { FACET_FIELD, type FacetKey, type Locus } from '../data/types'
   import { swatchBackground } from '../color'
+  import { onFontsReady } from '../text/measure'
+  import { fitColumnHeaders } from '../text/fitColumns'
   import FacetChip from './FacetChip.svelte'
   import Button from './Button.svelte'
 
@@ -119,6 +121,40 @@
   let table: Tabulator | undefined
   let built = $state(false)
   let narrowTimer: ReturnType<typeof setTimeout> | undefined
+  let redrawTimer: ReturnType<typeof setTimeout> | undefined
+  let fontsSettled = false
+  let columnsFitted = false
+
+  // ── Header column auto-fit (§4.1: stop "Elements" / "Spec. agreement" clipping) ──
+  // Tabulator owns its own header DOM, so the column labels never passed through the
+  // pretext layer the rest of the app uses. Measure each header label reflow-free and
+  // widen any column (and its mobile `minWidth`) whose label is wider than its
+  // data-driven width — the same trick the KPI tiles use — so a header never clips while
+  // the short-label columns stay tight and `fitColumns` still distributes the slack to
+  // Organism. Runs once both the table is built AND the real Inter face has loaded
+  // (canvas metrics are only correct after font load).
+  function fitHeaderColumns(): void {
+    if (!table || !built || !fontsSettled || columnsFitted) return
+    columnsFitted = true
+    // 600 14px must match the .tabulator-header CSS; chrome = cell padding + the sort
+    // arrow. fitColumnHeaders widens only what would clip and preserves Organism's grow.
+    const fitted = fitColumnHeaders(columns, '600 14px "Inter Variable"', 42)
+    table.setColumns(fitted)
+    table.redraw(true)
+  }
+
+  /** Forced redraw → fitColumns recomputes for the current container width. Debounced. */
+  function scheduleRedraw(delay: number): void {
+    clearTimeout(redrawTimer)
+    redrawTimer = setTimeout(() => {
+      if (!built || !table) return
+      try {
+        table.redraw(true)
+      } catch {
+        /* torn down mid-frame — ignore */
+      }
+    }, delay)
+  }
 
   onMount(() => {
     table = new Tabulator(containerEl, {
@@ -137,16 +173,47 @@
     })
     table.on('tableBuilt', () => {
       built = true
+      fitHeaderColumns()
+      // Re-fit fitColumns to the SETTLED container width: on an SPA route mount the table
+      // can build against a narrower transitional width and never re-expand (§4.5 — the
+      // standalone Browse table filling only ~60% of a 2560 band, while the dashboard's
+      // embedded copy fills fine). A deferred forced redraw recomputes column widths once
+      // the route's final width is in place.
+      scheduleRedraw(60)
+    })
+    // Header metrics need the loaded Inter face; refit once fonts settle.
+    onFontsReady(() => {
+      fontsSettled = true
+      fitHeaderColumns()
     })
     // Row → locus detail (`@types` exposes rowClick via `on`, not as an option).
     table.on('rowClick', (_e, row) => {
       push(`/locus/${(row.getData() as Locus).tandem_id}`)
     })
+    // Re-apply fitColumns when the container WIDTH changes (e.g. resizing into a QHD band)
+    // — a debounced forced redraw. Guard on WIDTH only: a redraw changes the table's height
+    // (and can toggle the vertical scrollbar), which would otherwise feed the observer
+    // straight back into a redraw loop — the same discipline use:fitText documents.
+    let ro: ResizeObserver | null = null
+    let lastWidth = -1
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver((entries) => {
+        const w = entries[0]?.contentRect.width ?? containerEl.clientWidth
+        if (Math.abs(w - lastWidth) < 0.5) return
+        lastWidth = w
+        scheduleRedraw(150)
+      })
+      ro.observe(containerEl)
+    }
     return () => {
       clearTimeout(narrowTimer)
+      clearTimeout(redrawTimer)
+      ro?.disconnect()
       table?.destroy()
       table = undefined
       built = false
+      columnsFitted = false
+      fontsSettled = false
     }
   })
 

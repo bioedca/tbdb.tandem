@@ -30,6 +30,7 @@
     parseNewick,
     parseSupport,
     phylumRing,
+    scaleBranchLengths,
     serializeNewick,
     specifierFill,
     tipTandemMap,
@@ -73,6 +74,9 @@
   let which = $state<'main' | 'fallback'>('main')
   let supportThreshold = $state(0.5) // PLAN §6: "default collapse < 0.5"
   let nonFirmicutesOnly = $state(false)
+  // Branch-length scale: 'true' = distance-proportional (default); 'sqrt' = compress the
+  // long branches so a single divergent tip stops stretching the map (§4.4). Layout-only.
+  let branchScale = $state<'true' | 'sqrt'>('true')
 
   let Phylo = $state<PhyloCtor | null>(null)
   let containerEl: HTMLDivElement
@@ -126,8 +130,15 @@
   const renderedNewick = $derived.by<string | null>(() => {
     const nwk = activeNewick
     if (!nwk || !store.treeTips) return null
-    if (mode === 'element') return nwk
-    return serializeNewick(collapseToLoci(parseNewick(nwk), tipTandemMap(store.treeTips, which)))
+    // Default (linear) element view: emit the artifact verbatim (byte-faithful, unchanged).
+    if (mode === 'element' && branchScale === 'true') return nwk
+    let tree =
+      mode === 'element'
+        ? parseNewick(nwk)
+        : collapseToLoci(parseNewick(nwk), tipTandemMap(store.treeTips, which))
+    // √-compress the branch extents so the dense core isn't crushed by one long branch.
+    if (branchScale === 'sqrt') tree = scaleBranchLengths(tree, Math.sqrt)
+    return serializeNewick(tree)
   })
 
   const elementMeta = $derived(store.treeTips ? buildElementTipMeta(store.treeTips, which) : null)
@@ -394,6 +405,29 @@
             class="border-l border-hairline px-3 py-1 text-small {which === 'fallback' ? 'bg-brand text-white' : 'bg-surface text-text'}"
             aria-pressed={which === 'fallback'}
             onclick={() => (which = 'fallback')}>Fallback · antiterminator</button
+          >
+        </div>
+      </fieldset>
+
+      <fieldset class="flex items-center gap-2">
+        <legend class="sr-only">Branch length scale</legend>
+        <span class="text-small text-muted">Branches</span>
+        <InfoTip
+          label="Branches"
+          tip="True draws each branch proportional to its sequence distance, so a single very divergent tip can stretch the whole map and squeeze the dense core. Compressed (√) shrinks the long branches so the core spreads out and reads more legibly. It is a display aid only; distances are then no longer to scale."
+        />
+        <div class="inline-flex overflow-hidden rounded-md border border-hairline">
+          <button
+            type="button"
+            class="px-3 py-1 text-small {branchScale === 'true' ? 'bg-brand text-white' : 'bg-surface text-text'}"
+            aria-pressed={branchScale === 'true'}
+            onclick={() => (branchScale = 'true')}>True</button
+          >
+          <button
+            type="button"
+            class="border-l border-hairline px-3 py-1 text-small {branchScale === 'sqrt' ? 'bg-brand text-white' : 'bg-surface text-text'}"
+            aria-pressed={branchScale === 'sqrt'}
+            onclick={() => (branchScale = 'sqrt')}>√ compressed</button
           >
         </div>
       </fieldset>

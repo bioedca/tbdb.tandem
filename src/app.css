@@ -17,12 +17,31 @@
   src: url("/fonts/jetbrains-mono-variable.woff2") format("woff2");
 }
 
+/* Metric-matched fallback for Inter (FOUT / layout-shift fix). `font-display: swap`
+   flashes the system fallback while the woff2 loads; these overrides scale the local
+   fallback (Arial/Helvetica, where present) to Inter's box so the swap doesn't reflow
+   the page. Values are the published Inter-vs-Arial fallback metrics (capsize / the
+   next-font generator). It sits AFTER "Inter Variable" in the stack, so once Inter
+   loads it is never used; on platforms without Arial it falls through harmlessly to
+   the generic families. (Pretext gates on onFontsReady, so canvas measurement always
+   uses the real Inter face, never this fallback.) */
+@font-face {
+  font-family: "Inter Fallback";
+  src: local("Arial"), local("Helvetica Neue"), local("Helvetica");
+  size-adjust: 107.4%;
+  ascent-override: 90.2%;
+  descent-override: 22.48%;
+  line-gap-override: 0%;
+}
+
 /* ── Design tokens (PLAN §8). MIRRORED in src/lib/design/tokens.ts — keep in sync.
    The 20-AA *data* palette is NOT here; it lives in src/lib/color.ts (§8.2). ── */
 @theme {
-  /* Typography (§8.3): self-hosted Inter (UI) + JetBrains Mono (sequences/coords) */
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, sans-serif;
+  /* Typography (§8.3): self-hosted Inter (UI) + JetBrains Mono (sequences/coords).
+     "Inter Fallback" is the metric-matched @font-face above — it removes the swap-time
+     layout shift without ever rendering once the real Inter face has loaded. */
+  --font-sans: "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
 
@@ -158,6 +177,29 @@
 }
 .tv-no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Directional edge fade for an overflowing scroll region (the mobile primary nav).
+   `use:navOverflowFade` adds this class only when the row truly overflows and sets the
+   per-edge fade widths (--tv-fade-l / --tv-fade-r) from the scroll position, so the
+   gradient appears only on the side(s) with hidden content and clears at each end —
+   making the swiped-off nav item discoverable. Both the standard and -webkit- mask
+   properties are set for cross-browser coverage. */
+.tv-nav-fade {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--tv-fade-l, 0px),
+    #000 calc(100% - var(--tv-fade-r, 0px)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--tv-fade-l, 0px),
+    #000 calc(100% - var(--tv-fade-r, 0px)),
+    transparent 100%
+  );
 }
 
 /* ── fornac interop guard (PLAN §7.1, §13) ──────────────────────────────────────
