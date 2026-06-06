@@ -33,11 +33,12 @@
   } from '../cloud/encodings'
   import {
     cameraPosition,
-    clampDistance,
+    dampOrbit,
     defaultOrbit,
+    framePoints,
     orbitPan,
     orbitRotate,
-    orbitZoom,
+    orbitZoomToCursor,
     type Orbit,
   } from '../cloud/orbit'
   import { createRelaxState, maxAnchorOffset, meanAnchorOffset, step, type RelaxState } from '../cloud/relax'
@@ -131,8 +132,38 @@
     dispose: () => void
   }
   let sc: Scene | null = null
+  // Two-orbit damping: `targetOrbit` is what input drives (drag/zoom/pan/idle); `orbit`
+  // is the rendered camera that eases toward it each frame (OrbitControls "damping").
+  // Under reduced motion the ease is instantaneous (DAMP_ALPHA = 1).
   let orbit: Orbit = defaultOrbit()
+  let targetOrbit: Orbit = defaultOrbit()
+  let framed = false // becomes true after the first auto-frame (then reframes ease)
+  // Once the user drags / zooms / pans, the camera is "theirs": auto-framing stops
+  // chasing the viewport so a resize never yanks an in-progress exploration. Reset
+  // clears it (back to the viewport-tracking default).
+  let userAdjusted = false
+  // Post-release spin: a flick leaves a little decaying rotational velocity (rotate
+  // only) so the cloud glides to a stop instead of halting dead. Off under reduced
+  // motion; cancelled the instant a new grab starts.
+  let momentum = { dAz: 0, dPolar: 0 }
+  const DAMP_ALPHA = reducedMotion ? 1 : 0.22
+  const ROT_PER_PX = 0.005 // radians of orbit per pixel dragged
+  const MOMENTUM_FRICTION = 0.88 // per-frame decay of the glide
+  const MOMENTUM_MAX = 0.12 // rad/frame cap, so even a hard flick glides gently
   let lastOffsetTick = 0
+
+  // Re-centre the pivot on the rendered cloud's centre of mass and pick a distance that
+  // fills the view with its dense core (a robust radius — a lone far-divergence outlier
+  // can't shrink everything to a speck). `instant` snaps the live camera too (first
+  // frame / reset); otherwise the rendered orbit eases over to the new framing.
+  function frameView(pts: CloudRenderPoint[], instant: boolean): void {
+    if (!sc) return
+    const aspect = sc.camera.aspect || 1
+    const { target, distance } = framePoints(pts, 45, aspect, { pct: 0.95, margin: 1.4 })
+    targetOrbit = { ...targetOrbit, target, distance }
+    if (instant || reducedMotion) orbit = { ...orbit, target, distance }
+    framed = true
+  }
 
   // ── Tooltip ──────────────────────────────────────────────────────────────────────
   let tip = $state<{ visible: boolean; x: number; y: number; lines: string[] }>({
@@ -353,6 +384,10 @@
     sc.relax = createRelaxState(anchors)
     sc.count = n
     sc.settled = spread <= 0.001
+    // Frame the new point set: snap on the first build (no swoop from the default
+    // framing), ease on later tree/granularity switches. Uses the TRUE (anchor)
+    // coordinates, so dialing Spread never yanks the camera.
+    frameView(pts, !framed)
     restyle()
   }
 
@@ -443,8 +478,17 @@
         if (Math.abs(mo - meanOffset) > 0.05) meanOffset = mo
       }
     }
-    // Idle auto-rotation (off under reduced motion / after interaction).
-    if (idleRotate && !reducedMotion) orbit = orbitRotate(orbit, 0.0016, 0)
+    // Post-release momentum glide (rotate only) decays each frame; cancelled on grab.
+    if (!reducedMotion && (momentum.dAz !== 0 || momentum.dPolar !== 0)) {
+      targetOrbit = orbitRotate(targetOrbit, momentum.dAz, momentum.dPolar)
+      momentum = { dAz: momentum.dAz * MOMENTUM_FRICTION, dPolar: momentum.dPolar * MOMENTUM_FRICTION }
+      if (Math.hypot(momentum.dAz, momentum.dPolar) < 1e-4) momentum = { dAz: 0, dPolar: 0 }
+    }
+    // Idle auto-rotation (off under reduced motion / after interaction) nudges the
+    // INPUT orbit; the rendered camera eases toward it below.
+    if (idleRotate && !reducedMotion) targetOrbit = orbitRotate(targetOrbit, 0.0016, 0)
+    // Ease the rendered camera toward the input orbit (snaps under reduced motion).
+    orbit = dampOrbit(orbit, targetOrbit, DAMP_ALPHA)
     applyCamera()
     s.renderer.render(s.scene, s.camera)
   }
@@ -494,6 +538,11 @@
     let lastX = 0
     let lastY = 0
     let moved = 0
+    // Last rotate delta + when it happened, to seed the release momentum from a flick.
+    let flingAz = 0
+    let flingPolar = 0
+    let flingTime = 0
+    const nowMs = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now())
 
     canvas.addEventListener('pointerdown', (ev) => {
       dragging = true
@@ -501,6 +550,9 @@
       lastX = ev.clientX
       lastY = ev.clientY
       moved = 0
+      momentum = { dAz: 0, dPolar: 0 } // grabbing the cloud cancels any glide
+      flingAz = 0
+      flingPolar = 0
       idleRotate = false // auto-disable idle rotation on interaction
       try {
         canvas.setPointerCapture(ev.pointerId)
@@ -515,18 +567,37 @@
         lastX = ev.clientX
         lastY = ev.clientY
         moved += Math.abs(dx) + Math.abs(dy)
+        // Below the click/drag threshold this is still a (shaky) tap: leave the camera
+        // and auto-framing alone so a jittery click doesn't nudge the view or disable
+        // viewport-tracking. lastX/lastY are already advanced, so the first real drag
+        // frame starts smoothly from here.
+        if (moved < 4) return
+        userAdjusted = true // a real drag → the camera is now the user's
         if (panning) {
-          const k = orbit.distance * 0.0016
-          orbit = orbitPan(orbit, dx * k, dy * k)
+          const k = targetOrbit.distance * 0.0016
+          targetOrbit = orbitPan(targetOrbit, dx * k, dy * k)
         } else {
-          orbit = orbitRotate(orbit, dx * 0.005, dy * 0.005)
+          // −dy on the polar: drag DOWN tilts the camera UP and over the cloud (look
+          // from above), matching three.js OrbitControls / every other 3D viewer.
+          // The previous +dy inverted the vertical axis ("feels flipped").
+          flingAz = dx * ROT_PER_PX
+          flingPolar = -dy * ROT_PER_PX
+          flingTime = nowMs()
+          targetOrbit = orbitRotate(targetOrbit, flingAz, flingPolar)
         }
       } else {
         handleHover(ev, canvas)
       }
     })
     const endDrag = (ev: PointerEvent) => {
-      if (dragging && moved < 4) handleClick(ev, canvas) // a tap, not a drag
+      if (dragging && moved < 4) {
+        handleClick(ev, canvas) // a tap, not a drag
+      } else if (dragging && !reducedMotion && nowMs() - flingTime < 60) {
+        // Released mid-motion → carry the last rotate delta as a capped glide.
+        const mag = Math.hypot(flingAz, flingPolar)
+        const s = mag > MOMENTUM_MAX ? MOMENTUM_MAX / mag : 1
+        momentum = { dAz: flingAz * s, dPolar: flingPolar * s }
+      }
       dragging = false
       try {
         canvas.releasePointerCapture(ev.pointerId)
@@ -541,7 +612,17 @@
       (ev) => {
         ev.preventDefault()
         idleRotate = false
-        orbit = orbitZoom(orbit, ev.deltaY > 0 ? 1.1 : 0.9)
+        userAdjusted = true
+        // Zoom toward the cursor: the point under the pointer stays put as you dolly.
+        const rect = canvas.getBoundingClientRect()
+        let ndcX = ((ev.clientX - rect.left) / rect.width) * 2 - 1
+        let ndcY = -(((ev.clientY - rect.top) / rect.height) * 2 - 1)
+        if (!(rect.width > 0) || !Number.isFinite(ndcX) || !Number.isFinite(ndcY)) {
+          ndcX = 0 // no usable cursor (jsdom / odd layout) → zoom about the centre
+          ndcY = 0
+        }
+        const aspect = sc?.camera.aspect || 1
+        targetOrbit = orbitZoomToCursor(targetOrbit, ev.deltaY > 0 ? 1.1 : 0.9, ndcX, ndcY, 45, aspect)
       },
       { passive: false },
     )
@@ -580,7 +661,13 @@
   }
 
   function resetView(): void {
+    // Default orientation, then re-centre + re-frame on the current point set (instant).
+    // Hand the camera back to viewport-tracking auto-framing; stop any glide.
+    userAdjusted = false
+    momentum = { dAz: 0, dPolar: 0 }
+    targetOrbit = defaultOrbit()
     orbit = defaultOrbit()
+    frameView(renderPoints, true)
   }
 
   // ── Resize observer (debounced, jsdom-guarded like PhyloTree) ────────────────────
@@ -590,7 +677,14 @@
     if (typeof ResizeObserver !== 'undefined' && containerEl) {
       ro = new ResizeObserver(() => {
         clearTimeout(t)
-        t = setTimeout(resize, 150)
+        t = setTimeout(() => {
+          resize()
+          // The framing distance is aspect-dependent (a portrait viewport sits the
+          // camera further back), so re-fit for the new aspect on resize / device
+          // rotation — but only while auto-framing still owns the camera, and eased
+          // (never an instant snap mid-resize). A user-adjusted camera is left alone.
+          if (framed && !userAdjusted) frameView(renderPoints, false)
+        }, 150)
       })
       ro.observe(containerEl)
     }

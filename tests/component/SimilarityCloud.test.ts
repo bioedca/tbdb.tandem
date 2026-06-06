@@ -9,6 +9,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import type { CloudData } from '../../src/lib/cloud/types'
 
+// Records the latest mock camera so a test can observe the RENDERED orbit (the damped
+// camera position) — that is the only window onto the new drag-rotate / damping / frame
+// wiring, since orbit/targetOrbit are component-local.
+const cameraCapture = vi.hoisted(
+  () => ({ last: null as { position: { x: number; y: number; z: number } } | null }),
+)
+
 // ── minimal three mock: just enough surface for init + pick ──────────────────────
 vi.mock('three', () => {
   class BufferAttribute {
@@ -51,10 +58,23 @@ vi.mock('three', () => {
       remove() {}
     },
     PerspectiveCamera: class {
-      position = { set() {} }
+      // A recording position so applyCamera()'s writes are observable to tests.
+      position = {
+        x: 0,
+        y: 0,
+        z: 0,
+        set(x: number, y: number, z: number) {
+          this.x = x
+          this.y = y
+          this.z = z
+        },
+      }
       aspect = 1
       lookAt() {}
       updateProjectionMatrix() {}
+      constructor() {
+        cameraCapture.last = this
+      }
     },
     Raycaster: class {
       params: Record<string, unknown> = { Points: {} }
@@ -110,6 +130,8 @@ import SimilarityCloud from '../../src/lib/components/SimilarityCloud.svelte'
 import { store } from '../../src/lib/stores/filters.svelte'
 import { push } from 'svelte-spa-router'
 import { resetStore } from '../helpers'
+// The orbit module is NOT mocked — import the real pivot math to predict the camera.
+import { robustCenter } from '../../src/lib/cloud/orbit'
 
 const FIXTURE: CloudData = {
   meta: { generated: 'x', method: 'pcoa', scale: 100, k_nn: 2, version: 1 },
@@ -208,6 +230,106 @@ describe('SimilarityCloud', () => {
     await fireEvent.pointerUp(canvas, { clientX: 20, clientY: 20 })
     expect(push).not.toHaveBeenCalled()
     expect(store.filter.specifier.has('TRP')).toBe(true) // index 0 → spec TRP
+  })
+
+  // ── Camera wiring: the new drag-rotate (de-inverted vertical), damping + framing ──
+  // The pure orbit math is unit-tested in orbit.test.ts; these assert the COMPONENT
+  // wires it correctly — drag mutates targetOrbit, the loop eases `orbit` onto it, and
+  // applyCamera writes it to the (recording) camera. The mock camera's recorded
+  // position is the observable; the render loop runs on requestAnimationFrame, so we
+  // poll with waitFor rather than guess a frame count.
+  // jsdom's synthetic PointerEvents don't carry clientX/clientY, but a MouseEvent does —
+  // and the component's pointer listeners fire on the matching type string. (Real
+  // browsers always carry the coords; this is purely a jsdom shim.)
+  const pointer = (canvas: HTMLElement, type: string, clientY: number, button = 0) =>
+    fireEvent(canvas, new MouseEvent(type, { clientX: 200, clientY, button, bubbles: true }))
+
+  test('drag-DOWN tilts the camera UP and over the cloud (vertical axis NOT inverted)', async () => {
+    const { container } = await renderReady()
+    const canvas = container.querySelector('canvas')!
+    const cam = cameraCapture.last!
+    expect(cam).toBeTruthy()
+    await waitFor(() => expect(Number.isFinite(cam.position.y)).toBe(true))
+    const y0 = cam.position.y
+    // A real drag (moved ≥ 4) downward by 80px — NOT a tap.
+    await pointer(canvas, 'pointerdown', 200)
+    await pointer(canvas, 'pointermove', 280)
+    await pointer(canvas, 'pointerup', 280)
+    // −dy ⇒ polar decreases ⇒ camera.y = target.y + distance·cos(polar) rises. Idle
+    // rotation only changes azimuth, so camera.y isolates the vertical-drag direction.
+    await waitFor(() => expect(cam.position.y).toBeGreaterThan(y0 + 0.5), { timeout: 2000 })
+    expect(push).not.toHaveBeenCalled() // a drag, never routed as a click
+  })
+
+  test('a shaky sub-threshold tap navigates and does NOT move the camera', async () => {
+    const { container } = await renderReady()
+    const canvas = container.querySelector('canvas')!
+    const cam = cameraCapture.last!
+    await waitFor(() => expect(Number.isFinite(cam.position.y)).toBe(true))
+    const y0 = cam.position.y
+    // 3px of vertical jitter ⇒ moved = 3 < 4 ⇒ still a click, NOT a drag.
+    await pointer(canvas, 'pointerdown', 200)
+    await pointer(canvas, 'pointermove', 203)
+    await pointer(canvas, 'pointerup', 203)
+    expect(push).toHaveBeenCalledWith('/locus/T1') // routed as a tap → navigates
+    // Below threshold the camera is untouched: polar (hence camera.y, which idle
+    // rotation never changes) stays put. Pre-fix the 3px jitter shifted it ~0.5.
+    await new Promise((r) => setTimeout(r, 120))
+    expect(Math.abs(cam.position.y - y0)).toBeLessThan(0.1)
+  })
+
+  test('wheel-out dollies the camera away from the pivot (zoom feeds the input orbit)', async () => {
+    const { container } = await renderReady()
+    const canvas = container.querySelector('canvas')!
+    const cam = cameraCapture.last!
+    // Pin a non-zero rect + send a CENTERED wheel so the zoom is about the pivot
+    // (ndc 0,0) deterministically — not relying on jsdom's zero-rect centre fallback.
+    canvas.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON() {} }) as DOMRect
+    // The framed pivot is the robust centre of the rendered (locus) points; idle
+    // rotation never changes the distance from it, so a growth isolates the zoom.
+    const t = robustCenter(FIXTURE.main.points, 0.95)
+    const distFromPivot = () => Math.hypot(cam.position.x - t.x, cam.position.y - t.y, cam.position.z - t.z)
+    await waitFor(() => expect(distFromPivot()).toBeGreaterThan(0))
+    const d0 = distFromPivot()
+    // Centered cursor (400,300) ⇒ ndc (0,0) ⇒ zoom about the pivot; positive deltaY ⇒ OUT.
+    await fireEvent(canvas, new WheelEvent('wheel', { deltaY: 240, clientX: 400, clientY: 300, bubbles: true, cancelable: true }))
+    await waitFor(() => expect(distFromPivot()).toBeGreaterThan(d0 + 0.5), { timeout: 2000 })
+  })
+
+  test('a flick keeps the camera gliding after release (momentum); a slow stop does not', async () => {
+    // Drive a 2D pointer drag (MouseEvent carries the coords jsdom drops on PointerEvent).
+    const drag = (canvas: HTMLElement, x: number, y: number, type: string) =>
+      fireEvent(canvas, new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }))
+    // Horizontal travel of the camera (a horizontal drag keeps polar — and thus y — fixed).
+    const xz = (p: { x: number; z: number }) => ({ x: p.x, z: p.z })
+    const chord = (a: { x: number; z: number }, b: { x: number; z: number }) =>
+      Math.hypot(a.x - b.x, a.z - b.z)
+
+    // Measure how far the camera travels AFTER release for a given gesture.
+    const postReleaseTravel = async (flick: boolean): Promise<number> => {
+      const { container, unmount } = render(SimilarityCloud)
+      await waitFor(() => expect(container.querySelector('canvas')).toBeTruthy())
+      const canvas = container.querySelector('canvas')!
+      const cam = cameraCapture.last!
+      await waitFor(() => expect(Number.isFinite(cam.position.x)).toBe(true))
+      await drag(canvas, 200, 200, 'pointerdown')
+      await drag(canvas, 320, 200, 'pointermove') // fast horizontal sweep (idle now off)
+      if (!flick) await drag(canvas, 320, 200, 'pointermove') // pause ⇒ zero release velocity
+      const atRelease = xz(cam.position)
+      await drag(canvas, 320, 200, 'pointerup')
+      await new Promise((r) => setTimeout(r, 450)) // let momentum + damping play out
+      const travel = chord(atRelease, xz(cam.position))
+      unmount()
+      return travel
+    }
+
+    const flickTravel = await postReleaseTravel(true)
+    const slowTravel = await postReleaseTravel(false)
+    // Both ease in (damping), but only the flick adds a decaying glide, so it travels
+    // clearly further after the finger lifts.
+    expect(slowTravel).toBeGreaterThan(0)
+    expect(flickTravel).toBeGreaterThan(slowTravel * 1.5)
   })
 
   test('a WebGL-unavailable browser shows a graceful text fallback', async () => {

@@ -13,6 +13,7 @@
     assertChromeDataDisjoint,
   } from '../lib/color'
   import Card from '../lib/components/Card.svelte'
+  import PageHeader from '../lib/components/PageHeader.svelte'
   import Button from '../lib/components/Button.svelte'
   import Badge from '../lib/components/Badge.svelte'
   import FacetChip from '../lib/components/FacetChip.svelte'
@@ -44,10 +45,13 @@
     })).filter((c) => c.locus && c.members.length > 0),
   )
 
+  // The ramp, top → bottom (mirrors app.css @theme + tokens.ts `type`): one page-title
+  // tier (hero) and one section-title tier (h2); `display` is the big mono data number.
   const typeRamp = [
+    { cls: 'text-hero', label: 'hero' },
     { cls: 'text-display', label: 'display' },
-    { cls: 'text-h1', label: 'h1' },
     { cls: 'text-h2', label: 'h2' },
+    { cls: 'text-lead', label: 'lead' },
     { cls: '', label: 'body' }, // base default size (no text-body size utility)
     { cls: 'text-small', label: 'small' },
     { cls: 'text-caption', label: 'caption' },
@@ -74,14 +78,13 @@
 </script>
 
 <div class="space-y-8">
-  <div>
-    <h1 class="text-display text-ink">Design system</h1>
-    <p class="mt-1 text-body text-muted">
+  <PageHeader kicker="Design system · dev" title="Design system">
+    <p class="max-w-measure text-lead text-muted">
       tbdb.tandem identity (PLAN §8) — dev-only review surface at <code
         class="font-mono text-small">/styleguide</code
       >.
     </p>
-  </div>
+  </PageHeader>
 
   <Card title="Chrome ⟂ data disjointness" subtitle="§8.2 invariant — proven at runtime">
     <div class="flex flex-wrap gap-8 text-small">
