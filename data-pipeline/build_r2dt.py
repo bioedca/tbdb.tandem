@@ -85,6 +85,17 @@ ASPECT_RELAYOUT = 2.3
 #: routes ~4% of members to the compact NAView layout.
 FILL_RELAYOUT = 0.045
 
+#: Extra outward clearance (in median backbone steps) by which a grafted hairpin's base is
+#: pushed off the layout centroid when placed (``_orient_hairpin_outward``). Because the
+#: step-2 declash FREEZES the shared stems (issue #45), it cannot relax a hairpin that the
+#: outward orientation drops on top of the frozen upstream core; nudging the hairpin a few
+#: steps further out clears that overlap up front. A margin sweep over the corpus (the
+#: stems-frozen antiterminator diagrams) drove hard-clash diagrams down sharply through ~4.5
+#: and then flattened, while the bounding-box aspect barely moved and the helices stayed
+#: straight -- so 4.5 is the knee. The stretched stem->hairpin connector is respread evenly by
+#: the reflow (no break) and the stems are untouched, so the toggle's pin guarantee holds.
+HAIRPIN_CLEARANCE = 4.5
+
 
 def to_rna(seq: str) -> str:
     """DNA -> RNA for R2DT input: upper-case, T->U. Non-ACGU codes pass through."""
@@ -751,9 +762,12 @@ def _orient_hairpin_outward(
     ``lx``/``ly`` are the local (unit-scaled) hairpin coordinates (length ``p_hi - p_lo + 1``).
     The hairpin is rescaled to the diagram's own nucleotide spacing and rotated so it radiates
     OUTWARD from the layout centroid -- parallel to the neighbouring stems rather than
-    perpendicular to local flow -- then translated so its 5' base sits at ``xs[p_lo]``. The
-    same construction the antiterminator and terminator grafts share. ``anchored`` is the set
-    of base-paired (stem) residues, used to find the exterior flow at the hairpin base.
+    perpendicular to local flow -- then translated so its 5' base sits ``HAIRPIN_CLEARANCE``
+    median steps beyond ``xs[p_lo]`` along that outward direction. The extra clearance keeps
+    the hairpin off the frozen upstream core (which the stems-frozen step-2 declash cannot move
+    out of the way); the stretched connector is respread by the reflow. The same construction
+    the antiterminator and terminator grafts share. ``anchored`` is the set of base-paired
+    (stem) residues, used to find the exterior flow at the hairpin base.
     """
     length = p_hi - p_lo + 1
     med = _median_step(xs, ys)
@@ -790,7 +804,10 @@ def _orient_hairpin_outward(
             dd = rx[k] * ux + ry[k] * uy
             rx[k] = 2 * dd * ux - rx[k]
             ry[k] = 2 * dd * uy - ry[k]
-    dx, dy = xs[p_lo] - rx[0], ys[p_lo] - ry[0]
+    # Anchor the 5' base at xs[p_lo], then push the whole hairpin HAIRPIN_CLEARANCE steps
+    # further out (along the outward direction) so it clears the frozen upstream core.
+    dx = xs[p_lo] - rx[0] + ox * HAIRPIN_CLEARANCE * med
+    dy = ys[p_lo] - ry[0] + oy * HAIRPIN_CLEARANCE * med
     for k in range(length):
         xs[p_lo + k] = rx[k] + dx
         ys[p_lo + k] = ry[k] + dy
