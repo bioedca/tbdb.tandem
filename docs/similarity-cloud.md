@@ -57,7 +57,12 @@ uniform spatial hash — never an O(n²) scan) plus a spring toward its fixed PC
   the same cluster, so the de-piled view shows the *same* neighbourhoods (note: strict
   k-NN *set identity* among near-coincident points is noise any de-pile reshuffles;
   cluster co-membership is what navigation actually relies on, and it is what the
-  `relax.test.ts` invariant asserts).
+  `relax.test.ts` invariant asserts);
+- **convergent** — a d3-force-style cooling factor (`alpha`, eased 1 → 0 each step and
+  scaling the injected force) lets the layout reach its equilibrium and then *freeze*
+  instead of orbiting it forever. A spread change `reheat()`s it; otherwise the render
+  loop stops stepping the instant it settles. Without this the field's hard repulsion
+  cutoff leaves a limit-cycle and the dots jiggle perpetually.
 
 Every distortion is surfaced in the UI: a persistent readout reports how much pairwise
 distance the 3 axes capture; once spread > 0 a warning shows the **mean offset** from
@@ -71,7 +76,11 @@ All point logic lives in framework-agnostic, unit-tested modules (mirroring how
 - `cloud/relax.ts` — the anchored-repulsion stepper (the invariants above).
 - `cloud/encodings.ts` — `pointColor` / `sizeFactor` + the five presets.
 - `cloud/aggregate.ts` — element ↔ locus centroid collapse + click semantics.
-- `cloud/orbit.ts` — the spherical orbit-camera math (no external `OrbitControls`).
+- `cloud/orbit.ts` — the spherical orbit-camera math (no external `OrbitControls`), plus
+  the geometry-derived view scale (`cloudMetrics` / `distanceClamp`): point size, pick
+  radius, zoom clamps and the camera frustum are all sized from the *measured* cloud
+  extent, so the view adapts to a dense or a spread-out embedding (or a regenerated
+  `cloud.json` at a different scale) instead of assuming a fixed ±100 canvas.
 
 `three` is dynamically `import()`-ed (it never enters the boot bundle), and `cloud.json`
 is lazy-fetched through the shared store (`ensureCloud`), so the dashboard's first paint
