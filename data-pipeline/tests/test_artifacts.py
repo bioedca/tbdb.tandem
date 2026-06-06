@@ -29,8 +29,10 @@ N_TERMINATOR = 922
 #: Committed FULL-LENGTH terminator R2DT diagrams (build_r2dt.py terminator graft): the
 #: members with both raw R2DT coords AND a drawable terminator whose reflow passes the
 #: quality gate. The rest of the 922 fall back to fornac (also full-length). A regen that
-#: moves this must update the constant consciously (CLAUDE.md section 2).
-N_TERMINATOR_R2DT = 789
+#: moves this must update the constant consciously (CLAUDE.md section 2). (Issue #45 moved
+#: both grafts onto a shared declashed stems-only base; a few sparse/pseudoknotted layouts
+#: the stems-frozen declash can no longer close cleanly now route to fornac, 789 -> 778.)
+N_TERMINATOR_R2DT = 778
 
 # Load-bearing counts (PLAN section 3.1, 5.4; CLAUDE.md section 2). The main-tree
 # tip count is the value the S0.6 build emitted and PROGRESS.md recorded -- never
@@ -192,19 +194,13 @@ def test_terminator_diagrams_full_length_current_and_consistent(members):
         assert d["pairs"], f"{mid}: a terminator diagram must have >= 1 base pair"
 
 
-@pytest.mark.xfail(
-    reason="The antiterminator diagrams now DECLASH (overlap fix), moving Stem I/II/III off the "
-    "raw R2DT coordinates the terminator diagrams still use, so the committed sets no longer pin "
-    "across the toggle. Re-pinning by co-declashing the terminator onto a shared declashed stem "
-    "base is a tracked follow-up -- drop this xfail when it lands.",
-    strict=False,
-)
 def test_terminator_diagrams_pin_stems_across_the_toggle(members):
-    """The headline guarantee on the COMMITTED data: a member's terminator diagram shares the
-    antiterminator diagram's Stem I/II/III coordinates (only the 3' hairpin swaps). For every
-    member drawn in BOTH r2dt/ and r2dt/term/, the residues paired in both (the kept stems)
-    must have identical coords -- except a handful of degenerate Partial leaders whose
-    terminator spans almost the whole molecule (those legitimately refold)."""
+    """The headline guarantee on the COMMITTED data (issue #45): a member's terminator diagram
+    shares the antiterminator diagram's Stem I/II/III coordinates (only the 3' hairpin swaps).
+    Both grafts declash the SAME stems-only base, so for every member drawn in BOTH r2dt/ and
+    r2dt/term/, the residues paired in both (the kept stems) must have identical coords --
+    except a handful of degenerate Partial leaders whose terminator spans almost the whole
+    molecule (those legitimately refold)."""
     at_dir, tm_dir = DATA / "r2dt", DATA / "r2dt" / "term"
     at_ids = {p.stem for p in at_dir.glob("*.json")} - {"manifest"}
     tm_ids = {p.stem for p in tm_dir.glob("*.json")} - {"manifest"}
@@ -229,6 +225,49 @@ def test_terminator_diagrams_pin_stems_across_the_toggle(members):
     # the only members whose stems move are degenerate Partial leaders (terminator ≈ whole leader)
     assert all(members[mid]["completeness"] == "Partial" for mid in mismatched), mismatched
     assert len(mismatched) <= 20, f"too many members with non-pinned stems: {mismatched}"
+
+
+def test_grafts_keep_identical_stem_pairs_for_non_partial(members):
+    """The MECHANISM behind the toggle's stem-pinning (issue #45): for every member that is NOT
+    a degenerate Partial leader, ``graft_member`` (antiterminator) and ``graft_terminator_member``
+    (terminator) drop the SAME raw R2DT pairs -- so ``_stems_base`` declashes a byte-identical
+    stems-only base for both, and the kept Stem I/II/III come out byte-identical across the toggle.
+
+    ``graft_member`` excludes the AT span only; ``graft_terminator_member`` the AT span U the
+    terminator span. The two ``kept`` sets coincide UNLESS a raw pair touches the terminator span
+    but not the AT span -- which on the committed corpus happens ONLY for *Partial* leaders whose
+    terminator alignment spans (most of) the whole leader (there those pairs are the real upstream
+    stems the antiterminator keeps and the terminator refold sheds; such leaders legitimately do
+    not pin and are exempt). This guards against a future member silently breaking the pin by
+    having differing kept sets while being non-Partial. Scoped to the members drawn in BOTH
+    conformations (those that actually pin): a member dropped from one graft never appears in the
+    toggle, so its kept set is free to differ regardless of completeness."""
+    raw = json.loads((Path(__file__).resolve().parents[1] / "r2dt_raw.json").read_text())
+    at_ids = set(json.loads((DATA / "r2dt" / "manifest.json").read_text())["diagrams"])
+    tm_ids = set(json.loads((DATA / "r2dt" / "term" / "manifest.json").read_text())["diagrams"])
+    checked, differing = 0, []
+    for mid in sorted(at_ids & tm_ids):
+        m, r = members.get(mid), raw.get(mid)
+        if m is None or r is None:
+            continue
+        seq, rpairs = r["seq"], [tuple(p) for p in r["pairs"]]
+        at = next((s for s in m["stems"] if s["key"] == "at"), None)
+        tseq, tdot = _to_rna(m.get("term_sequence") or ""), m.get("term_structure") or ""
+        if not tseq or not tdot or len(tseq) != len(tdot):
+            continue  # no terminator -> graft_terminator_member returns None (not in `both`)
+        t0 = seq.find(tseq)
+        if t0 < 0 or seq.find(tseq, t0 + 1) >= 0:
+            continue  # terminator absent or not a UNIQUE substring -> term graft skips it too
+        tlo, thi = t0 + 1, t0 + len(tseq)
+        in_at = lambda p: at is not None and at["start"] <= p <= at["end"]  # noqa: E731
+        in_sw = lambda p: in_at(p) or (tlo <= p <= thi)  # noqa: E731
+        kept_at = {(min(i, j), max(i, j)) for (i, j) in rpairs if not (in_at(i) or in_at(j))}
+        kept_tm = {(min(i, j), max(i, j)) for (i, j) in rpairs if not (in_sw(i) or in_sw(j))}
+        checked += 1
+        if kept_at != kept_tm:
+            differing.append(mid)
+    assert checked > 700
+    assert all(members[mid]["completeness"] == "Partial" for mid in differing), differing
 
 
 def test_whole_term_structure_current_balanced_and_counted(members):

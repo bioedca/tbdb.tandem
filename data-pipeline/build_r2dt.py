@@ -336,7 +336,7 @@ def _place_arc(xs, ys, s, e, lo, hi, med, cen) -> None:
         ys[s + t - 1] = py
 
 
-def _place_tail(xs, ys, s, e, anchor, med, n, partner, reverse=False) -> None:
+def _place_tail(xs, ys, s, e, anchor, med, n, partner, reverse=False, outward_cen=None) -> None:
     """Reattach a dangling 5'/3' tail, retracing R2DT's curve at an even median step.
 
     The tail residues still carry R2DT's coordinates at graft time. Rather than fan
@@ -348,14 +348,23 @@ def _place_tail(xs, ys, s, e, anchor, med, n, partner, reverse=False) -> None:
     median apart -- no break survives inside the run. The tangent continues the
     backbone OUT through the anchor (down the helix rail it caps), not across the
     hairpin. A degenerate (coincident) R2DT step falls back to the tangent direction.
+
+    When ``outward_cen`` (the layout centroid) is given, the launch tangent instead points
+    from the centroid OUT through the anchor. This is used for the post-fold tail off a
+    grafted hairpin: the rail-exit tangent there points back DOWN the ladder into the frozen
+    stems (a clash the frozen-stem declash cannot relax away), whereas an outward launch
+    sends the long single strand into the open 3' space. The curve shape is still retraced.
     """
     ax, ay = xs[anchor], ys[anchor]
-    prev = anchor - 1 if not reverse else anchor + 1
-    if 1 <= prev <= n:
-        tx, ty = ax - xs[prev], ay - ys[prev]
+    if outward_cen is not None:
+        tx, ty = ax - outward_cen[0], ay - outward_cen[1]  # launch AWAY from the layout centre
     else:
-        p = partner.get(anchor)
-        tx, ty = (ax - xs[p], ay - ys[p]) if p is not None else (1.0, 0.0)
+        prev = anchor - 1 if not reverse else anchor + 1
+        if 1 <= prev <= n:
+            tx, ty = ax - xs[prev], ay - ys[prev]
+        else:
+            p = partner.get(anchor)
+            tx, ty = (ax - xs[p], ay - ys[p]) if p is not None else (1.0, 0.0)
     tl = math.hypot(tx, ty) or 1.0
     tx, ty = tx / tl, ty / tl
 
@@ -491,6 +500,7 @@ def _declash(
     iters: int = 200,
     dmin_factor: float = 1.12,
     final_spread: int = 40,
+    anchor: "np.ndarray | list | None" = None,
 ) -> tuple[list[float], list[float]]:
     """Separate colliding nucleotides while holding the backbone + base-pair rungs rigid.
 
@@ -505,6 +515,11 @@ def _declash(
     -- it TRANSLATES out of a collision (the loops that tether it flex) but does not BEND, so
     the recognisable straight ladders R2DT / the graft drew stay crisp. (Tuned over the
     corpus: 0 hard clashes with helix-rail deviation back down to ~0.1 of a backbone step.)
+
+    Pass an explicit per-residue ``anchor`` array (0-based, length ``n``) to override the
+    paired/unpaired split -- the step-2 local declash uses this to FREEZE the shared stems
+    (anchor 1.0 -> the residue is snapped back to its input each pass) while only the switch
+    region relaxes, so the stems stay byte-identical to the base across the toggle.
     """
     P = np.array([[xs[i], ys[i]] for i in range(1, n + 1)], dtype=float)
     O = P.copy()
@@ -522,7 +537,10 @@ def _declash(
         bonded[i, j] = bonded[j, i] = True
         is_paired[i] = is_paired[j] = True
         rest.append((i, j, math.hypot(xs[a] - xs[b], ys[a] - ys[b]) or L))
-    aw = np.where(is_paired, anchor_paired, anchor_unpaired)[:, None]  # per-residue anchor
+    if anchor is not None:
+        aw = np.asarray(anchor, dtype=float)[:, None]  # caller-supplied freeze/relax mask
+    else:
+        aw = np.where(is_paired, anchor_paired, anchor_unpaired)[:, None]  # per-residue anchor
     nb_i, nb_j = np.where(np.triu(~bonded, k=1))  # non-bonded pairs (each once)
     bb_i = np.arange(n - 1)
     bb_j = np.arange(1, n)
@@ -635,85 +653,39 @@ def _naview_relayout(
         return None
 
 
-def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP_RATIO) -> dict | None:
-    """Graft a real antiterminator hairpin onto one raw R2DT compact diagram.
+# --- shared declashed stems-only base (the antiterm<->term toggle's stem-pinning seam) ------
+#
+# The antiterminator (gene-ON) and terminator (gene-OFF) diagrams share Stem I/II/III and
+# differ only in the 3' switch region (AT hairpin vs terminator hairpin). To pin the stems
+# across the toggle BOTH grafts build the same base FIRST: drop the switch pairs to single
+# strand, reflow, and declash the kept Stem I/II/III into an overlap-free layout -- WITHOUT
+# folding either hairpin. Because this depends only on the raw coords + the kept pair set
+# (never on which hairpin will fold in), two conformations that keep the same pairs get a
+# byte-identical base. Each graft then folds its own hairpin into the switch region and
+# locally declashes THAT region with the stems frozen (`_frozen_anchor`), so the stems never
+# move off the shared base -> identical, overlap-free stems in both diagrams. (Pinning the
+# terminator to the antiterminator's already-FOLDED declashed layout was tried in #42 and
+# over-constrains the differently-shaped terminator hairpin; the no-hairpin base is the seam.)
 
-    Returns a grafted compact diagram (same schema as ``ingest``), or ``None`` when
-    R2DT's base layout stayed too distorted (longest backbone step >= ``max_step_ratio``
-    x median) or produced non-finite coordinates -- the caller falls the member back
-    to fornac. Members with no antiterminator pairs are still reflowed and returned.
+
+def _reflow_single_strands(
+    xs: list[float], ys: list[float], pairs: list, n: int, outward_tails: bool = False
+) -> None:
+    """Reflow single-stranded runs that carry a (graft-induced) backbone break, in place.
+
+    A run of unpaired residues bounded by ``pairs``-anchored residues whose backbone steps
+    blew past ~2.2x the median is respread: an interior bulge on an even arc between its two
+    anchors (``_place_arc``), a dangling 5'/3' tail retraced from its single anchor
+    (``_place_tail``). Anchored (paired) residues are never moved, so the stems stay put.
+
+    With ``outward_tails`` (the post-fold reflow), dangling tails launch OUTWARD from the
+    layout centroid instead of down the helix rail -- the long single strand off a grafted
+    hairpin (e.g. the unfolded terminator 3' of the antiterminator) then heads into open
+    space rather than back into the frozen stems, which the stems-frozen declash cannot clear.
     """
-    n = len(raw["seq"])
-    xs = [0.0] + [float(v) for v in raw["x"]]  # 1-based, xs[1..n]
-    ys = [0.0] + [float(v) for v in raw["y"]]
-    rpairs = [tuple(p) for p in raw["pairs"]]
-    pairs = list(rpairs)
-    wapt = _pair_table(member.get("whole_antiterm_structure") or "")
-
-    at = next((s for s in member.get("stems", []) if s["key"] == "at"), None)
-    if at and len(wapt) == n + 1:
-        a, b = at["start"], at["end"]
-        at_pairs = [(i, wapt[i]) for i in range(a, b + 1) if i < wapt[i] <= b]
-        if at_pairs:
-            p_lo = min(i for i, _ in at_pairs)
-            p_hi = max(j for _, j in at_pairs)
-            length = p_hi - p_lo + 1
-            sub = ["."] * length
-            for i, j in at_pairs:
-                sub[i - p_lo] = "("
-                sub[j - p_lo] = ")"
-            local = _ladder_hairpin("".join(sub))
-            if local is None:
-                local = _naview_hairpin("".join(sub))  # branched AT (none in data) → NAView
-            lx, ly = local
-            # scale the local hairpin to the diagram's own nucleotide spacing
-            med = _median_step(xs, ys)
-            lsteps = sorted(math.hypot(lx[k] - lx[k - 1], ly[k] - ly[k - 1]) for k in range(1, length))
-            lstep = lsteps[len(lsteps) // 2] if lsteps else 1.0
-            sc = med / (lstep or 1.0)
-            lx = [v * sc for v in lx]
-            ly = [v * sc for v in ly]
-            # exterior flow at the AT base (from the nearest paired residue before it)
-            anchored = {r for pr in rpairs for r in pr}
-            before = [r for r in anchored if r < p_lo]
-            pa = max(before) if before else max(1, p_lo - 1)
-            fx, fy = xs[p_lo] - xs[pa], ys[p_lo] - ys[pa]
-            fl = math.hypot(fx, fy) or 1
-            fx, fy = fx / fl, fy / fl
-            # Aim the hairpin axis OUTWARD from the layout centroid so it radiates
-            # parallel to the other stems, instead of perpendicular to local flow. The
-            # ladder is built base(level 0) → apex(top), so its local axis runs from the
-            # midpoint of the base to the local centroid; rotate that onto the outward
-            # direction (the AT region's own centre, in R2DT coords, minus the centroid).
-            cx, cy = sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n
-            span = p_hi - p_lo + 1
-            ax, ay = sum(xs[p_lo : p_hi + 1]) / span, sum(ys[p_lo : p_hi + 1]) / span
-            ox, oy = ax - cx, ay - cy
-            ol = math.hypot(ox, oy) or 1.0
-            ox, oy = ox / ol, oy / ol
-            mid0 = ((lx[0] + lx[length - 1]) / 2, (ly[0] + ly[length - 1]) / 2)
-            cen0 = (sum(lx) / length, sum(ly) / length)
-            axis = (cen0[0] - mid0[0], cen0[1] - mid0[1])
-            rot = math.atan2(oy, ox) - math.atan2(axis[1], axis[0])
-            cr, srot = math.cos(rot), math.sin(rot)
-            rx = [lx[k] * cr - ly[k] * srot for k in range(length)]
-            ry = [lx[k] * srot + ly[k] * cr for k in range(length)]
-            # handedness: base(5')->base(3') should align with +flow so the tail exits forward
-            if (rx[length - 1] - rx[0]) * fx + (ry[length - 1] - ry[0]) * fy < 0:
-                ux, uy = ox, oy
-                for k in range(length):
-                    dd = rx[k] * ux + ry[k] * uy
-                    rx[k] = 2 * dd * ux - rx[k]
-                    ry[k] = 2 * dd * uy - ry[k]
-            dx, dy = xs[p_lo] - rx[0], ys[p_lo] - ry[0]
-            for k in range(length):
-                xs[p_lo + k] = rx[k] + dx
-                ys[p_lo + k] = ry[k] + dy
-            pairs = [(i, j) for i, j in rpairs if not (a <= i <= b or a <= j <= b)] + at_pairs
-
-    # reflow single-stranded runs that carry a (often graft-induced) backbone break
     med = _median_step(xs, ys)
     cen = (sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n)
+    out = cen if outward_tails else None
     partner: dict[int, int] = {}
     for i, j in pairs:
         partner[i] = j
@@ -736,10 +708,186 @@ def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP
             if ha_lo and ha_hi:
                 _place_arc(xs, ys, s, e, lo, hi, med, cen)
             elif ha_lo:
-                _place_tail(xs, ys, s, e, lo, med, n, partner)
+                _place_tail(xs, ys, s, e, lo, med, n, partner, outward_cen=out)
             elif ha_hi:
-                _place_tail(xs, ys, s, e, hi, med, n, partner, reverse=True)
+                _place_tail(xs, ys, s, e, hi, med, n, partner, reverse=True, outward_cen=out)
         i = j
+
+
+def _stems_base(
+    xs: list[float], ys: list[float], kept: list, n: int, max_step_ratio: float
+) -> tuple[list[float], list[float]] | None:
+    """Build the declashed stems-only base both grafts fold their hairpin into.
+
+    ``kept`` is the set of R2DT pairs touching NEITHER hairpin span (Stem I/II/III). Reflows
+    the switch-region single strands, applies the same quality gate the graft used (a backbone
+    jump the reflow could not close -> the member falls back to fornac, signalled by ``None``),
+    declashes the kept stems rigid, and -- if the stems-only layout is still too elongated /
+    sparse / clashing -- re-lays the kept pairs on a compact NAView base. NAView and the
+    declash are deterministic, so two conformations with the same ``kept`` get a byte-identical
+    base. Returns 1-based ``(bx, by)`` (switch residues carry throwaway single-strand positions
+    each graft overwrites with its folded hairpin), or ``None`` to drop the member.
+    """
+    _reflow_single_strands(xs, ys, kept, n)
+    # Quality gate on the reflowed stems-only base (pre-declash, like the original graft): a
+    # backbone step the reflow could not close means R2DT's own layout was too distorted.
+    final = sorted(math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(2, n + 1))
+    fmed = (final[len(final) // 2] if final else 1.0) or 1.0
+    if final and final[-1] / fmed >= max_step_ratio:
+        return None
+    bx, by = _declash(xs, ys, kept, n)
+    if _aspect(bx, by, n) >= ASPECT_RELAYOUT or _fill(bx, by, n) <= FILL_RELAYOUT or _has_hard_clash(bx, by, n):
+        relaid = _naview_relayout(bx, by, kept, n)
+        if relaid is not None:
+            bx, by = relaid
+    return bx, by
+
+
+def _orient_hairpin_outward(
+    xs: list[float], ys: list[float], n: int, p_lo: int, p_hi: int, lx: list[float], ly: list[float], anchored: set
+) -> None:
+    """Scale, rotate, and place a local hairpin onto ``xs``/``ys[p_lo..p_hi]`` in place.
+
+    ``lx``/``ly`` are the local (unit-scaled) hairpin coordinates (length ``p_hi - p_lo + 1``).
+    The hairpin is rescaled to the diagram's own nucleotide spacing and rotated so it radiates
+    OUTWARD from the layout centroid -- parallel to the neighbouring stems rather than
+    perpendicular to local flow -- then translated so its 5' base sits at ``xs[p_lo]``. The
+    same construction the antiterminator and terminator grafts share. ``anchored`` is the set
+    of base-paired (stem) residues, used to find the exterior flow at the hairpin base.
+    """
+    length = p_hi - p_lo + 1
+    med = _median_step(xs, ys)
+    lsteps = sorted(math.hypot(lx[k] - lx[k - 1], ly[k] - ly[k - 1]) for k in range(1, length))
+    lstep = lsteps[len(lsteps) // 2] if lsteps else 1.0
+    sc = med / (lstep or 1.0)
+    lx = [v * sc for v in lx]
+    ly = [v * sc for v in ly]
+    # exterior flow at the hairpin base (from the nearest anchored residue before it)
+    before = [r for r in anchored if r < p_lo]
+    pa = max(before) if before else max(1, p_lo - 1)
+    fx, fy = xs[p_lo] - xs[pa], ys[p_lo] - ys[pa]
+    fl = math.hypot(fx, fy) or 1
+    fx, fy = fx / fl, fy / fl
+    # Aim the hairpin axis OUTWARD from the layout centroid: rotate the local base->centroid
+    # axis onto (hairpin-region centre - layout centroid).
+    cx, cy = sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n
+    span = p_hi - p_lo + 1
+    ax, ay = sum(xs[p_lo : p_hi + 1]) / span, sum(ys[p_lo : p_hi + 1]) / span
+    ox, oy = ax - cx, ay - cy
+    ol = math.hypot(ox, oy) or 1.0
+    ox, oy = ox / ol, oy / ol
+    mid0 = ((lx[0] + lx[length - 1]) / 2, (ly[0] + ly[length - 1]) / 2)
+    cen0 = (sum(lx) / length, sum(ly) / length)
+    axis = (cen0[0] - mid0[0], cen0[1] - mid0[1])
+    rot = math.atan2(oy, ox) - math.atan2(axis[1], axis[0])
+    cr, srot = math.cos(rot), math.sin(rot)
+    rx = [lx[k] * cr - ly[k] * srot for k in range(length)]
+    ry = [lx[k] * srot + ly[k] * cr for k in range(length)]
+    # handedness: base(5')->base(3') should align with +flow so the tail exits forward
+    if (rx[length - 1] - rx[0]) * fx + (ry[length - 1] - ry[0]) * fy < 0:
+        ux, uy = ox, oy
+        for k in range(length):
+            dd = rx[k] * ux + ry[k] * uy
+            rx[k] = 2 * dd * ux - rx[k]
+            ry[k] = 2 * dd * uy - ry[k]
+    dx, dy = xs[p_lo] - rx[0], ys[p_lo] - ry[0]
+    for k in range(length):
+        xs[p_lo + k] = rx[k] + dx
+        ys[p_lo + k] = ry[k] + dy
+
+
+def _frozen_anchor(n: int, kept: list, hairpin_pairs: list, p_lo: int, anchor_paired: float = 0.7) -> np.ndarray:
+    """Per-residue anchor for the step-2 local declash: freeze the shared base, relax the switch.
+
+    Residues in the upstream core (everything up to ``switch_start`` -- one past the HIGHEST
+    kept-paired residue below ``p_lo``, i.e. the end of the last upstream stem) and any kept 3'
+    structure get anchor 1.0 -- the local declash snaps them back to the base each pass, so the
+    stems never move off the shared layout. The freshly folded switch hairpin gets
+    ``anchor_paired`` (rigid but free to translate clear of a clash);
+    the switch single strands (bulges, the dropped opposite-conformation helix, the 3' tail)
+    are free (0.0). ``kept`` pairs are stored ``(i, j)`` with ``i < j``.
+    """
+    kept_res = {r for pr in kept for r in pr}
+    upstream = [r for r in kept_res if r < p_lo]
+    switch_start = (max(upstream) + 1) if upstream else 1
+    hp_res = {r for pr in hairpin_pairs for r in pr}
+    anchor = np.ones(n)  # default: frozen (the upstream core + everything below switch_start)
+    for r in range(switch_start, n + 1):
+        if r in kept_res or any(i < r < j for (i, j) in kept):
+            anchor[r - 1] = 1.0  # a kept stem / its enclosed bulge -> stays frozen on the base
+        elif r in hp_res:
+            anchor[r - 1] = anchor_paired  # folded switch hairpin: rigid but mobile
+        else:
+            anchor[r - 1] = 0.0  # switch single strand: free to flow around the hairpin
+    return anchor
+
+
+def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP_RATIO) -> dict | None:
+    """Graft a real antiterminator hairpin onto one raw R2DT compact diagram.
+
+    Returns a grafted compact diagram (same schema as ``ingest``), or ``None`` when
+    R2DT's base layout stayed too distorted (longest backbone step >= ``max_step_ratio``
+    x median) or produced non-finite coordinates -- the caller falls the member back
+    to fornac. Members with no antiterminator pairs are still reflowed and returned.
+    """
+    n = len(raw["seq"])
+    xs = [0.0] + [float(v) for v in raw["x"]]  # 1-based, xs[1..n]
+    ys = [0.0] + [float(v) for v in raw["y"]]
+    rpairs = [tuple(p) for p in raw["pairs"]]
+    wapt = _pair_table(member.get("whole_antiterm_structure") or "")
+
+    # antiterminator hairpin pairs + span (the switch region the AT fold draws as a hairpin)
+    at = next((s for s in member.get("stems", []) if s["key"] == "at"), None)
+    at_pairs: list = []
+    p_lo = p_hi = None
+    if at and len(wapt) == n + 1:
+        a, b = at["start"], at["end"]
+        at_pairs = [(i, wapt[i]) for i in range(a, b + 1) if i < wapt[i] <= b]
+        if at_pairs:
+            p_lo = min(i for i, _ in at_pairs)
+            p_hi = max(j for _, j in at_pairs)
+
+    # Kept Stem I/II/III pairs = raw pairs touching NEITHER end of the AT helix span (which the
+    # AT fold replaces). These define the shared declashed base (``_stems_base``) the two
+    # conformations pin to. Note the deliberate asymmetry with ``graft_terminator_member``,
+    # which additionally drops pairs touching the TERMINATOR span: here we keep them. On the
+    # committed corpus a raw pair touches the terminator span but not the AT span ONLY for
+    # degenerate *Partial* leaders whose terminator alignment spans (most of) the whole leader
+    # -- and there those pairs ARE the real upstream Stem I/III, which the antiterminator
+    # conformation genuinely keeps (only the gene-OFF terminator refold sheds them). So for
+    # every NON-Partial member the two grafts' kept sets are byte-identical -> identical base
+    # -> the stems pin; the Partial leaders differ but legitimately refold and are exempt from
+    # the toggle's pin test. (Both invariants are enforced over the committed data:
+    # test_artifacts.py test_grafts_keep_identical_stem_pairs_for_non_partial and
+    # test_terminator_diagrams_pin_stems_across_the_toggle.)
+    if at_pairs:
+        a, b = at["start"], at["end"]
+        kept = [(min(i, j), max(i, j)) for (i, j) in rpairs if not (a <= i <= b or a <= j <= b)]
+    else:
+        kept = [(min(i, j), max(i, j)) for (i, j) in rpairs]
+
+    base = _stems_base(xs, ys, kept, n, max_step_ratio)
+    if base is None:
+        return None  # R2DT's stems-only base too distorted -> fornac fallback
+    xs, ys = base
+    pairs = kept + at_pairs
+
+    if at_pairs:
+        length = p_hi - p_lo + 1
+        sub = ["."] * length
+        for i, j in at_pairs:
+            sub[i - p_lo] = "("
+            sub[j - p_lo] = ")"
+        local = _ladder_hairpin("".join(sub))
+        if local is None:
+            local = _naview_hairpin("".join(sub))  # branched AT (none in data) -> NAView
+        lx, ly = local
+        # Fold the real AT hairpin into the shared base, radiating outward like the stems,
+        # reflow the connector + 3' tail, then declash the switch with the stems FROZEN so the
+        # kept Stem I/II/III stay byte-identical to the base (the toggle's stem-pinning guarantee).
+        _orient_hairpin_outward(xs, ys, n, p_lo, p_hi, list(lx), list(ly), {r for pr in kept for r in pr})
+        _reflow_single_strands(xs, ys, pairs, n, outward_tails=True)
+        xs, ys = _declash(xs, ys, pairs, n, anchor=_frozen_anchor(n, kept, at_pairs, p_lo))
 
     coords = xs[1 : n + 1] + ys[1 : n + 1]
     if any(not math.isfinite(v) for v in coords):
@@ -747,22 +895,6 @@ def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP
     final = sorted(math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(2, n + 1))
     fmed = final[len(final) // 2] if final else 1.0
     if final and final[-1] / (fmed or 1.0) >= max_step_ratio:
-        return None
-
-    # Resolve glyph-on-glyph overlaps (the graft keeps R2DT's base layout + reflows single
-    # strands by local rules, so non-adjacent residues collide); declash holds helices rigid
-    # and preserves the recognisable shape. A handful of members stay so elongated that even
-    # the clash-free layout is unreadable -- re-lay just those on a compact NAView layout.
-    xs, ys = _declash(xs, ys, pairs, n)
-    if (
-        _aspect(xs, ys, n) >= ASPECT_RELAYOUT
-        or _fill(xs, ys, n) <= FILL_RELAYOUT
-        or _has_hard_clash(xs, ys, n)
-    ):
-        relaid = _naview_relayout(xs, ys, pairs, n)
-        if relaid is not None:
-            xs, ys = relaid
-    if any(not math.isfinite(v) for v in xs[1 : n + 1] + ys[1 : n + 1]):
         return None
 
     return {
@@ -825,10 +957,10 @@ def graft(
 # The R2DT/RF00230 template + graft draw the ANTITERMINATOR (gene-ON) fold. The
 # alternative TERMINATOR (gene-OFF) conformation shares Stem I/II/III and differs only in
 # the 3' region (the antiterminator helix is replaced by the terminator hairpin); tbdb
-# draws both full-length, side by side. ``graft_terminator_member`` keeps each member's
-# canonical R2DT Stem I/II/III coordinates -- the SAME ones ``graft_member`` draws for the
-# antiterminator -- and folds the terminator hairpin in where the antiterminator sat, so
-# toggling antiterm<->term pins the stems and only the 3' hairpin swaps. Committed under
+# draws both full-length, side by side. ``graft_terminator_member`` builds the SAME shared
+# declashed stems-only base ``graft_member`` does (``_stems_base`` over the kept Stem I/II/III
+# pairs) and folds the terminator hairpin in where the antiterminator sat, so toggling
+# antiterm<->term pins the (declashed) stems and only the 3' hairpin swaps. Committed under
 # ``public/data/r2dt/term/`` for the in-app conformation toggle; members without raw R2DT
 # coords (or whose reflow stays too distorted) fall back to fornac, which also renders the
 # full-length terminator (from the derived ``whole_term_structure``). A simple terminator
@@ -899,26 +1031,27 @@ def graft_terminator_member(
     terminator-conformation diagram (PLAN section 9).
 
     The terminator (gene-OFF) and antiterminator (gene-ON) folds share Stem I/II/III and
-    differ only in the 3' region; tbdb draws both full-length, side by side. This keeps
-    R2DT's canonical Stem I/II/III coordinates -- the SAME ones ``graft_member`` draws for
-    the antiterminator diagram, so toggling antiterm<->term pins the stems and only the 3'
-    hairpin swaps -- and folds the terminator hairpin in where the antiterminator helix sat:
+    differ only in the 3' region; tbdb draws both full-length, side by side. This builds the
+    SAME shared declashed stems-only base ``graft_member`` does (``_stems_base`` over the kept
+    Stem I/II/III pairs), then folds the terminator hairpin in where the antiterminator helix
+    sat, so toggling antiterm<->term pins the stems and only the 3' hairpin swaps:
 
       * locate the terminator in the leader (``term_sequence`` T->U is an exact substring of
         ``raw["seq"]``), giving its leader span ``[tlo, thi]`` and pairs (``term_structure``
         shifted into leader coordinates);
       * drop R2DT template pairs touching the switch region (AT span U terminator span) and
-        keep the rest (Stem I/II/IIA-B/III) verbatim;
+        declash the rest (Stem I/II/IIA-B/III) into the shared base;
       * lay the terminator core on the deterministic ladder (simple hairpin) or NAView
         (branched -- ~1/3 of terminators), orient it OUTWARD from the layout centroid like
-        ``graft_member`` does, and reflow the single strands into a continuous backbone.
+        ``graft_member`` does, reflow the single strands, and declash the switch with the
+        stems FROZEN so they stay byte-identical to the base.
 
     Returns the compact diagram (schema as ``ingest``/``graft``) with ``seq`` = the FULL
     leader, or ``None`` when the member has no drawable terminator (no alignment / pairless)
-    or the reflowed layout stays too distorted (longest step >= ``max_step_ratio`` x median)
-    -- the caller falls those back to fornac. Self-contained: reuses only the stable
-    low-level helpers, never ``graft_member``, so it stays independent of the antiterminator
-    graft (which a parallel effort is actively revising).
+    or the stems-only base stays too distorted (longest step >= ``max_step_ratio`` x median)
+    -- the caller falls those back to fornac. Shares the ``_stems_base`` / hairpin-fold
+    helpers with ``graft_member``; wherever both grafts keep the same pairs, the stems come
+    out byte-identical (the toggle's stem-pinning guarantee).
     """
     seq = raw["seq"]
     n = len(seq)
@@ -945,13 +1078,18 @@ def graft_terminator_member(
     # Keep R2DT template pairs that touch NEITHER the antiterminator-helix span NOR the
     # terminator span (each region SEPARATELY -- not their contiguous union, which would
     # swallow a stem sitting between a disjoint terminator + antiterminator, e.g. T0396.m2).
-    # The kept Stem I/II/IIA-B/III pairs stay byte-identical to graft_member's.
+    # These kept Stem I/II/IIA-B/III pairs are the SAME shared base graft_member declashes.
     at = next((s for s in member.get("stems", []) if s["key"] == "at"), None)
 
     def _in_switch(p: int) -> bool:
         return (tlo <= p <= thi) or (at is not None and at["start"] <= p <= at["end"])
 
-    kept = [(i, j) for (i, j) in rpairs if not (_in_switch(i) or _in_switch(j))]
+    kept = [(min(i, j), max(i, j)) for (i, j) in rpairs if not (_in_switch(i) or _in_switch(j))]
+
+    base = _stems_base(xs, ys, kept, n, max_step_ratio)
+    if base is None:
+        return None  # R2DT's stems-only base too distorted -> fornac fallback
+    xs, ys = base
 
     # local terminator-core coords: deterministic ladder (simple) or NAView (branched)
     length = p_hi - p_lo + 1
@@ -967,89 +1105,14 @@ def graft_terminator_member(
     # placing, so no two glyphs overlap; touches only the terminator core, never the stems.
     lx, ly = _spread_coincident(list(lx), list(ly), 0.5)
 
-    # scale the local hairpin to the diagram's own nucleotide spacing
-    med = _median_step(xs, ys)
-    lsteps = sorted(math.hypot(lx[k] - lx[k - 1], ly[k] - ly[k - 1]) for k in range(1, length))
-    lstep = lsteps[len(lsteps) // 2] if lsteps else 1.0
-    sc = med / (lstep or 1.0)
-    lx = [v * sc for v in lx]
-    ly = [v * sc for v in ly]
-    # exterior flow at the core base (from the nearest KEPT-anchored residue before it)
-    anchored_keep = {r for pr in kept for r in pr}
-    before = [r for r in anchored_keep if r < p_lo]
-    pa = max(before) if before else max(1, p_lo - 1)
-    fx, fy = xs[p_lo] - xs[pa], ys[p_lo] - ys[pa]
-    fl = math.hypot(fx, fy) or 1
-    fx, fy = fx / fl, fy / fl
-    # Aim the hairpin axis OUTWARD from the layout centroid so it radiates parallel to the
-    # stems (same construction as graft_member): rotate the local base->centroid axis onto
-    # (terminator-region centre - layout centroid).
-    cx, cy = sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n
-    span = p_hi - p_lo + 1
-    ax, ay = sum(xs[p_lo : p_hi + 1]) / span, sum(ys[p_lo : p_hi + 1]) / span
-    ox, oy = ax - cx, ay - cy
-    ol = math.hypot(ox, oy) or 1.0
-    ox, oy = ox / ol, oy / ol
-    mid0 = ((lx[0] + lx[length - 1]) / 2, (ly[0] + ly[length - 1]) / 2)
-    cen0 = (sum(lx) / length, sum(ly) / length)
-    axis = (cen0[0] - mid0[0], cen0[1] - mid0[1])
-    rot = math.atan2(oy, ox) - math.atan2(axis[1], axis[0])
-    cr, srot = math.cos(rot), math.sin(rot)
-    rx = [lx[k] * cr - ly[k] * srot for k in range(length)]
-    ry = [lx[k] * srot + ly[k] * cr for k in range(length)]
-    # handedness: base(5')->base(3') should align with +flow so the tail exits forward
-    if (rx[length - 1] - rx[0]) * fx + (ry[length - 1] - ry[0]) * fy < 0:
-        ux, uy = ox, oy
-        for k in range(length):
-            dd = rx[k] * ux + ry[k] * uy
-            rx[k] = 2 * dd * ux - rx[k]
-            ry[k] = 2 * dd * uy - ry[k]
-    dx, dy = xs[p_lo] - rx[0], ys[p_lo] - ry[0]
-    for k in range(length):
-        xs[p_lo + k] = rx[k] + dx
-        ys[p_lo + k] = ry[k] + dy
-
     pairs = kept + term_pairs
 
-    # reflow single-stranded runs that carry a (often graft-induced) backbone break
-    med = _median_step(xs, ys)
-    cen = (sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n)
-    partner: dict[int, int] = {}
-    for i, j in pairs:
-        partner[i] = j
-        partner[j] = i
-    anchored = set(partner)
-    i = 1
-    while i <= n:
-        if i in anchored:
-            i += 1
-            continue
-        j = i
-        while j <= n and j not in anchored:
-            j += 1
-        s, e = i, j - 1
-        lo, hi = s - 1, e + 1
-        ha_lo = lo >= 1 and lo in anchored
-        ha_hi = hi <= n and hi in anchored
-        steps = [math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(max(2, lo + 1), min(n, hi) + 1)]
-        if any(st > 2.2 * med for st in steps):
-            if ha_lo and ha_hi:
-                _place_arc(xs, ys, s, e, lo, hi, med, cen)
-            elif ha_lo:
-                _place_tail(xs, ys, s, e, lo, med, n, partner)
-            elif ha_hi:
-                _place_tail(xs, ys, s, e, hi, med, n, partner, reverse=True)
-        i = j
-
-    # Final de-overlap, restricted to the TERMINATOR span: the reflow can drop an unpaired
-    # residue onto a placed ladder/NAView residue (the per-core pass earlier cannot see this).
-    # Confined to [tlo..thi] so the upstream stems are never perturbed -- that keeps their
-    # coordinates byte-identical to graft_member's, which is the toggle's stem-pinning guarantee.
-    final0 = sorted(math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(2, n + 1))
-    fmed0 = (final0[len(final0) // 2] if final0 else 1.0) or 1.0
-    sx, sy = _spread_coincident(xs[tlo : thi + 1], ys[tlo : thi + 1], 0.5 * fmed0)
-    xs[tlo : thi + 1] = sx
-    ys[tlo : thi + 1] = sy
+    # Fold the terminator hairpin into the shared base (radiating outward like the stems),
+    # reflow the connector + 3' tail, then declash the switch with the stems FROZEN -- so the
+    # kept Stem I/II/III stay byte-identical to the base graft_member also pins to.
+    _orient_hairpin_outward(xs, ys, n, p_lo, p_hi, list(lx), list(ly), {r for pr in kept for r in pr})
+    _reflow_single_strands(xs, ys, pairs, n, outward_tails=True)
+    xs, ys = _declash(xs, ys, pairs, n, anchor=_frozen_anchor(n, kept, term_pairs, p_lo))
 
     coords = xs[1 : n + 1] + ys[1 : n + 1]
     if any(not math.isfinite(v) for v in coords):
