@@ -34,8 +34,10 @@ test.describe('About (/about)', () => {
     expect(await download.getAttribute('href')).toContain('reproduce_tandem_tbox_db.py')
 
     // The three attribution links (§14): TBDB home, the CC-BY DOI, the citing page.
+    // The TBDB DOI now appears more than once (the inline first-riboswitch citation
+    // plus the reference-list entry), so match the first — both resolve to the DOI.
     await expect(page.locator('a[href="https://tbdb.io"]')).toBeVisible()
-    await expect(page.locator('a[href="https://doi.org/10.1093/nar/gkaa721"]')).toBeVisible()
+    await expect(page.locator('a[href="https://doi.org/10.1093/nar/gkaa721"]').first()).toBeVisible()
     await expect(page.locator('a[href="https://tbdb.io/citing.html"]').first()).toBeVisible()
   })
 })
