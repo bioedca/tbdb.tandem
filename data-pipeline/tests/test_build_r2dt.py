@@ -146,6 +146,7 @@ def test_ingest_writes_assets_manifest_and_skips_mismatch(tmp_path: Path):
 
 import math  # noqa: E402
 
+import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
 
@@ -411,42 +412,87 @@ def test_has_hard_clash_flags_only_real_overlap():
     assert br._has_hard_clash(xs, ys, n)
 
 
-def test_aspect_matches_bounding_box():
-    # points (0,0), (40,0), (40,10) -> a 40x10 bounding box -> aspect 4.0
-    xs = [0.0, 0.0, 40.0, 40.0]  # 1-based [1..3]
-    ys = [0.0, 0.0, 0.0, 10.0]
-    assert br._aspect(xs, ys, 3) == pytest.approx(4.0)
+def test_overlap_count_uses_the_visual_threshold():
+    # _overlap_count / _has_visual_overlap flag NON-adjacent glyphs whose centres are closer than
+    # 0.88*L (where they visually overlap) -- the real clash threshold, not the old 0.5*L burial.
+    n = 5
+    xs = [0.0] + [float(i * 10) for i in range(n)]  # L = 10
+    ys = [0.0] + [0.0] * n
+    assert br._overlap_count(xs, ys, n) == 0 and not br._has_visual_overlap(xs, ys, n)
+    xs[5], ys[5] = 0.0, 7.0  # residue 5 (non-adjacent) 0.7*L from residue 1, clear of the rest
+    assert br._has_visual_overlap(xs, ys, n)  # overlaps at the 0.88*L visual threshold
+    assert br._overlap_count(xs, ys, n, factor=0.5) == 0  # but not buried at the old 0.5*L threshold
 
 
-def test_fill_is_disc_coverage_of_bbox():
-    # 3 residues, 10u backbone step, in a 10x10 box -> three r=0.44*10 discs over area 100.
-    # _fill is the wasteful-layout signal that routes a sprawled diagram to NAView.
-    xs = [0.0, 0.0, 10.0, 10.0]  # 1-based [1..3]; steps 10,10 -> median 10
-    ys = [0.0, 0.0, 0.0, 10.0]
-    assert br._fill(xs, ys, 3) == pytest.approx(3 * math.pi * (0.44 * 10) ** 2 / (10 * 10), rel=1e-6)
+def test_helix_clusters_groups_contiguous_helices_and_splits_at_bulges():
+    # An outer 2-bp helix (1-2 / 11-12) and an inner 2-bp helix (5-6 / 7-8) separated on BOTH
+    # strands by unpaired bulges (3-4 and 9-10) -> two rigid clusters, each carrying both strands.
+    pairs = [(1, 12), (2, 11), (5, 8), (6, 7)]
+    clusters = sorted(tuple(sorted(c)) for c in br._helix_clusters(pairs, 12))
+    assert clusters == [(1, 2, 11, 12), (5, 6, 7, 8)]
 
 
-def test_place_tail_preserves_curve_shape():
-    # A tail keeps R2DT's curve (its per-step headings), it is NOT flattened into a
-    # straight ray: an L-bend in the original stays a right angle after reattachment.
-    xs = [0.0, 0.0, 10.0, 20.0, 20.0, 20.0]  # 1-based; idx 1 = anchor, idx 2..5 = tail
-    ys = [0.0, 0.0, 0.0, 0.0, 10.0, 20.0]
-    br._place_tail(xs, ys, 2, 5, 1, med=10.0, n=5, partner={})
-    v1 = (xs[3] - xs[2], ys[3] - ys[2])  # first tail segment
-    v2 = (xs[5] - xs[4], ys[5] - ys[4])  # last tail segment (was ⟂ to the first)
-    assert abs(v1[0] * v2[0] + v1[1] * v2[1]) < 1e-6  # right angle preserved (shape kept)
+def test_separate_stem_clusters_separates_overlapping_helices_rigidly():
+    # Two 2-bp ladders dropped overlapping (split by an unpaired spacer at residue 5) -> separation
+    # pushes them apart to the visual threshold while each stays RIGID (translation only: intra-
+    # cluster distances unchanged, no bending).
+    n = 9
+    sq = [(0.0, 0.0), (0.0, 10.0), (20.0, 10.0), (20.0, 0.0)]
+    xs = [0.0] + [p[0] for p in sq] + [99.0] + [p[0] + 5.0 for p in sq]  # A=1-4, spacer 5, B=6-9
+    ys = [0.0] + [p[1] for p in sq] + [50.0] + [p[1] for p in sq]
+    pairs = [(1, 4), (2, 3), (6, 9), (7, 8)]
+    L = 10.0
+    d_intra = math.hypot(xs[1] - xs[2], ys[1] - ys[2])
+    br._separate_stem_clusters(xs, ys, pairs, n, L)
+    A, B = [1, 2, 3, 4], [6, 7, 8, 9]
+    mind = min(math.hypot(xs[i] - xs[j], ys[i] - ys[j]) for i in A for j in B)
+    assert mind >= 0.88 * L  # clusters cleared to the visual threshold
+    assert math.hypot(xs[1] - xs[2], ys[1] - ys[2]) == pytest.approx(d_intra)  # cluster A stayed rigid
 
 
-def test_place_tail_closes_interior_break():
-    # If R2DT's tail carries an interior jump (here a 3x-median step between idx 3 and
-    # 4), retracing its headings at an even median step removes the discontinuity --
-    # the reflow exists to make the backbone continuous, so no interior break may
-    # survive in the served run (PR A review finding).
-    xs = [0.0, 0.0, 10.0, 20.0, 50.0, 60.0]  # 1-based; anchor idx 1; tail 2..5; jump 3→4
+def test_declash_rigid_group_stays_rigid_while_clearing_an_obstacle():
+    # A rigid group (3 collinear residues) overlapped by a free obstacle must MOVE as a rigid body
+    # to clear it -- its internal geometry preserved EXACTLY (no bending), which the per-residue
+    # anchor (pulling toward a fixed orientation) cannot guarantee.
+    n = 4
+    xs = [0.0, 0.0, 1.0, 2.0, 1.0]  # 1-based; group = residues 1,2,3 collinear; residue 4 obstacle
+    ys = [0.0, 0.0, 0.0, 0.0, 0.2]  # obstacle (4) dropped right on residue 2
+    pairs: list = []
+    group = [[0, 1, 2]]  # 0-based residues 1,2,3
+    before = sorted(round(math.hypot(xs[a] - xs[b], ys[a] - ys[b]), 4) for a in (1, 2, 3) for b in (1, 2, 3))
+    dx, dy = br._declash(xs, ys, pairs, n, rigid_groups=group, iters=200)
+    after = sorted(round(math.hypot(dx[a] - dx[b], dy[a] - dy[b]), 4) for a in (1, 2, 3) for b in (1, 2, 3))
+    assert after == before  # internal pairwise geometry preserved exactly -> stayed rigid
+    L = br._median_step(dx, dy)
+    assert math.hypot(dx[2] - dx[4], dy[2] - dy[4]) >= 0.5 * L  # the obstacle was cleared
+    assert all(math.isfinite(v) for v in dx[1 : n + 1] + dy[1 : n + 1])
+
+
+def test_route_arc_picks_the_clear_side_of_an_obstacle():
+    # The collision-aware router bows a connector to whichever side is open: with an obstacle just
+    # below the chord, the run (2,3,4) between anchors 1 and 5 must bow UP. (The user's stagger
+    # idea: score both even-arc bows against the obstacle field, keep the clear one.) Anchors stay put.
+    xs = [0.0, 0.0, 3.3, 5.0, 6.7, 10.0]  # 1-based; lo=1 at (0,0), run 2,3,4, hi=5 at (10,0)
+    ys = [0.0, 0.0, -3.0, -3.0, -3.0, 0.0]  # run currently sits low, on top of the obstacle
+    obs = np.array([[5.0, -3.0]])  # obstacle just below the chord midpoint
+    br._route_arc(xs, ys, 2, 4, 1, 5, med=5.0, cen=(5.0, -1.0), obs=obs)
+    assert all(ys[k] > 0 for k in (2, 3, 4))  # bowed UP, away from the obstacle below
+    assert (xs[1], ys[1]) == (0.0, 0.0) and (xs[5], ys[5]) == (10.0, 0.0)  # anchors untouched
+
+
+def test_route_tail_reverse_orders_from_the_anchor_inward():
+    # A 5' (reverse) tail's anchor is hi = e+1: the router must seat the residue NEAREST the anchor
+    # one step away and walk INWARD to s -- not the far end (the ordering fix that stops a giant
+    # backbone jump at the anchor). Re-routed onto a clear ray, every step ~one median (no break).
+    n = 5
+    xs = [0.0, 9.0, 6.0, 3.0, 0.0, -5.0]  # 1-based; tail = 1,2,3; anchor hi = 4 at (0,0)
     ys = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    br._place_tail(xs, ys, 2, 5, 1, med=10.0, n=5, partner={})
-    steps = [math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) for i in range(2, 6)]
-    assert max(steps) <= 1.2 * 10.0  # every tail step ~one median apart (no 3x jump left)
+    obs = np.array([[3.0, 0.0]])  # sits on residue 3's current spot -> forces a re-route
+    br._route_tail(xs, ys, 1, 3, 4, med=3.0, n=n, partner={}, cen=(0.0, 10.0), obs=obs,
+                   outward=True, reverse=True)
+    assert math.hypot(xs[3] - xs[4], ys[3] - ys[4]) <= 1.5 * 3.0  # residue 3 stays adjacent to anchor 4
+    steps = [math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) for i in range(2, 5)]
+    assert max(steps) <= 1.5 * 3.0  # no backbone break anywhere along the tail or at the anchor
 
 
 # --- stage 4: the full-length terminator graft -------------------------------
@@ -497,10 +543,11 @@ def test_graft_terminator_member_stem_coords_identical_to_antiterm_graft():
     # The headline invariant (issue #45): both grafts build the SAME declashed stems-only base,
     # so residues OUTSIDE both hairpin spans (the kept Stem) carry byte-identical coordinates
     # whether drawn by the antiterminator graft or the terminator graft -- toggling
-    # antiterm<->term pins the stems. Both grafts DECLASH the stems OFF the raw R2DT layout (the
-    # #45 co-declash), so it is the shared base -- not the raw coords -- that pins. Both grafts
-    # must ACTUALLY fold their hairpin (non-degenerate) for this to be a real test, not a
-    # raw-coords passthrough.
+    # antiterm<->term pins the stems. The shared base (not the raw coords) is what pins; on this
+    # trivially-clean synthetic layout the base declash is a no-op (nothing to separate), so the
+    # kept stem legitimately lands back on its raw position -- the corpus-scale guarantee that the
+    # declash genuinely runs + moves real members lives in test_artifacts.py. Both grafts must
+    # ACTUALLY fold their hairpin (non-degenerate) for this to be a real test, not a passthrough.
     fasta = "AACCGGTTAAGCGCTTAAGCGCTTAAGCAA"  # 30 nt; upstream stem (2,9), AT/term in [16,30]
     rawseq = br.to_rna(fasta)
     raw = {
@@ -530,10 +577,9 @@ def test_graft_terminator_member_stem_coords_identical_to_antiterm_graft():
     # both grafts genuinely fold a hairpin into the switch region (not a no-op passthrough)
     assert any(abs(a["y"][k]) > 1e-6 for k in range(15, 25))
     assert any(abs(t["y"][k]) > 1e-6 for k in range(15, 30))
-    for r in (2, 9):  # 1-based; the kept upstream stem pair, declashed onto the shared base
+    for r in (2, 9):  # 1-based; the kept upstream stem pair, on the shared base
         assert abs(a["x"][r - 1] - t["x"][r - 1]) <= 0.1  # the stems PIN across the toggle
         assert abs(a["y"][r - 1] - t["y"][r - 1]) <= 0.1
-        assert (a["x"][r - 1], a["y"][r - 1]) != (raw["x"][r - 1], raw["y"][r - 1])  # both off raw
 
 
 def test_graft_terminator_member_branched_uses_naview():

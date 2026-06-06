@@ -66,25 +66,6 @@ _NT = frozenset("ACGU")
 #: big-circle layouts are >=5x. See PROGRESS (graft step).
 GRAFT_MAX_STEP_RATIO = 5.0
 
-#: A grafted+declashed diagram whose aspect ratio reaches this is re-laid on a compact
-#: NAView layout instead of keeping R2DT's arrangement. Past ~2.3 the far-flung template
-#: graft (antiterminator radiated outward + a long reflowed connector) wastes most of the
-#: drawing box and shrinks every glyph below readable size EVEN THOUGH declash removed the
-#: overlaps; a fresh NAView layout (same base pairs, so the stem-colour overlay still
-#: indexes correctly) packs the molecule compactly. Set from a visual-judge panel that
-#: preferred declash 18/19 but flipped to NAView exactly on the elongated tail; only ~1.5%
-#: of members clear this gate. See PROGRESS (declash step).
-ASPECT_RELAYOUT = 2.3
-
-#: ...and a diagram whose declashed FILL (ink-disc area / bounding-box area) drops to this is
-#: ALSO re-laid on NAView. A low fill is the signature of the other unreadable failure mode:
-#: a layout that is not especially elongated (so it slips under ASPECT_RELAYOUT) but is sprayed
-#: across the box -- two clusters joined by a long single-strand connector, most of the box
-#: empty -- so every glyph still renders tiny (e.g. T0324.m2: aspect 1.36 but fill 0.043).
-#: ~bottom 2% of the declashed fill distribution (median ~0.067); with ASPECT_RELAYOUT this
-#: routes ~4% of members to the compact NAView layout.
-FILL_RELAYOUT = 0.045
-
 #: Extra outward clearance (in median backbone steps) by which a grafted hairpin's base is
 #: pushed off the layout centroid when placed (``_orient_hairpin_outward``). Because the
 #: step-2 declash FREEZES the shared stems (issue #45), it cannot relax a hairpin that the
@@ -347,62 +328,6 @@ def _place_arc(xs, ys, s, e, lo, hi, med, cen) -> None:
         ys[s + t - 1] = py
 
 
-def _place_tail(xs, ys, s, e, anchor, med, n, partner, reverse=False, outward_cen=None) -> None:
-    """Reattach a dangling 5'/3' tail, retracing R2DT's curve at an even median step.
-
-    The tail residues still carry R2DT's coordinates at graft time. Rather than fan
-    them into one long straight ray (which balloons the bounding box and shoots the 3'
-    leader off at a steep angle), OR rigid-replay R2DT verbatim (which would carry over
-    any interior R2DT jump as a fresh backbone break), we re-trace R2DT's per-step
-    HEADINGS at a uniform median step, starting from the anchor along the local exit
-    tangent. That keeps R2DT's curve shape while guaranteeing every tail step is ~one
-    median apart -- no break survives inside the run. The tangent continues the
-    backbone OUT through the anchor (down the helix rail it caps), not across the
-    hairpin. A degenerate (coincident) R2DT step falls back to the tangent direction.
-
-    When ``outward_cen`` (the layout centroid) is given, the launch tangent instead points
-    from the centroid OUT through the anchor. This is used for the post-fold tail off a
-    grafted hairpin: the rail-exit tangent there points back DOWN the ladder into the frozen
-    stems (a clash the frozen-stem declash cannot relax away), whereas an outward launch
-    sends the long single strand into the open 3' space. The curve shape is still retraced.
-    """
-    ax, ay = xs[anchor], ys[anchor]
-    if outward_cen is not None:
-        tx, ty = ax - outward_cen[0], ay - outward_cen[1]  # launch AWAY from the layout centre
-    else:
-        prev = anchor - 1 if not reverse else anchor + 1
-        if 1 <= prev <= n:
-            tx, ty = ax - xs[prev], ay - ys[prev]
-        else:
-            p = partner.get(anchor)
-            tx, ty = (ax - xs[p], ay - ys[p]) if p is not None else (1.0, 0.0)
-    tl = math.hypot(tx, ty) or 1.0
-    tx, ty = tx / tl, ty / tl
-
-    walk = list(range(s, e + 1)) if not reverse else list(range(e, s - 1, -1))
-    ox = [xs[k] for k in walk]  # capture R2DT coords before mutating
-    oy = [ys[k] for k in walk]
-    # rotate R2DT's whole heading field so the tail's launch step aligns with the tangent
-    rot = (
-        math.atan2(ty, tx) - math.atan2(oy[1] - oy[0], ox[1] - ox[0])
-        if len(walk) >= 2
-        else 0.0
-    )
-    c, sn = math.cos(rot), math.sin(rot)
-    px, py = ax + tx * med, ay + ty * med  # first residue: one step out along the tangent
-    xs[walk[0]], ys[walk[0]] = px, py
-    for i in range(1, len(walk)):
-        hx, hy = ox[i] - ox[i - 1], oy[i] - oy[i - 1]
-        hl = math.hypot(hx, hy)
-        if hl < 1e-9:
-            ux, uy = tx, ty
-        else:
-            ux = (hx * c - hy * sn) / hl  # R2DT heading, rotated into place + unit length
-            uy = (hx * sn + hy * c) / hl
-        px, py = px + ux * med, py + uy * med
-        xs[walk[i]], ys[walk[i]] = px, py
-
-
 #: Base-pair rung length of the antiterminator ladder, in units of the backbone
 #: step. ~1.9 matches the rung/step ratio R2DT draws the canonical Stem I/II/III
 #: helices at (measured 1.88 over the committed diagrams), so the grafted
@@ -485,6 +410,26 @@ def _naview_hairpin(subdot: str) -> tuple[list[float], list[float]]:
     return [co[k].X for k in range(len(subdot))], [co[k].Y for k in range(len(subdot))]
 
 
+def _naview_hairpin_declashed(subdot: str) -> tuple[list[float], list[float]]:
+    """NAView layout of a BRANCHED hairpin, declashed in its own frame before placement.
+
+    NAView draws a multiloop terminator (two side-by-side hairpins) compactly but with its
+    sub-hairpins crowded -- the residual ``hairpin x hairpin`` overlap. Declashing here, in the
+    isolated local frame (each sub-helix a rigid body free to swing apart, loops free), spreads
+    them with no frozen stems in the way; the spread layout is then placed + held by the graft's
+    own declash. Simple hairpins never reach this path (the straight ladder handles them).
+    """
+    lx, ly = _naview_hairpin(subdot)
+    n = len(subdot)
+    pt = _pair_table(subdot)
+    pairs = [(i, pt[i]) for i in range(1, n + 1) if 0 < i < pt[i]]
+    xs = [0.0] + list(lx)
+    ys = [0.0] + list(ly)
+    rigid = [[r - 1 for r in c] for c in _helix_clusters(pairs, n)]
+    dx, dy = _declash(xs, ys, pairs, n, rigid_groups=rigid, iters=160, final_spread=30)
+    return dx[1 : n + 1], dy[1 : n + 1]
+
+
 # --- overlap resolution (declash) -------------------------------------------
 #
 # R2DT's base Stem I/II/III coordinates are kept verbatim by `graft`, and the AT graft +
@@ -512,6 +457,8 @@ def _declash(
     dmin_factor: float = 1.12,
     final_spread: int = 40,
     anchor: "np.ndarray | list | None" = None,
+    rigid_groups: "list | None" = None,
+    rigid_anchor: float = 0.08,
 ) -> tuple[list[float], list[float]]:
     """Separate colliding nucleotides while holding the backbone + base-pair rungs rigid.
 
@@ -552,6 +499,21 @@ def _declash(
         aw = np.asarray(anchor, dtype=float)[:, None]  # caller-supplied freeze/relax mask
     else:
         aw = np.where(is_paired, anchor_paired, anchor_unpaired)[:, None]  # per-residue anchor
+    # Rigid-body groups (0-based residue index lists): each is snapped to the rigid (rotation +
+    # translation) fit of its REST shape onto its current positions every pass -- so the helix stays
+    # EXACTLY straight yet is free to rotate AND translate to pack clear of its neighbours (which the
+    # per-residue anchor, pulling toward a FIXED orientation, cannot do). Grouped residues keep only a
+    # weak ``rigid_anchor`` pull toward their rest position, enough to hold R2DT's overall arrangement
+    # without pinning a stem that needs to swing out of a collision.
+    groups: list[tuple[np.ndarray, np.ndarray]] = []
+    if rigid_groups:
+        aw = aw.copy()
+        for g in rigid_groups:
+            idx = np.array(sorted({r for r in g if 0 <= r < n}), dtype=int)
+            if len(idx) >= 2:
+                Q = O[idx]
+                groups.append((idx, Q - Q.mean(axis=0)))
+                aw[idx] = rigid_anchor
     nb_i, nb_j = np.where(np.triu(~bonded, k=1))  # non-bonded pairs (each once)
     bb_i = np.arange(n - 1)
     bb_j = np.arange(1, n)
@@ -586,8 +548,20 @@ def _declash(
                 c = ((di - rr) / di * 0.5)[:, None] * d
                 np.add.at(P, rp[:, 0], c)
                 np.add.at(P, rp[:, 1], -c)
-        # (3) per-residue shape anchor: helices pulled hard toward input (stay straight),
-        # loops/single strands free to flow apart.
+        # (3) rigid-body shape match: snap each group to the rigid transform of its rest shape, so
+        # it stays perfectly straight while free to rotate + translate out of a collision.
+        for idx, Qc in groups:
+            Pg = P[idx]
+            cen = Pg.mean(axis=0)
+            Pc = Pg - cen
+            a = float(Qc[:, 0] @ Pc[:, 0] + Qc[:, 1] @ Pc[:, 1])
+            b = float(Qc[:, 0] @ Pc[:, 1] - Qc[:, 1] @ Pc[:, 0])
+            th = math.atan2(b, a)
+            c_, s_ = math.cos(th), math.sin(th)
+            P[idx, 0] = Qc[:, 0] * c_ - Qc[:, 1] * s_ + cen[0]
+            P[idx, 1] = Qc[:, 0] * s_ + Qc[:, 1] * c_ + cen[1]
+        # (4) per-residue shape anchor: loops/single strands free to flow apart; helices (or rigid
+        # groups, weakly) pulled toward their input position so R2DT's overall arrangement holds.
         P += (O - P) * aw
 
     for _ in range(iters):
@@ -599,37 +573,36 @@ def _declash(
     return out_x, out_y
 
 
-def _aspect(xs: list[float], ys: list[float], n: int) -> float:
-    """Bounding-box aspect ratio (long side / short side) of 1-based ``xs``/``ys[1..n]``."""
-    bw = max(xs[1 : n + 1]) - min(xs[1 : n + 1])
-    bh = max(ys[1 : n + 1]) - min(ys[1 : n + 1])
-    return max(bw, bh) / (min(bw, bh) or 1.0)
+#: A glyph is drawn at radius ``0.44 * L`` (median backbone step), so two NON-adjacent glyphs
+#: VISUALLY OVERLAP when their centres are closer than ``2 * 0.44 = 0.88 * L``. This is the real
+#: clash threshold the whole declash now targets (the old 0.5 * L only caught severe burials and
+#: let ~80% of diagrams ship with soft overlaps).
+VISUAL_OVERLAP = 0.88
 
 
-def _fill(xs: list[float], ys: list[float], n: int) -> float:
-    """Fraction of the bounding box covered by the nucleotide discs (each drawn ~0.44 of the
-    median step in radius). Low fill = a sparse, space-wasting layout where glyphs render
-    tiny no matter the figure size. 1-based ``xs``/``ys[1..n]``."""
-    bw = max(xs[1 : n + 1]) - min(xs[1 : n + 1])
-    bh = max(ys[1 : n + 1]) - min(ys[1 : n + 1])
-    r = 0.44 * _median_step(xs, ys)
-    return n * math.pi * r * r / ((bw * bh) or 1.0)
+def _overlap_count(xs: list[float], ys: list[float], n: int, factor: float = VISUAL_OVERLAP) -> int:
+    """Number of NON-adjacent nucleotide pairs whose centres sit closer than ``factor * L``."""
+    if n < 3:
+        return 0
+    P = np.array([[xs[i], ys[i]] for i in range(1, n + 1)], dtype=float)
+    L = _median_step(xs, ys)
+    d = np.hypot(P[:, 0, None] - P[None, :, 0], P[:, 1, None] - P[None, :, 1])
+    return int((d[np.triu_indices(n, k=2)] < factor * L).sum())
+
+
+def _has_visual_overlap(xs: list[float], ys: list[float], n: int, factor: float = VISUAL_OVERLAP) -> bool:
+    """True if any two NON-adjacent glyphs visually overlap (centres < ``factor * L``)."""
+    return _overlap_count(xs, ys, n, factor) > 0
 
 
 def _has_hard_clash(xs: list[float], ys: list[float], n: int) -> bool:
     """True if any two NON-adjacent nucleotides sit closer than half a backbone step.
 
-    A glyph is drawn ~0.44 steps in radius, so centres < 0.5 step apart overlap visibly.
-    Strong helix anchoring keeps ladders crisp but can leave a residual clash on a couple of
-    members where a rigid arm could not fully translate clear; those route to NAView instead
-    (which lays the whole molecule out fresh and overlap-free). 1-based ``xs``/``ys[1..n]``.
+    Severe glyph-on-glyph burial (kept as the tier-2 fornac-drop gate). The softer visual-overlap
+    gate :func:`_has_visual_overlap` (centres < 0.88 * L) is what the layout now targets and
+    re-lays on. 1-based ``xs``/``ys[1..n]``.
     """
-    if n < 3:
-        return False
-    P = np.array([[xs[i], ys[i]] for i in range(1, n + 1)], dtype=float)
-    L = _median_step(xs, ys)
-    d = np.hypot(P[:, 0, None] - P[None, :, 0], P[:, 1, None] - P[None, :, 1])
-    return bool((d[np.triu_indices(n, k=2)] < 0.5 * L).any())
+    return _overlap_count(xs, ys, n, 0.5) > 0
 
 
 def _naview_relayout(
@@ -679,29 +652,164 @@ def _naview_relayout(
 # over-constrains the differently-shaped terminator hairpin; the no-hairpin base is the seam.)
 
 
+def _turtle_pts(p0, p1, k: int, med: float, sgn: int) -> list[tuple[float, float]] | None:
+    """``k`` equal-chord turtle points from ``p0`` toward anchor ``p1`` (circular arc, side ``sgn``).
+
+    The reflex-safe even-arc construction :func:`_place_arc` uses, factored out so the
+    collision-aware router can generate BOTH bow directions as candidates. Returns ``None`` for a
+    degenerate (coincident) chord; a straight even line when the residues are too sparse to bulge.
+    """
+    p0x, p0y = p0
+    p1x, p1y = p1
+    chord = math.hypot(p1x - p0x, p1y - p0y)
+    if chord < 1e-6:
+        return None
+    if chord / med >= k + 1:  # too sparse to bulge -> even straight line (sgn irrelevant)
+        return [(p0x + (t / (k + 1)) * (p1x - p0x), p0y + (t / (k + 1)) * (p1y - p0y)) for t in range(1, k + 1)]
+    theta = _loop_half_angle(chord / med, k)
+    delta = 2 * theta / (k + 1)
+    heading = math.atan2(p1y - p0y, p1x - p0x) + sgn * (delta * k / 2)
+    px, py = p0x, p0y
+    pts: list[tuple[float, float]] = []
+    for _ in range(k):
+        px += med * math.cos(heading)
+        py += med * math.sin(heading)
+        pts.append((px, py))
+        heading -= sgn * delta
+    return pts
+
+
+def _clearance(pts: list[tuple[float, float]], obs: "np.ndarray") -> float:
+    """Min distance from any candidate point to any obstacle centre (inf if no obstacles)."""
+    if obs is None or len(obs) == 0 or not pts:
+        return float("inf")
+    C = np.asarray(pts, dtype=float)
+    d = np.hypot(C[:, 0, None] - obs[None, :, 0], C[:, 1, None] - obs[None, :, 1])
+    return float(d.min())
+
+
+def _max_run_step(xs, ys, a: int, b: int) -> float:
+    """Largest backbone step over the inclusive index range ``[a..b]`` (a break detector)."""
+    return max((math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(a + 1, b + 1)), default=0.0)
+
+
+def _route_arc(xs, ys, s, e, lo, hi, med, cen, obs) -> None:
+    """Re-route interior unpaired run ``[s..e]`` between anchors lo/hi ONLY if it overlaps or breaks.
+
+    Most single strands carry R2DT's own (locally compact) coordinates and are already clear --
+    re-laying those on a fresh arc only wastes space and discards the recognisable layout. So the
+    run is KEPT in place when it is break-free AND already clear of every obstacle (stems, hairpin,
+    strands routed earlier this pass). Only a run that overlaps something (or carries a graft-
+    induced backbone break) is moved -- onto whichever even-arc bow direction sits furthest from
+    the obstacles, with its current placement also in the running so routing never makes it worse.
+    Deterministic tie-break: clearance (rounded), then keep-current, then bulge-away-from-centroid.
+    """
+    k = e - s + 1
+    p0, p1 = (xs[lo], ys[lo]), (xs[hi], ys[hi])
+    cur = [(xs[t], ys[t]) for t in range(s, e + 1)]
+    cur_ok = _max_run_step(xs, ys, lo, hi) <= 2.2 * med
+    if cur_ok and _clearance(cur, obs) >= VISUAL_OVERLAP * med:
+        return  # already clear and continuous -> leave R2DT's layout untouched
+    cands = []
+    if cur_ok:
+        cands.append((round(_clearance(cur, obs), 2), 1, 0.0, cur))  # keep-current (pref rank 1)
+    for sgn in (1, -1):
+        pts = _turtle_pts(p0, p1, k, med, sgn)
+        if pts is None:
+            continue
+        bx = sum(p[0] for p in pts) / k
+        by = sum(p[1] for p in pts) / k
+        cands.append((round(_clearance(pts, obs), 2), 0, round(math.hypot(bx - cen[0], by - cen[1]), 2), pts))
+    if not cands:
+        return
+    cands.sort(key=lambda c: (c[0], c[1], c[2]), reverse=True)
+    for t, (px, py) in enumerate(cands[0][3], start=1):
+        xs[s + t - 1] = px
+        ys[s + t - 1] = py
+
+
+#: Fan of launch bearings (degrees off the seed direction) the tail router scans for a clear exit.
+_TAIL_FAN = (0, 20, -20, 40, -40, 60, -60, 90, -90, 120, -120, 150, -150, 180)
+
+
+def _route_tail(xs, ys, s, e, anchor, med, n, partner, cen, obs, outward, reverse) -> None:
+    """Place a dangling 5'/3' tail as the CLEAREST straight ray of even median steps off ``anchor``.
+
+    Scans a fan of launch bearings around the seed direction (OUTWARD from the layout centroid for
+    the post-fold reflow, else the backbone rail-exit tangent) and lays the tail as a straight ray
+    along whichever bearing keeps its glyphs furthest from all placed structure. A straight ray is
+    self-overlap-free by construction (no tail can clash with itself), so the only job is to find
+    an open wedge -- which the mostly-empty drawing box reliably has. Tie-break: clearance, then
+    alignment with the outward direction.
+    """
+    k = e - s + 1
+    ax, ay = xs[anchor], ys[anchor]
+    ox, oy = ax - cen[0], ay - cen[1]
+    ol = math.hypot(ox, oy) or 1.0
+    ox, oy = ox / ol, oy / ol
+    # walk so the residue NEAREST the anchor is placed first -- for a 5' tail (reverse: anchor is
+    # hi, one past e) that is residue e, walking inward to s; for a 3' tail it is s walking to e.
+    walk = list(range(s, e + 1)) if not reverse else list(range(e, s - 1, -1))
+    cur = [(xs[idx], ys[idx]) for idx in walk]
+    cur_ok = _max_run_step(xs, ys, min(s, anchor), max(e, anchor)) <= 2.2 * med
+    if cur_ok and _clearance(cur, obs) >= VISUAL_OVERLAP * med:
+        return  # tail already clear and continuous -> leave it
+    if outward:
+        seed = (ox, oy)
+    else:
+        prev = anchor - 1 if not reverse else anchor + 1
+        if 1 <= prev <= n:
+            rx, ry = ax - xs[prev], ay - ys[prev]
+        else:
+            p = partner.get(anchor)
+            rx, ry = (ax - xs[p], ay - ys[p]) if p is not None else (1.0, 0.0)
+        rl = math.hypot(rx, ry) or 1.0
+        seed = (rx / rl, ry / rl)
+    bang = math.atan2(seed[1], seed[0])
+    cands = []
+    if cur_ok:
+        cands.append((round(_clearance(cur, obs), 2), 1, cur))  # keep-current
+    for deg in _TAIL_FAN:
+        a = bang + math.radians(deg)
+        dx, dy = math.cos(a), math.sin(a)
+        pts = [(ax + dx * med * t, ay + dy * med * t) for t in range(1, k + 1)]
+        cands.append((round(_clearance(pts, obs), 2), round(dx * ox + dy * oy, 3), pts))
+    cands.sort(key=lambda c: (c[0], c[1]), reverse=True)
+    for idx, (px, py) in zip(walk, cands[0][2]):
+        xs[idx] = px
+        ys[idx] = py
+
+
 def _reflow_single_strands(
     xs: list[float], ys: list[float], pairs: list, n: int, outward_tails: bool = False
 ) -> None:
-    """Reflow single-stranded runs that carry a (graft-induced) backbone break, in place.
+    """Route EVERY single-stranded run collision-aware around all placed structure, in place.
 
-    A run of unpaired residues bounded by ``pairs``-anchored residues whose backbone steps
-    blew past ~2.2x the median is respread: an interior bulge on an even arc between its two
-    anchors (``_place_arc``), a dangling 5'/3' tail retraced from its single anchor
-    (``_place_tail``). Anchored (paired) residues are never moved, so the stems stay put.
+    The single biggest source of glyph overlap is single strands (inter-stem connectors + 5'/3'
+    tails) drawn with no global collision check -- ~90% of measured overlaps involve one. This
+    routes each unpaired run (in fixed 5'->3' order) onto the clearest deterministic candidate:
+    an interior run bounded by two anchors goes on the clearer even arc (:func:`_route_arc`); a
+    dangling tail goes on the clearest straight ray (:func:`_route_tail`). An OBSTACLE field of
+    every placed glyph -- the paired stems/hairpin, plus each run committed as it is routed -- is
+    what later runs avoid, so two connectors never bow onto each other (the conn x conn class) and
+    the order is deterministic. Anchored (paired) residues are never moved, so the stems stay put.
 
-    With ``outward_tails`` (the post-fold reflow), dangling tails launch OUTWARD from the
-    layout centroid instead of down the helix rail -- the long single strand off a grafted
-    hairpin (e.g. the unfolded terminator 3' of the antiterminator) then heads into open
-    space rather than back into the frozen stems, which the stems-frozen declash cannot clear.
+    Routing every run (not only the broken ones the old reflow touched) also closes any backbone
+    break by construction -- each run is re-laid at an even median step. With ``outward_tails``
+    (the post-fold reflow) tails seed OUTWARD from the centroid into open 3' space rather than back
+    down the helix rail into the frozen stems.
     """
     med = _median_step(xs, ys)
     cen = (sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n)
-    out = cen if outward_tails else None
     partner: dict[int, int] = {}
     for i, j in pairs:
         partner[i] = j
         partner[j] = i
     anchored = set(partner)
+    # Obstacle field = EVERY OTHER residue at its current position -- paired stems/hairpin AND the
+    # unpaired bulges/loops/connectors -- so a routed run avoids ALL placed glyphs, not just the
+    # helices. ``pos`` is mutated as each run is placed, so later runs see where earlier ones landed.
+    pos = np.array([[xs[r], ys[r]] for r in range(1, n + 1)], dtype=float)  # 0-based: pos[r-1]
     i = 1
     while i <= n:
         if i in anchored:
@@ -714,15 +822,99 @@ def _reflow_single_strands(
         lo, hi = s - 1, e + 1
         ha_lo = lo >= 1 and lo in anchored
         ha_hi = hi <= n and hi in anchored
-        steps = [math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(max(2, lo + 1), min(n, hi) + 1)]
-        if any(st > 2.2 * med for st in steps):
+        if ha_lo or ha_hi:
+            mask = np.ones(n, dtype=bool)
+            mask[s - 1 : e] = False  # exclude the run's own residues from its obstacle field
+            obs = pos[mask]
             if ha_lo and ha_hi:
-                _place_arc(xs, ys, s, e, lo, hi, med, cen)
+                _route_arc(xs, ys, s, e, lo, hi, med, cen, obs)
             elif ha_lo:
-                _place_tail(xs, ys, s, e, lo, med, n, partner, outward_cen=out)
-            elif ha_hi:
-                _place_tail(xs, ys, s, e, hi, med, n, partner, reverse=True, outward_cen=out)
+                _route_tail(xs, ys, s, e, lo, med, n, partner, cen, obs, outward_tails, reverse=False)
+            else:
+                _route_tail(xs, ys, s, e, hi, med, n, partner, cen, obs, outward_tails, reverse=True)
+            for t in range(s, e + 1):
+                pos[t - 1] = (xs[t], ys[t])  # commit the run so later runs avoid its new position
         i = j
+
+
+def _helix_clusters(kept: list, n: int) -> list[list[int]]:
+    """Maximal contiguous helical segments over the kept pairs (each a rigid body for separation).
+
+    Two paired residues join a cluster if a kept base pair links them, or a backbone step links two
+    paired residues -- so a stacked helix (both strands) is one cluster, and a bulge/internal loop
+    (an unpaired gap) splits a stem into separate rigid sub-helices that can flex at the loop. This
+    is what lets a stem keep R2DT's canonical kinks while each straight segment stays rigid.
+    """
+    paired = sorted({r for pr in kept for r in pr})
+    pset = set(paired)
+    adj: dict[int, set] = {r: set() for r in paired}
+    for a, b in kept:
+        adj[a].add(b)
+        adj[b].add(a)
+    for r in paired:
+        if r + 1 in pset:
+            adj[r].add(r + 1)
+            adj[r + 1].add(r)
+    seen: set[int] = set()
+    clusters: list[list[int]] = []
+    for r in paired:
+        if r in seen:
+            continue
+        stack, comp = [r], []
+        while stack:
+            x = stack.pop()
+            if x in seen:
+                continue
+            seen.add(x)
+            comp.append(x)
+            stack.extend(y for y in adj[x] if y not in seen)
+        clusters.append(sorted(comp))
+    return clusters
+
+
+def _separate_stem_clusters(xs, ys, kept, n, med, iters: int = 40) -> None:
+    """Rigid-translate apart any two helix clusters whose glyphs sit within the visual threshold.
+
+    R2DT's compact template can pack two stems within a glyph diameter, and the strong-anchor
+    declash can only translate a rigid arm -- it cannot re-pack two crossing stems. This pre-pass
+    pushes overlapping clusters apart along their inter-centroid axis by TRANSLATION ONLY (no
+    rotation -> the canonical straight helices never bend), iterating in a fixed order until every
+    inter-cluster gap clears ~0.92 L or the pass cap is hit. The single strands tethering the
+    clusters stretch and are re-routed afterwards. Runs ONCE on the shared no-hairpin base, so both
+    conformations inherit a byte-identical separated layout (pinning preserved by construction).
+    1-based ``xs``/``ys`` in place.
+    """
+    clusters = _helix_clusters(kept, n)
+    if len(clusters) < 2:
+        return
+    target = (VISUAL_OVERLAP + 0.04) * med  # ~0.92 L: above the visual-overlap threshold with margin
+    P = [(np.array([xs[r] for r in c], dtype=float), np.array([ys[r] for r in c], dtype=float), c) for c in clusters]
+    for _ in range(iters):
+        moved = False
+        for ia in range(len(P)):
+            for ib in range(ia + 1, len(P)):
+                ax_, ay_, _ = P[ia]
+                bx_, by_, _ = P[ib]
+                d = np.hypot(ax_[:, None] - bx_[None, :], ay_[:, None] - by_[None, :])
+                mn = float(d.min())
+                if mn < target:
+                    cax, cay = ax_.mean(), ay_.mean()
+                    cbx, cby = bx_.mean(), by_.mean()
+                    ux, uy = cbx - cax, cby - cay
+                    ul = math.hypot(ux, uy) or 1.0
+                    ux, uy = ux / ul, uy / ul
+                    sh = (target - mn) / 2 + 1e-3
+                    ax_ -= ux * sh
+                    ay_ -= uy * sh
+                    bx_ += ux * sh
+                    by_ += uy * sh
+                    moved = True
+        if not moved:
+            break
+    for ax_, ay_, c in P:
+        for k, r in enumerate(c):
+            xs[r] = float(ax_[k])
+            ys[r] = float(ay_[k])
 
 
 def _stems_base(
@@ -733,11 +925,12 @@ def _stems_base(
     ``kept`` is the set of R2DT pairs touching NEITHER hairpin span (Stem I/II/III). Reflows
     the switch-region single strands, applies the same quality gate the graft used (a backbone
     jump the reflow could not close -> the member falls back to fornac, signalled by ``None``),
-    declashes the kept stems rigid, and -- if the stems-only layout is still too elongated /
-    sparse / clashing -- re-lays the kept pairs on a compact NAView base. NAView and the
-    declash are deterministic, so two conformations with the same ``kept`` get a byte-identical
-    base. Returns 1-based ``(bx, by)`` (switch residues carry throwaway single-strand positions
-    each graft overwrites with its folded hairpin), or ``None`` to drop the member.
+    declashes the kept stems rigid, rigid-separates any crowded stem clusters, re-routes the
+    connectors clear, and -- if the stems-only layout is still too elongated / sparse / severely
+    clashing -- re-lays the kept pairs on a compact NAView base. Every step is deterministic, so
+    two conformations with the same ``kept`` get a byte-identical base. Returns 1-based
+    ``(bx, by)`` (switch residues carry throwaway single-strand positions each graft overwrites
+    with its folded hairpin), or ``None`` to drop the member.
     """
     _reflow_single_strands(xs, ys, kept, n)
     # Quality gate on the reflowed stems-only base (pre-declash, like the original graft): a
@@ -746,10 +939,21 @@ def _stems_base(
     fmed = (final[len(final) // 2] if final else 1.0) or 1.0
     if final and final[-1] / fmed >= max_step_ratio:
         return None
-    bx, by = _declash(xs, ys, kept, n)
-    if _aspect(bx, by, n) >= ASPECT_RELAYOUT or _fill(bx, by, n) <= FILL_RELAYOUT or _has_hard_clash(bx, by, n):
+    # Separate any crossing stems, re-route the stretched connectors, THEN declash last so the
+    # inter-stem junctions relax: in the base the stems carry only the soft 0.7 anchor (not the
+    # graft's hard freeze), so a loop squeezed between two stem ends can actually spread here --
+    # and because both conformations inherit this same declashed base, doing it here keeps the pin.
+    _separate_stem_clusters(xs, ys, kept, n, _median_step(xs, ys))
+    _reflow_single_strands(xs, ys, kept, n)
+    rigid = [[r - 1 for r in c] for c in _helix_clusters(kept, n)]  # each helix a free-floating rigid body
+    bx, by = _declash(xs, ys, kept, n, rigid_groups=rigid)
+    # Fall back to a compact NAView base ONLY when the canonical R2DT layout still visually overlaps
+    # AND NAView is strictly cleaner. The canonical T-box is naturally ELONGATED (the long Stem I), so
+    # aspect/fill alone must NOT trigger a relayout -- NAView discards the recognisable template look
+    # and (measured) re-introduces junction crowding the declashed R2DT base did not have.
+    if _has_visual_overlap(bx, by, n):
         relaid = _naview_relayout(bx, by, kept, n)
-        if relaid is not None:
+        if relaid is not None and _overlap_count(relaid[0], relaid[1], n) < _overlap_count(bx, by, n):
             bx, by = relaid
     return bx, by
 
@@ -813,29 +1017,69 @@ def _orient_hairpin_outward(
         ys[p_lo + k] = ry[k] + dy
 
 
-def _frozen_anchor(n: int, kept: list, hairpin_pairs: list, p_lo: int, anchor_paired: float = 0.7) -> np.ndarray:
-    """Per-residue anchor for the step-2 local declash: freeze the shared base, relax the switch.
+def _clear_hairpin_off_stems(
+    xs, ys, n, p_lo, p_hi, kept, step_frac: float = 0.5, target_frac: float = 0.92, cap: int = 16
+) -> None:
+    """Rigid-translate the folded hairpin further outward until it clears the frozen stems.
 
-    Residues in the upstream core (everything up to ``switch_start`` -- one past the HIGHEST
-    kept-paired residue below ``p_lo``, i.e. the end of the last upstream stem) and any kept 3'
-    structure get anchor 1.0 -- the local declash snaps them back to the base each pass, so the
-    stems never move off the shared layout. The freshly folded switch hairpin gets
-    ``anchor_paired`` (rigid but free to translate clear of a clash);
-    the switch single strands (bulges, the dropped opposite-conformation helix, the 3' tail)
-    are free (0.0). ``kept`` pairs are stored ``(i, j)`` with ``i < j``.
+    The fixed ``HAIRPIN_CLEARANCE`` push in :func:`_orient_hairpin_outward` clears most members, but
+    a long upstream stem (Stem III especially) can still reach into the hairpin -- the measured
+    at x iii / hairpin x stem class. This escalator pushes the WHOLE hairpin (rigid -> the ladder
+    stays straight, unit tests hold) one ``step_frac * L`` step at a time along the same outward
+    direction until every hairpin glyph is >= ``target_frac * L`` from every kept-stem glyph, or the
+    cap is reached. Stems are never touched (pin preserved); the stretched stem->hairpin connector is
+    re-routed by the following reflow. In place on 1-based ``xs``/``ys``.
+    """
+    stem_res = sorted({r for pr in kept for r in pr})
+    if not stem_res or p_hi < p_lo:
+        return
+    med = _median_step(xs, ys)
+    S = np.array([[xs[r], ys[r]] for r in stem_res], dtype=float)
+    cx, cy = sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n
+    span = p_hi - p_lo + 1
+    hx, hy = sum(xs[p_lo : p_hi + 1]) / span, sum(ys[p_lo : p_hi + 1]) / span
+    ox, oy = hx - cx, hy - cy
+    ol = math.hypot(ox, oy) or 1.0
+    ox, oy = ox / ol, oy / ol
+    target = target_frac * med
+    for _ in range(cap):
+        H = np.array([[xs[r], ys[r]] for r in range(p_lo, p_hi + 1)], dtype=float)
+        d = np.hypot(H[:, 0, None] - S[None, :, 0], H[:, 1, None] - S[None, :, 1])
+        if float(d.min()) >= target:
+            return
+        sh = step_frac * med
+        for r in range(p_lo, p_hi + 1):
+            xs[r] += ox * sh
+            ys[r] += oy * sh
+
+
+def _frozen_anchor(n: int, kept: list, hairpin_pairs: list, p_lo: int, anchor_paired: float = 0.7) -> np.ndarray:
+    """Per-residue anchor for the step-2 local declash: freeze the shared stems, relax everything else.
+
+    The stem-pinning guarantee (issue #45) only requires the residues PAIRED in a kept stem to
+    stay byte-identical to the shared base across the antiterm<->term toggle -- those are exactly
+    the residues the pin test compares. So ONLY kept-paired residues are frozen here (anchor 1.0:
+    the local declash snaps them back to the base each pass). A bulge/internal loop *enclosed* by a
+    kept stem also stays frozen (1.0) so the stem reads identical to the base. The freshly folded
+    switch hairpin gets ``anchor_paired`` (rigid but free to translate clear of a clash). Every
+    other unpaired residue -- the EXTERIOR inter-stem connectors and the 5'/3' tails -- is FREE
+    (0.0) so the collision-aware reflow + this declash can route it clear of all structure.
+
+    This deliberately frees the upstream exterior connectors the old version froze wholesale
+    (everything below ``switch_start``): freezing them was the root cause of the unmovable
+    connector-on-stem overlaps, and they are never pin-compared, so freeing them is pin-safe.
+    ``kept`` pairs are stored ``(i, j)`` with ``i < j``.
     """
     kept_res = {r for pr in kept for r in pr}
-    upstream = [r for r in kept_res if r < p_lo]
-    switch_start = (max(upstream) + 1) if upstream else 1
     hp_res = {r for pr in hairpin_pairs for r in pr}
-    anchor = np.ones(n)  # default: frozen (the upstream core + everything below switch_start)
-    for r in range(switch_start, n + 1):
-        if r in kept_res or any(i < r < j for (i, j) in kept):
-            anchor[r - 1] = 1.0  # a kept stem / its enclosed bulge -> stays frozen on the base
+    anchor = np.zeros(n)  # default: free (exterior connectors + tails)
+    for r in range(1, n + 1):
+        if r in kept_res:
+            anchor[r - 1] = 1.0  # kept stem helix: frozen -> pins across the toggle
         elif r in hp_res:
             anchor[r - 1] = anchor_paired  # folded switch hairpin: rigid but mobile
-        else:
-            anchor[r - 1] = 0.0  # switch single strand: free to flow around the hairpin
+        elif any(i < r < j for (i, j) in kept):
+            anchor[r - 1] = 1.0  # bulge/loop enclosed by a kept stem -> stays on the base
     return anchor
 
 
@@ -898,13 +1142,14 @@ def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP
         local = _ladder_hairpin("".join(sub))
         if local is None:
             local = _naview_hairpin("".join(sub))  # branched AT (none in data) -> NAView
-        lx, ly = local
-        # Fold the real AT hairpin into the shared base, radiating outward like the stems,
-        # reflow the connector + 3' tail, then declash the switch with the stems FROZEN so the
-        # kept Stem I/II/III stay byte-identical to the base (the toggle's stem-pinning guarantee).
+        lx, ly = _spread_coincident(list(local[0]), list(local[1]), 0.5)  # no two hairpin glyphs coincide
+        # Fold the real AT hairpin into the shared base, radiating outward like the stems, push it
+        # clear of the frozen stems, declash the switch with the stems FROZEN (the toggle's stem-pin
+        # guarantee), then give the single strands the LAST word with a final collision-aware route.
         _orient_hairpin_outward(xs, ys, n, p_lo, p_hi, list(lx), list(ly), {r for pr in kept for r in pr})
-        _reflow_single_strands(xs, ys, pairs, n, outward_tails=True)
-        xs, ys = _declash(xs, ys, pairs, n, anchor=_frozen_anchor(n, kept, at_pairs, p_lo))
+        _clear_hairpin_off_stems(xs, ys, n, p_lo, p_hi, kept)
+        _reflow_single_strands(xs, ys, pairs, n, outward_tails=True)  # route strands clear of all structure
+        xs, ys = _declash(xs, ys, pairs, n, anchor=_frozen_anchor(n, kept, at_pairs, p_lo))  # settle local turns
 
     coords = xs[1 : n + 1] + ys[1 : n + 1]
     if any(not math.isfinite(v) for v in coords):
@@ -1116,7 +1361,7 @@ def graft_terminator_member(
         sub[j - p_lo] = ")"
     local = _ladder_hairpin("".join(sub))
     if local is None:
-        local = _naview_hairpin("".join(sub))  # branched terminator -> NAView
+        local = _naview_hairpin_declashed("".join(sub))  # branched terminator (multiloop) -> NAView
     lx, ly = local
     # separate any coincident local residues (degenerate lone-pair-between-bulges) BEFORE
     # placing, so no two glyphs overlap; touches only the terminator core, never the stems.
@@ -1124,12 +1369,13 @@ def graft_terminator_member(
 
     pairs = kept + term_pairs
 
-    # Fold the terminator hairpin into the shared base (radiating outward like the stems),
-    # reflow the connector + 3' tail, then declash the switch with the stems FROZEN -- so the
-    # kept Stem I/II/III stay byte-identical to the base graft_member also pins to.
+    # Fold the terminator hairpin into the shared base (radiating outward like the stems), push it
+    # clear of the frozen stems, declash the switch with the stems FROZEN (so the kept Stem I/II/III
+    # stay byte-identical to the base graft_member also pins to), then settle local turns.
     _orient_hairpin_outward(xs, ys, n, p_lo, p_hi, list(lx), list(ly), {r for pr in kept for r in pr})
-    _reflow_single_strands(xs, ys, pairs, n, outward_tails=True)
-    xs, ys = _declash(xs, ys, pairs, n, anchor=_frozen_anchor(n, kept, term_pairs, p_lo))
+    _clear_hairpin_off_stems(xs, ys, n, p_lo, p_hi, kept)
+    _reflow_single_strands(xs, ys, pairs, n, outward_tails=True)  # route strands clear of all structure
+    xs, ys = _declash(xs, ys, pairs, n, anchor=_frozen_anchor(n, kept, term_pairs, p_lo))  # settle local turns
 
     coords = xs[1 : n + 1] + ys[1 : n + 1]
     if any(not math.isfinite(v) for v in coords):

@@ -29,10 +29,11 @@ N_TERMINATOR = 922
 #: Committed FULL-LENGTH terminator R2DT diagrams (build_r2dt.py terminator graft): the
 #: members with both raw R2DT coords AND a drawable terminator whose reflow passes the
 #: quality gate. The rest of the 922 fall back to fornac (also full-length). A regen that
-#: moves this must update the constant consciously (CLAUDE.md section 2). (Issue #45 moved
-#: both grafts onto a shared declashed stems-only base; a few sparse/pseudoknotted layouts
-#: the stems-frozen declash can no longer close cleanly now route to fornac, 789 -> 778.)
-N_TERMINATOR_R2DT = 778
+#: moves this must update the constant consciously (CLAUDE.md section 2). (The clash-elimination
+#: overhaul -- collision-aware single-strand routing, rigid-body stem separation, and dropping the
+#: aspect/fill NAView relayout that was discarding clean elongated layouts -- recovers a few members
+#: the old quality gate rejected, 778 -> 784.)
+N_TERMINATOR_R2DT = 784
 
 # Load-bearing counts (PLAN section 3.1, 5.4; CLAUDE.md section 2). The main-tree
 # tip count is the value the S0.6 build emitted and PROGRESS.md recorded -- never
