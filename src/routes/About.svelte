@@ -348,7 +348,8 @@ python3 reproduce_tandem_tbox_db.py \
         color every nucleotide by its structural domain — Stem&nbsp;I, Stem&nbsp;II, Stem&nbsp;IIA/B,
         Stem&nbsp;III, and the antiterminator — from one shared palette, and a link to the element's
         canonical tbdb.io VARNA drawing always sits alongside. Either render can also be switched between
-        the gene-on antiterminator fold and the gene-off terminator hairpin.
+        the gene-on antiterminator and gene-off terminator conformations — full-length folds that share
+        the same upstream stems and differ only at the 3′ end.
       </p>
       <ul class="list-disc space-y-1.5 pl-5 marker:text-muted">
         <li>

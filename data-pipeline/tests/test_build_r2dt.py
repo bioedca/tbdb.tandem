@@ -341,16 +341,22 @@ def test_ladder_hairpin_rejects_multiloop_and_empty():
     assert br._ladder_hairpin("..........") is None
 
 
-def test_graft_member_antiterminator_renders_as_straight_ladder():
+def test_graft_member_antiterminator_renders_as_straight_overlap_free_ladder():
     # End to end (no ViennaRNA): graft a member whose antiterminator is the canonical
-    # hairpin, then assert the FINAL committed coordinates keep the rails collinear /
-    # parallel, the bulge spread, and the backbone continuous.
-    wa = "." * 19 + _CANONICAL_AT + "." * 6  # AT occupies residues 20..54 of a 60-nt leader
-    member = {"whole_antiterm_structure": wa, "stems": [{"key": "at", "start": 20, "end": 54}]}
+    # hairpin, then assert the FINAL committed coordinates render it as a recognisable,
+    # OVERLAP-FREE straight ladder. graft folds the AT into a collinear ladder; the declash
+    # pass then resolves any glyph collisions. declash anchors paired (helix) residues hard,
+    # so a normal AT (with the structured flanks every real leader has) stays crisp -- only
+    # the unanchored single strands flow apart. (The corpus-wide guarantee -- 0 hard clashes,
+    # median helix-rail deviation ~0.1 of a step -- is enforced by the build over all 792
+    # members; this test pins the mechanism end to end on one element.)
+    wa = "..." + _CANONICAL_AT + "..."  # AT with short structured-like flanks (not a long free tail)
+    n = len(wa)
+    member = {"whole_antiterm_structure": wa, "stems": [{"key": "at", "start": 4, "end": 3 + len(_CANONICAL_AT)}]}
     raw = {
-        "seq": "ACGU" * 15,
-        "x": [float(i * 12) for i in range(60)],
-        "y": [0.0] * 60,
+        "seq": ("ACGU" * (n // 4 + 1))[:n],
+        "x": [float(i * 12) for i in range(n)],
+        "y": [0.0] * n,
         "pairs": [],
         "template": "T-box",
         "source": "Rfam",
@@ -358,17 +364,63 @@ def test_graft_member_antiterminator_renders_as_straight_ladder():
     out = br.graft_member(raw, member)
     assert out is not None
     xs, ys = out["x"], out["y"]
-    xy = {i: (xs[i - 1], ys[i - 1]) for i in range(1, 61)}
+    xy = {i: (xs[i - 1], ys[i - 1]) for i in range(1, n + 1)}
     pt = br._pair_table(wa)
-    five = [i for i in range(20, 55) if 0 < i < pt[i]]
+    five = [i for i in range(4, 4 + len(_CANONICAL_AT)) if 0 < i < pt[i]]
     three = [pt[i] for i in five]
     step = br._median_step([0.0] + xs, [0.0] + ys)
 
     r5, a5 = _rail(xy, five)
     r3, a3 = _rail(xy, three)
-    assert r5 < 0.05 * step and r3 < 0.05 * step
-    assert _parallel_deg(a5, a3) < 2.0
+    assert r5 < 0.15 * step and r3 < 0.15 * step  # rails stay (approximately) straight under declash
+    assert _parallel_deg(a5, a3) < 3.0  # and parallel
+    # declash leaves NO glyph-on-glyph overlap: every non-adjacent pair is >= ~half a step apart
+    mind = min(
+        math.hypot(xs[i - 1] - xs[j - 1], ys[i - 1] - ys[j - 1]) / step
+        for i in range(1, n + 1)
+        for j in range(i + 2, n + 1)
+    )
+    assert mind >= 0.5
     assert _max_step_ratio(out) < br.GRAFT_MAX_STEP_RATIO  # continuous backbone
+
+
+def test_declash_separates_overlap_and_keeps_helix_rigid():
+    # declash must (a) push apart two non-adjacent residues dropped on top of each other and
+    # (b) leave a base-paired helix essentially straight (paired residues are anchored hard).
+    n = 12
+    xs = [0.0] + [float(i * 10) for i in range(n)]  # 1-based, even 10u backbone
+    ys = [0.0] + [0.0] * n
+    xs[8], ys[8] = xs[2], ys[2]  # collapse residue 8 onto residue 2 (non-adjacent, unpaired)
+    pairs = [(3, 11), (4, 10)]  # a little 2-bp helix
+    dx, dy = br._declash(xs, ys, pairs, n)
+    step = br._median_step(dx, dy)
+    assert math.hypot(dx[2] - dx[8], dy[2] - dy[8]) >= 0.5 * step  # overlap resolved
+    assert all(math.isfinite(v) for v in dx[1 : n + 1] + dy[1 : n + 1])
+    assert not br._has_hard_clash(dx, dy, n)  # no residual glyph-on-glyph overlap
+
+
+def test_has_hard_clash_flags_only_real_overlap():
+    n = 6
+    xs = [0.0] + [float(i * 10) for i in range(n)]
+    ys = [0.0] + [0.0] * n
+    assert not br._has_hard_clash(xs, ys, n)  # evenly spaced -> no clash
+    xs[5], ys[5] = xs[1], ys[1]  # residue 5 onto residue 1 (non-adjacent)
+    assert br._has_hard_clash(xs, ys, n)
+
+
+def test_aspect_matches_bounding_box():
+    # points (0,0), (40,0), (40,10) -> a 40x10 bounding box -> aspect 4.0
+    xs = [0.0, 0.0, 40.0, 40.0]  # 1-based [1..3]
+    ys = [0.0, 0.0, 0.0, 10.0]
+    assert br._aspect(xs, ys, 3) == pytest.approx(4.0)
+
+
+def test_fill_is_disc_coverage_of_bbox():
+    # 3 residues, 10u backbone step, in a 10x10 box -> three r=0.44*10 discs over area 100.
+    # _fill is the wasteful-layout signal that routes a sprawled diagram to NAView.
+    xs = [0.0, 0.0, 10.0, 10.0]  # 1-based [1..3]; steps 10,10 -> median 10
+    ys = [0.0, 0.0, 0.0, 10.0]
+    assert br._fill(xs, ys, 3) == pytest.approx(3 * math.pi * (0.44 * 10) ** 2 / (10 * 10), rel=1e-6)
 
 
 def test_place_tail_preserves_curve_shape():
@@ -394,63 +446,160 @@ def test_place_tail_closes_interior_break():
     assert max(steps) <= 1.2 * 10.0  # every tail step ~one median apart (no 3x jump left)
 
 
-# --- stage 4: standalone terminator diagrams ---------------------------------
+# --- stage 4: the full-length terminator graft -------------------------------
+#
+# graft_terminator_member folds a member's terminator hairpin onto its raw R2DT layout,
+# keeping the canonical Stem I/II/III coordinates (so the antiterm<->term toggle pins the
+# stems). The synthetic leader below is built so the terminator sequence is a UNIQUE
+# substring at a known offset (the alignment the graft relies on), with an upstream stem
+# pair kept and template pairs touching the switch region dropped.
 
 
-def test_terminator_member_simple_hairpin():
-    # a simple-hairpin terminator (with 5'/3' dangles) -> ladder layout, sequence T->U.
+def _term_fixture():
+    """A synthetic (member, raw) pair: leader = upstream(10) + terminator(10) + tail(2),
+    with an upstream stem (3,8), an 'at' span, and a simple terminator hairpin."""
+    fasta = "AAGGCCAACC" + "TGCATGCATG" + "AA"  # 22 nt; term is a unique substring at [11,20]
     member = {
-        "term_sequence": "ACGGGUACUUCCCGU",  # len 15
-        "term_structure": "..(((.....)))..",  # pairs (3,13)(4,12)(5,11); dangles 1-2, 14-15
+        "fasta_sequence": fasta,
+        "term_sequence": "TGCATGCATG",  # -> leader positions 11..20
+        "term_structure": "(((..))).." ,  # local (1,8)(2,7)(3,6) -> leader (11,18)(12,17)(13,16)
+        "stems": [{"key": "i", "start": 2, "end": 9}, {"key": "at", "start": 11, "end": 14}],
     }
-    d = br.terminator_member(member)
-    assert d is not None
-    assert d["seq"] == "ACGGGUACUUCCCGU"  # already RNA; T->U is a no-op here
-    assert {tuple(p) for p in d["pairs"]} == {(3, 13), (4, 12), (5, 11)}
-    assert len(d["x"]) == 15 and len(d["y"]) == 15
-    assert all(math.isfinite(v) for v in d["x"] + d["y"])
-    assert d["template"] is None and d["source"] is None
-    # the loop caps the top (small y); the 5'/3' dangles hang below the base (larger y)
-    assert min(d["y"][2:13]) < min(d["y"][0], d["y"][14])
+    raw = {
+        "seq": br.to_rna(fasta),
+        "x": [float(i * 10) for i in range(22)],
+        "y": [0.0] * 22,
+        "pairs": [[3, 8], [12, 21], [15, 19]],  # upstream stem kept; (12,21)(15,19) touch switch
+        "template": "T-box",
+        "source": "Rfam",
+    }
+    return member, raw
 
 
-def test_terminator_member_rejects_invalid():
-    assert br.terminator_member({"term_sequence": "ACGU", "term_structure": "(())"}) is not None
-    assert br.terminator_member({"term_sequence": None, "term_structure": "(())"}) is None
-    assert br.terminator_member({"term_sequence": "ACGU", "term_structure": None}) is None
-    assert br.terminator_member({"term_sequence": "ACG", "term_structure": "(())"}) is None  # length≠
-    assert br.terminator_member({"term_sequence": "ACGU", "term_structure": "..(("}) is None  # unbalanced
-    assert br.terminator_member({"term_sequence": "ACGU", "term_structure": "...."}) is None  # pairless
-
-
-def test_terminator_layout_branched_uses_naview():
-    pytest.importorskip("RNA")  # two side-by-side hairpins -> the ladder declines, NAView lays it out
-    out = br._terminator_layout("(((...)))(((...)))")  # len 18, a branch (multiloop)
+def test_graft_terminator_member_folds_terminator_keeps_stems_drops_switch():
+    member, raw = _term_fixture()
+    out = br.graft_terminator_member(raw, member)
     assert out is not None
-    xs, ys = out
-    assert len(xs) == 18 and len(ys) == 18
-    assert all(math.isfinite(v) for v in xs + ys)
+    assert out["seq"] == raw["seq"] and len(out["x"]) == 22  # FULL leader, not the hairpin
+    pairs = {tuple(p) for p in out["pairs"]}
+    # terminator hairpin pairs, shifted into leader coordinates
+    assert {(11, 18), (12, 17), (13, 16)} <= pairs
+    assert (3, 8) in pairs  # upstream stem kept (outside the switch region)
+    assert (12, 21) not in pairs and (15, 19) not in pairs  # template pairs touching the switch dropped
+    assert all(math.isfinite(v) for v in out["x"] + out["y"])
+    assert _max_step_ratio(out) < br.GRAFT_MAX_STEP_RATIO  # reflow keeps the backbone continuous
 
 
-def test_terminator_driver_writes_manifest_clears_stale_and_skips(tmp_path: Path):
-    members = {
-        "T0001.m1": {"term_sequence": "ACGGGUACUUCCCGU", "term_structure": "..(((.....))).."},  # drawable
-        "T0002.m1": {"term_sequence": None, "term_structure": "(())"},  # no sequence → skip
-        "T0003.m1": {"term_sequence": "ACGU", "term_structure": "...."},  # pairless → skip
+def test_antiterm_graft_declashes_stems_terminator_keeps_raw():
+    # The antiterminator graft now DECLASHES (relaxes overlaps), so its kept Stem I/II/III
+    # coordinates move OFF the raw R2DT layout. The terminator graft still keeps the raw stems
+    # verbatim. The two conformations therefore NO LONGER share byte-identical stems -- toggling
+    # antiterm<->term shifts the stems by the declash amount; co-declashing the terminator onto
+    # a shared declashed base (to re-pin them) is a tracked follow-up. Both grafts must ACTUALLY
+    # fold their hairpin (non-degenerate) for this to be a real test, not a passthrough.
+    fasta = "AACCGGTTAAGCGCTTAAGCGCTTAAGCAA"  # 30 nt; upstream stem (2,9), AT/term in [16,30]
+    rawseq = br.to_rna(fasta)
+    raw = {
+        "seq": rawseq,
+        "x": [float(i * 10) for i in range(30)],
+        "y": [0.0] * 30,
+        "pairs": [[2, 9]],
+        "template": "T-box",
+        "source": "Rfam",
     }
+    wa = list("." * 30)
+    for a_, b_ in [(2, 9), (16, 25), (17, 24), (18, 23)]:  # upstream stem + an AT hairpin
+        wa[a_ - 1], wa[b_ - 1] = "(", ")"
+    member_at = {
+        "whole_antiterm_structure": "".join(wa),
+        "stems": [{"key": "i", "start": 2, "end": 9}, {"key": "at", "start": 16, "end": 25}],
+    }
+    member_term = {
+        "fasta_sequence": fasta,
+        "term_sequence": rawseq[15:30].replace("U", "T"),  # leader positions 16..30
+        "term_structure": "(((.......))).."[:15],
+        "stems": [{"key": "i", "start": 2, "end": 9}, {"key": "at", "start": 16, "end": 25}],
+    }
+    a = br.graft_member(raw, member_at)
+    t = br.graft_terminator_member(raw, member_term)
+    assert a is not None and t is not None
+    # both grafts genuinely fold a hairpin into the switch region (not a no-op passthrough)
+    assert any(abs(a["y"][k]) > 1e-6 for k in range(15, 25))
+    assert any(abs(t["y"][k]) > 1e-6 for k in range(15, 30))
+    for r in (2, 9):  # 1-based; the kept upstream stem pair
+        # antiterminator graft DECLASHES it off the raw coords ...
+        assert (a["x"][r - 1], a["y"][r - 1]) != (raw["x"][r - 1], raw["y"][r - 1])
+        # ... while the terminator graft keeps it at the raw R2DT coords (the co-declash follow-up).
+        assert (t["x"][r - 1], t["y"][r - 1]) == (raw["x"][r - 1], raw["y"][r - 1])
+
+
+def test_graft_terminator_member_branched_uses_naview():
+    pytest.importorskip("RNA")  # two side-by-side hairpins -> the ladder declines, NAView lays it out
+    fasta = "AA" + "GGGAAACCCGGGAAACCC" + "AA"  # 22 nt; branched terminator at [3,20]
+    member = {
+        "fasta_sequence": fasta,
+        "term_sequence": "GGGAAACCCGGGAAACCC",
+        "term_structure": "(((...)))(((...)))",  # a multiloop / second hairpin
+        "stems": [{"key": "at", "start": 3, "end": 20}],
+    }
+    raw = {
+        "seq": br.to_rna(fasta),
+        "x": [float(i * 10) for i in range(22)],
+        "y": [0.0] * 22,
+        "pairs": [],
+        "template": None,
+        "source": None,
+    }
+    out = br.graft_terminator_member(raw, member)
+    assert out is not None
+    pairs = {tuple(p) for p in out["pairs"]}
+    assert {(3, 11), (4, 10), (5, 9), (12, 20), (13, 19), (14, 18)} <= pairs  # both hairpins folded
+    assert all(math.isfinite(v) for v in out["x"] + out["y"])
+
+
+def test_graft_terminator_member_rejects_unaligned_and_pairless():
+    _, raw = _term_fixture()
+    # term_sequence not a substring of the leader -> cannot place -> None
+    assert br.graft_terminator_member(raw, {
+        "fasta_sequence": "AAGGCCAACCTGCATGCATGAA", "term_sequence": "ZZZZZZZZZZ",
+        "term_structure": "(((..)))..", "stems": [],
+    }) is None
+    # pairless / unbalanced / length-mismatched terminators -> None
+    base = {"fasta_sequence": "AAGGCCAACCTGCATGCATGAA", "stems": []}
+    assert br.graft_terminator_member(raw, {**base, "term_sequence": "TGCATGCATG", "term_structure": ".........."}) is None
+    assert br.graft_terminator_member(raw, {**base, "term_sequence": "TGCATGCATG", "term_structure": "(((..(((.."}) is None
+    assert br.graft_terminator_member(raw, {**base, "term_sequence": "TGCA", "term_structure": "(((..))).."}) is None
+
+
+def test_terminator_driver_grafts_clears_stale_writes_manifest_and_drops(tmp_path: Path):
+    member, raw = _term_fixture()
+    members = {
+        "T0001.m1": member,  # graftable
+        "T0001.m2": {"fasta_sequence": "ACGT", "term_sequence": "ACGT", "term_structure": "(())", "stems": []},  # raw seq mismatch
+        "T0001.m3": {"fasta_sequence": br.to_rna(raw["seq"]).replace("U", "T"), "term_sequence": None, "term_structure": None, "stems": []},  # no terminator
+    }
+    raw_snapshot = {
+        "T0001.m1": raw,
+        "T0001.m2": {"seq": "AAAA", "x": [0.0, 10, 20, 30], "y": [0.0] * 4, "pairs": [], "template": None, "source": None},
+        "T0001.m3": {"seq": raw["seq"], "x": raw["x"], "y": raw["y"], "pairs": [], "template": None, "source": None},
+    }
+    raw_path = tmp_path / "r2dt_raw.json"
+    raw_path.write_text(json.dumps(raw_snapshot))
     out = tmp_path / "term"
     out.mkdir()
     (out / "STALE.json").write_text("{}")  # must be cleared
 
-    n, skipped = br.terminator(members, out)
+    n, dropped = br.terminator(raw_path, members, out)
 
     assert n == 1
     assert (out / "T0001.m1.json").exists()
-    assert not (out / "T0002.m1.json").exists()
-    assert not (out / "STALE.json").exists()
+    assert not (out / "T0001.m2.json").exists()  # raw/fasta sequence mismatch
+    assert not (out / "T0001.m3.json").exists()  # no drawable terminator
+    assert not (out / "STALE.json").exists()  # stale file cleared
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["count"] == 1 and list(manifest["diagrams"]) == ["T0001.m1"]
-    assert "T0002.m1" in skipped and "T0003.m1" in skipped
+    assert any("T0001.m2" in d and "sequence" in d for d in dropped)
+    assert any("T0001.m3" in d for d in dropped)
 
 
 def test_spread_coincident_separates_overlapping_residues():
@@ -466,17 +615,3 @@ def test_spread_coincident_separates_overlapping_residues():
     ]
     assert min(dists) >= 6.0 - 0.5  # no two residues share (or nearly share) a point
     assert all(math.isfinite(v) for v in cx + cy)
-
-
-def test_terminator_layout_no_coincident_glyphs():
-    # a lone base pair flanked by an unpaired run on EACH strand (the T0418 pattern) used
-    # to collapse two flanking-bulge residues onto one point; every residue stays distinct.
-    out = br._terminator_layout("(((..(..)..)))")  # lone pair (6,9) between bulges 4-5, 10-11
-    assert out is not None
-    xs, ys = out
-    mind = min(
-        math.hypot(xs[i] - xs[j], ys[i] - ys[j])
-        for i in range(len(xs))
-        for j in range(i + 1, len(xs))
-    )
-    assert mind > 1.0  # no two glyphs render on top of each other

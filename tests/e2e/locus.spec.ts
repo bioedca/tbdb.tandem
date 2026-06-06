@@ -52,12 +52,15 @@ test.describe('LocusDetail (/locus/T0342)', () => {
       timeout: 30_000,
     })
 
-    // Switch conformation → the terminator-stem key replaces the stem/motif key (R2DT).
+    // Switch conformation → the terminator key replaces the stem/motif key. The terminator
+    // is now FULL-LENGTH, so its key carries the conserved stems (Stem I) AND the terminator
+    // stem (the antiterminator helix is unfolded here).
     await term.click()
     const termKey = page.getByRole('list', { name: 'Terminator color key' })
     await expect(termKey).toBeVisible()
-    // exact: the caption also says "…the terminator stem is colored…" (substring match)
+    // exact: the caption also echoes these words (case-insensitive substring match otherwise)
     await expect(termKey.getByText('Terminator stem', { exact: true })).toBeVisible()
+    await expect(termKey.getByText('Stem I', { exact: true })).toBeVisible() // full-length: stems kept
 
     // The OTHER viewer also switches: fornac in terminator mode renders its host.
     await page.getByRole('button', { name: 'Fornac', exact: true }).click()

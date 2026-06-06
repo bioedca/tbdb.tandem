@@ -54,6 +54,8 @@ import math
 import sys
 from pathlib import Path
 
+import numpy as np
+
 #: RNA nucleotide alphabet R2DT emits (drops the ``5'``/``3'`` end-marker entries).
 _NT = frozenset("ACGU")
 
@@ -63,6 +65,25 @@ _NT = frozenset("ACGU")
 #: empirically: the standard T-box helix-junction kink is ~3.5-4x; the pathological
 #: big-circle layouts are >=5x. See PROGRESS (graft step).
 GRAFT_MAX_STEP_RATIO = 5.0
+
+#: A grafted+declashed diagram whose aspect ratio reaches this is re-laid on a compact
+#: NAView layout instead of keeping R2DT's arrangement. Past ~2.3 the far-flung template
+#: graft (antiterminator radiated outward + a long reflowed connector) wastes most of the
+#: drawing box and shrinks every glyph below readable size EVEN THOUGH declash removed the
+#: overlaps; a fresh NAView layout (same base pairs, so the stem-colour overlay still
+#: indexes correctly) packs the molecule compactly. Set from a visual-judge panel that
+#: preferred declash 18/19 but flipped to NAView exactly on the elongated tail; only ~1.5%
+#: of members clear this gate. See PROGRESS (declash step).
+ASPECT_RELAYOUT = 2.3
+
+#: ...and a diagram whose declashed FILL (ink-disc area / bounding-box area) drops to this is
+#: ALSO re-laid on NAView. A low fill is the signature of the other unreadable failure mode:
+#: a layout that is not especially elongated (so it slips under ASPECT_RELAYOUT) but is sprayed
+#: across the box -- two clusters joined by a long single-strand connector, most of the box
+#: empty -- so every glyph still renders tiny (e.g. T0324.m2: aspect 1.36 but fill 0.043).
+#: ~bottom 2% of the declashed fill distribution (median ~0.067); with ASPECT_RELAYOUT this
+#: routes ~4% of members to the compact NAView layout.
+FILL_RELAYOUT = 0.045
 
 
 def to_rna(seq: str) -> str:
@@ -444,6 +465,176 @@ def _naview_hairpin(subdot: str) -> tuple[list[float], list[float]]:
     return [co[k].X for k in range(len(subdot))], [co[k].Y for k in range(len(subdot))]
 
 
+# --- overlap resolution (declash) -------------------------------------------
+#
+# R2DT's base Stem I/II/III coordinates are kept verbatim by `graft`, and the AT graft +
+# single-strand reflow place each region by LOCAL rules (radiate outward, bow away from the
+# centroid) with no GLOBAL collision check -- so non-adjacent residues routinely land on top
+# of each other (measured: hard glyph-on-glyph clashes in 85.6% of the raw committed
+# diagrams). `_declash` resolves that with a position-based relaxation: a few hundred passes
+# of (1) pairwise repulsion that pushes any two non-bonded residues closer than ~one glyph
+# diameter apart, (2) hard distance constraints that hold the backbone step and every
+# base-pair RUNG at its rest length (so helices stay rigid -- this is what keeps the
+# recognisable shape, unlike a force layout), and (3) a gentle pull back toward the input
+# coordinates (the shape anchor). Run over the whole corpus it takes 85.6% -> 0 hard clashes
+# while leaving the aspect ratio essentially unchanged.
+
+
+def _declash(
+    xs: list[float],
+    ys: list[float],
+    pairs: list,
+    n: int,
+    *,
+    anchor_paired: float = 0.7,
+    anchor_unpaired: float = 0.0,
+    iters: int = 200,
+    dmin_factor: float = 1.12,
+    final_spread: int = 40,
+) -> tuple[list[float], list[float]]:
+    """Separate colliding nucleotides while holding the backbone + base-pair rungs rigid.
+
+    Position-based dynamics on 1-based ``xs``/``ys`` (``[1..n]``; index 0 unused, matching
+    ``graft_member``). ``dmin_factor`` is the minimum non-bonded centre spacing in units of
+    the median backbone step (~one glyph diameter); ``final_spread`` extra passes at a
+    slightly larger radius clear the last stubborn clashes. Returns new 1-based lists.
+
+    The shape anchor is PER RESIDUE: base-paired (helix) residues are pulled hard toward
+    their input position (``anchor_paired`` ~0.7) while unpaired residues (loops / single
+    strands) are free (``anchor_unpaired`` ~0). A helix therefore moves as a near-rigid body
+    -- it TRANSLATES out of a collision (the loops that tether it flex) but does not BEND, so
+    the recognisable straight ladders R2DT / the graft drew stay crisp. (Tuned over the
+    corpus: 0 hard clashes with helix-rail deviation back down to ~0.1 of a backbone step.)
+    """
+    P = np.array([[xs[i], ys[i]] for i in range(1, n + 1)], dtype=float)
+    O = P.copy()
+    L = _median_step(xs, ys)
+    dmin = dmin_factor * L
+    # bonded = backbone neighbours + base pairs: pairs that are SUPPOSED to be close, so
+    # repulsion skips them and the distance constraints hold them at their rest length.
+    bonded = np.zeros((n, n), dtype=bool)
+    for i in range(n - 1):
+        bonded[i, i + 1] = bonded[i + 1, i] = True
+    is_paired = np.zeros(n, dtype=bool)
+    rest = []  # (i0, j0, rung_rest_length)
+    for a, b in pairs:
+        i, j = (a - 1, b - 1) if a < b else (b - 1, a - 1)
+        bonded[i, j] = bonded[j, i] = True
+        is_paired[i] = is_paired[j] = True
+        rest.append((i, j, math.hypot(xs[a] - xs[b], ys[a] - ys[b]) or L))
+    aw = np.where(is_paired, anchor_paired, anchor_unpaired)[:, None]  # per-residue anchor
+    nb_i, nb_j = np.where(np.triu(~bonded, k=1))  # non-bonded pairs (each once)
+    bb_i = np.arange(n - 1)
+    bb_j = np.arange(1, n)
+    rp = np.array([(i, j) for i, j, _ in rest]) if rest else np.zeros((0, 2), dtype=int)
+    rr = np.array([r for _, _, r in rest]) if rest else np.zeros(0)
+
+    def _pass(dm: float) -> None:
+        nonlocal P
+        # (1) repulsion: push apart any non-bonded pair closer than dm
+        d = P[nb_j] - P[nb_i]
+        dist = np.hypot(d[:, 0], d[:, 1])
+        m = dist < dm
+        if m.any():
+            mi, mj, dd = nb_i[m], nb_j[m], d[m]
+            di = dist[m].copy()
+            di[di < 1e-6] = 1e-6  # coincident -> nudge along an arbitrary axis next pass
+            push = ((dm - di) / di * 0.5)[:, None] * dd
+            np.add.at(P, mi, -push)
+            np.add.at(P, mj, push)
+        # (2) distance constraints (two sub-passes): backbone step -> L, rungs -> rest length
+        for _ in range(2):
+            d = P[bb_j] - P[bb_i]
+            di = np.hypot(d[:, 0], d[:, 1])
+            di[di < 1e-6] = 1e-6
+            c = ((di - L) / di * 0.5)[:, None] * d
+            np.add.at(P, bb_i, c)
+            np.add.at(P, bb_j, -c)
+            if len(rp):
+                d = P[rp[:, 1]] - P[rp[:, 0]]
+                di = np.hypot(d[:, 0], d[:, 1])
+                di[di < 1e-6] = 1e-6
+                c = ((di - rr) / di * 0.5)[:, None] * d
+                np.add.at(P, rp[:, 0], c)
+                np.add.at(P, rp[:, 1], -c)
+        # (3) per-residue shape anchor: helices pulled hard toward input (stay straight),
+        # loops/single strands free to flow apart.
+        P += (O - P) * aw
+
+    for _ in range(iters):
+        _pass(dmin)
+    for _ in range(final_spread):
+        _pass(dmin * 1.18)
+    out_x = [0.0] + [float(P[i, 0]) for i in range(n)]
+    out_y = [0.0] + [float(P[i, 1]) for i in range(n)]
+    return out_x, out_y
+
+
+def _aspect(xs: list[float], ys: list[float], n: int) -> float:
+    """Bounding-box aspect ratio (long side / short side) of 1-based ``xs``/``ys[1..n]``."""
+    bw = max(xs[1 : n + 1]) - min(xs[1 : n + 1])
+    bh = max(ys[1 : n + 1]) - min(ys[1 : n + 1])
+    return max(bw, bh) / (min(bw, bh) or 1.0)
+
+
+def _fill(xs: list[float], ys: list[float], n: int) -> float:
+    """Fraction of the bounding box covered by the nucleotide discs (each drawn ~0.44 of the
+    median step in radius). Low fill = a sparse, space-wasting layout where glyphs render
+    tiny no matter the figure size. 1-based ``xs``/``ys[1..n]``."""
+    bw = max(xs[1 : n + 1]) - min(xs[1 : n + 1])
+    bh = max(ys[1 : n + 1]) - min(ys[1 : n + 1])
+    r = 0.44 * _median_step(xs, ys)
+    return n * math.pi * r * r / ((bw * bh) or 1.0)
+
+
+def _has_hard_clash(xs: list[float], ys: list[float], n: int) -> bool:
+    """True if any two NON-adjacent nucleotides sit closer than half a backbone step.
+
+    A glyph is drawn ~0.44 steps in radius, so centres < 0.5 step apart overlap visibly.
+    Strong helix anchoring keeps ladders crisp but can leave a residual clash on a couple of
+    members where a rigid arm could not fully translate clear; those route to NAView instead
+    (which lays the whole molecule out fresh and overlap-free). 1-based ``xs``/``ys[1..n]``.
+    """
+    if n < 3:
+        return False
+    P = np.array([[xs[i], ys[i]] for i in range(1, n + 1)], dtype=float)
+    L = _median_step(xs, ys)
+    d = np.hypot(P[:, 0, None] - P[None, :, 0], P[:, 1, None] - P[None, :, 1])
+    return bool((d[np.triu_indices(n, k=2)] < 0.5 * L).any())
+
+
+def _naview_relayout(
+    xs: list[float], ys: list[float], pairs: list, n: int
+) -> tuple[list[float], list[float]] | None:
+    """Re-lay a too-elongated diagram on a compact NAView layout, then declash.
+
+    Builds the (nested) dot-bracket from the grafted ``pairs`` and lays the WHOLE molecule
+    out with ViennaRNA's NAView (lazy import; the existing graft dependency). Because the
+    base pairs are unchanged, the leader-relative stem spans still index the new coordinates,
+    so the client-side stem-colour overlay stays aligned. Returns new 1-based ``(xs, ys)``,
+    or ``None`` on any layout failure (a pseudoknotted pair set, a NAView error) so the
+    caller keeps the declashed R2DT layout.
+    """
+    try:
+        import RNA  # build-time-only dependency; never imported by the frontend/runtime
+
+        dot = ["."] * n
+        for a, b in pairs:
+            i, j = (a, b) if a < b else (b, a)
+            dot[i - 1] = "("
+            dot[j - 1] = ")"
+        co = RNA.naview_xy_coordinates("".join(dot))
+        nx = [0.0] + [float(co[k].X) for k in range(n)]
+        ny = [0.0] + [float(co[k].Y) for k in range(n)]
+        if any(not math.isfinite(v) for v in nx[1:] + ny[1:]):
+            return None
+        # NAView already lays straight helices; declash (helices anchored) clears any
+        # residual loop crowding without bending them.
+        return _declash(nx, ny, pairs, n, iters=160, final_spread=30)
+    except Exception:
+        return None
+
+
 def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP_RATIO) -> dict | None:
     """Graft a real antiterminator hairpin onto one raw R2DT compact diagram.
 
@@ -558,6 +749,22 @@ def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP
     if final and final[-1] / (fmed or 1.0) >= max_step_ratio:
         return None
 
+    # Resolve glyph-on-glyph overlaps (the graft keeps R2DT's base layout + reflows single
+    # strands by local rules, so non-adjacent residues collide); declash holds helices rigid
+    # and preserves the recognisable shape. A handful of members stay so elongated that even
+    # the clash-free layout is unreadable -- re-lay just those on a compact NAView layout.
+    xs, ys = _declash(xs, ys, pairs, n)
+    if (
+        _aspect(xs, ys, n) >= ASPECT_RELAYOUT
+        or _fill(xs, ys, n) <= FILL_RELAYOUT
+        or _has_hard_clash(xs, ys, n)
+    ):
+        relaid = _naview_relayout(xs, ys, pairs, n)
+        if relaid is not None:
+            xs, ys = relaid
+    if any(not math.isfinite(v) for v in xs[1 : n + 1] + ys[1 : n + 1]):
+        return None
+
     return {
         "seq": raw["seq"],
         "x": [round(xs[k], 1) for k in range(1, n + 1)],
@@ -613,20 +820,20 @@ def graft(
     return len(manifest), dropped
 
 
-# --- stage 4: standalone terminator-conformation diagrams -------------------
+# --- stage 4: full-length terminator-conformation diagrams ------------------
 #
 # The R2DT/RF00230 template + graft draw the ANTITERMINATOR (gene-ON) fold. The
-# alternative TERMINATOR (gene-OFF) hairpin is a separate conformation with its own
-# sequence (``term_sequence``) + dot-bracket (``term_structure``); it is not on the
-# template, so it is laid out fresh here and committed under ``public/data/r2dt/term/``
-# for the in-app conformation toggle. A simple hairpin reuses the deterministic
-# ``_ladder_hairpin`` (collinear rails + spread bulges, matching the antiterminator
-# diagrams); a branched terminator (a second hairpin / multiloop) is laid out by NAView.
-
-#: Fixed nucleotide spacing for the synthesised terminator diagrams (the served
-#: antiterminator diagrams keep R2DT's own ~12-22u spacing; the terminator layout is
-#: built from scratch, so it is scaled to one consistent step for a uniform glyph size).
-TERMINATOR_STEP = 20.0
+# alternative TERMINATOR (gene-OFF) conformation shares Stem I/II/III and differs only in
+# the 3' region (the antiterminator helix is replaced by the terminator hairpin); tbdb
+# draws both full-length, side by side. ``graft_terminator_member`` keeps each member's
+# canonical R2DT Stem I/II/III coordinates -- the SAME ones ``graft_member`` draws for the
+# antiterminator -- and folds the terminator hairpin in where the antiterminator sat, so
+# toggling antiterm<->term pins the stems and only the 3' hairpin swaps. Committed under
+# ``public/data/r2dt/term/`` for the in-app conformation toggle; members without raw R2DT
+# coords (or whose reflow stays too distorted) fall back to fornac, which also renders the
+# full-length terminator (from the derived ``whole_term_structure``). A simple terminator
+# hairpin uses the deterministic ``_ladder_hairpin``; a branched terminator (a second
+# hairpin / multiloop, ~1/3 of members) uses ``_naview_hairpin`` (lazy ViennaRNA).
 
 
 def _balanced_round(dot: str) -> bool:
@@ -685,98 +892,226 @@ def _spread_coincident(
     return cx, cy
 
 
-def _terminator_layout(structure: str) -> tuple[list[float], list[float]] | None:
-    """2D coordinates for a standalone terminator structure (no template, no graft).
+def graft_terminator_member(
+    raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP_RATIO
+) -> dict | None:
+    """Graft a member's TERMINATOR hairpin onto its raw R2DT layout -> a FULL-LENGTH
+    terminator-conformation diagram (PLAN section 9).
 
-    A SIMPLE hairpin (one nested stem, with bulges -- 624/935 members) uses the
-    deterministic :func:`_ladder_hairpin` and drops the 5'/3' single-stranded ends
-    straight off the helix base (so the loop caps the top in the served diagram). A
-    branched terminator (a second hairpin / a multiloop -- 298/935) is laid out by
-    NAView, which handles arbitrary topology. Returns 0-based ``(xs, ys)`` scaled to
-    :data:`TERMINATOR_STEP`, or ``None`` for a pairless terminator (no hairpin to draw).
+    The terminator (gene-OFF) and antiterminator (gene-ON) folds share Stem I/II/III and
+    differ only in the 3' region; tbdb draws both full-length, side by side. This keeps
+    R2DT's canonical Stem I/II/III coordinates -- the SAME ones ``graft_member`` draws for
+    the antiterminator diagram, so toggling antiterm<->term pins the stems and only the 3'
+    hairpin swaps -- and folds the terminator hairpin in where the antiterminator helix sat:
+
+      * locate the terminator in the leader (``term_sequence`` T->U is an exact substring of
+        ``raw["seq"]``), giving its leader span ``[tlo, thi]`` and pairs (``term_structure``
+        shifted into leader coordinates);
+      * drop R2DT template pairs touching the switch region (AT span U terminator span) and
+        keep the rest (Stem I/II/IIA-B/III) verbatim;
+      * lay the terminator core on the deterministic ladder (simple hairpin) or NAView
+        (branched -- ~1/3 of terminators), orient it OUTWARD from the layout centroid like
+        ``graft_member`` does, and reflow the single strands into a continuous backbone.
+
+    Returns the compact diagram (schema as ``ingest``/``graft``) with ``seq`` = the FULL
+    leader, or ``None`` when the member has no drawable terminator (no alignment / pairless)
+    or the reflowed layout stays too distorted (longest step >= ``max_step_ratio`` x median)
+    -- the caller falls those back to fornac. Self-contained: reuses only the stable
+    low-level helpers, never ``graft_member``, so it stays independent of the antiterminator
+    graft (which a parallel effort is actively revising).
     """
-    n = len(structure)
-    pt = _pair_table(structure)
-    paired = [i for i in range(1, n + 1) if pt[i]]
-    if not paired:
+    seq = raw["seq"]
+    n = len(seq)
+    tseq = to_rna(member.get("term_sequence") or "")
+    tdot = member.get("term_structure") or ""
+    if not tseq or not tdot or len(tseq) != len(tdot) or not _balanced_round(tdot) or "(" not in tdot:
         return None
-    p_lo, p_hi = min(paired), max(paired)
-    core = structure[p_lo - 1 : p_hi]
-    local = _ladder_hairpin(core)
-    if local is not None:
-        lx, ly = local
-        xs = [0.0] * (n + 1)
-        ys = [0.0] * (n + 1)
-        for k in range(len(core)):
-            xs[p_lo + k], ys[p_lo + k] = lx[k], -ly[k]  # negate y so the loop caps the TOP
-        # the 5'/3' single strands hang straight off the helix base, away from the loop
-        for step, idx in enumerate(range(p_lo - 1, 0, -1), start=1):
-            xs[idx], ys[idx] = xs[p_lo], ys[p_lo] + step
-        for step, idx in enumerate(range(p_hi + 1, n + 1), start=1):
-            xs[idx], ys[idx] = xs[p_hi], ys[p_hi] + step
-        cx, cy = xs[1 : n + 1], ys[1 : n + 1]
-    else:
-        lx, ly = _naview_hairpin(structure)
-        cx, cy = list(lx), list(ly)
-    if any(not math.isfinite(v) for v in cx + cy):
-        return None
-    steps = sorted(math.hypot(cx[i] - cx[i - 1], cy[i] - cy[i - 1]) for i in range(1, n))
-    med = (steps[len(steps) // 2] if steps else 1.0) or 1.0
-    sc = TERMINATOR_STEP / med
-    # Resolve coincident residues (degenerate lone-pair-between-bulges cases) so no two
-    # glyphs render on top of each other -- covers BOTH the ladder and NAView branches.
-    return _spread_coincident([v * sc for v in cx], [v * sc for v in cy], 0.5 * TERMINATOR_STEP)
+    t0 = seq.find(tseq)
+    if t0 < 0 or seq.find(tseq, t0 + 1) >= 0:
+        return None  # terminator absent, or not a UNIQUE substring -> can't place it unambiguously
+    tlo, thi = t0 + 1, t0 + len(tseq)  # 1-based, inclusive
 
+    xs = [0.0] + [float(v) for v in raw["x"]]  # 1-based, xs[1..n]
+    ys = [0.0] + [float(v) for v in raw["y"]]
+    rpairs = [tuple(p) for p in raw["pairs"]]
 
-def terminator_member(member: dict) -> dict | None:
-    """The compact terminator diagram for one member, or ``None`` when it has no drawable
-    terminator -- missing/short ``term_sequence``/``term_structure``, unbalanced, or
-    pairless. ``seq`` is the terminator sequence (T->U), validated equal-length with its
-    structure (the conformation render threads the two together base-for-base)."""
-    seq = member.get("term_sequence")
-    dot = member.get("term_structure")
-    if not seq or not dot or len(seq) != len(dot) or not _balanced_round(dot) or "(" not in dot:
+    tpt = _pair_table(tdot)
+    term_pairs = [(i + t0, tpt[i] + t0) for i in range(1, len(tdot) + 1) if i < tpt[i]]
+    if not term_pairs:
         return None
-    layout = _terminator_layout(dot)
-    if layout is None:
+    p_lo = min(i for i, _ in term_pairs)
+    p_hi = max(j for _, j in term_pairs)
+
+    # Keep R2DT template pairs that touch NEITHER the antiterminator-helix span NOR the
+    # terminator span (each region SEPARATELY -- not their contiguous union, which would
+    # swallow a stem sitting between a disjoint terminator + antiterminator, e.g. T0396.m2).
+    # The kept Stem I/II/IIA-B/III pairs stay byte-identical to graft_member's.
+    at = next((s for s in member.get("stems", []) if s["key"] == "at"), None)
+
+    def _in_switch(p: int) -> bool:
+        return (tlo <= p <= thi) or (at is not None and at["start"] <= p <= at["end"])
+
+    kept = [(i, j) for (i, j) in rpairs if not (_in_switch(i) or _in_switch(j))]
+
+    # local terminator-core coords: deterministic ladder (simple) or NAView (branched)
+    length = p_hi - p_lo + 1
+    sub = ["."] * length
+    for i, j in term_pairs:
+        sub[i - p_lo] = "("
+        sub[j - p_lo] = ")"
+    local = _ladder_hairpin("".join(sub))
+    if local is None:
+        local = _naview_hairpin("".join(sub))  # branched terminator -> NAView
+    lx, ly = local
+    # separate any coincident local residues (degenerate lone-pair-between-bulges) BEFORE
+    # placing, so no two glyphs overlap; touches only the terminator core, never the stems.
+    lx, ly = _spread_coincident(list(lx), list(ly), 0.5)
+
+    # scale the local hairpin to the diagram's own nucleotide spacing
+    med = _median_step(xs, ys)
+    lsteps = sorted(math.hypot(lx[k] - lx[k - 1], ly[k] - ly[k - 1]) for k in range(1, length))
+    lstep = lsteps[len(lsteps) // 2] if lsteps else 1.0
+    sc = med / (lstep or 1.0)
+    lx = [v * sc for v in lx]
+    ly = [v * sc for v in ly]
+    # exterior flow at the core base (from the nearest KEPT-anchored residue before it)
+    anchored_keep = {r for pr in kept for r in pr}
+    before = [r for r in anchored_keep if r < p_lo]
+    pa = max(before) if before else max(1, p_lo - 1)
+    fx, fy = xs[p_lo] - xs[pa], ys[p_lo] - ys[pa]
+    fl = math.hypot(fx, fy) or 1
+    fx, fy = fx / fl, fy / fl
+    # Aim the hairpin axis OUTWARD from the layout centroid so it radiates parallel to the
+    # stems (same construction as graft_member): rotate the local base->centroid axis onto
+    # (terminator-region centre - layout centroid).
+    cx, cy = sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n
+    span = p_hi - p_lo + 1
+    ax, ay = sum(xs[p_lo : p_hi + 1]) / span, sum(ys[p_lo : p_hi + 1]) / span
+    ox, oy = ax - cx, ay - cy
+    ol = math.hypot(ox, oy) or 1.0
+    ox, oy = ox / ol, oy / ol
+    mid0 = ((lx[0] + lx[length - 1]) / 2, (ly[0] + ly[length - 1]) / 2)
+    cen0 = (sum(lx) / length, sum(ly) / length)
+    axis = (cen0[0] - mid0[0], cen0[1] - mid0[1])
+    rot = math.atan2(oy, ox) - math.atan2(axis[1], axis[0])
+    cr, srot = math.cos(rot), math.sin(rot)
+    rx = [lx[k] * cr - ly[k] * srot for k in range(length)]
+    ry = [lx[k] * srot + ly[k] * cr for k in range(length)]
+    # handedness: base(5')->base(3') should align with +flow so the tail exits forward
+    if (rx[length - 1] - rx[0]) * fx + (ry[length - 1] - ry[0]) * fy < 0:
+        ux, uy = ox, oy
+        for k in range(length):
+            dd = rx[k] * ux + ry[k] * uy
+            rx[k] = 2 * dd * ux - rx[k]
+            ry[k] = 2 * dd * uy - ry[k]
+    dx, dy = xs[p_lo] - rx[0], ys[p_lo] - ry[0]
+    for k in range(length):
+        xs[p_lo + k] = rx[k] + dx
+        ys[p_lo + k] = ry[k] + dy
+
+    pairs = kept + term_pairs
+
+    # reflow single-stranded runs that carry a (often graft-induced) backbone break
+    med = _median_step(xs, ys)
+    cen = (sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n)
+    partner: dict[int, int] = {}
+    for i, j in pairs:
+        partner[i] = j
+        partner[j] = i
+    anchored = set(partner)
+    i = 1
+    while i <= n:
+        if i in anchored:
+            i += 1
+            continue
+        j = i
+        while j <= n and j not in anchored:
+            j += 1
+        s, e = i, j - 1
+        lo, hi = s - 1, e + 1
+        ha_lo = lo >= 1 and lo in anchored
+        ha_hi = hi <= n and hi in anchored
+        steps = [math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(max(2, lo + 1), min(n, hi) + 1)]
+        if any(st > 2.2 * med for st in steps):
+            if ha_lo and ha_hi:
+                _place_arc(xs, ys, s, e, lo, hi, med, cen)
+            elif ha_lo:
+                _place_tail(xs, ys, s, e, lo, med, n, partner)
+            elif ha_hi:
+                _place_tail(xs, ys, s, e, hi, med, n, partner, reverse=True)
+        i = j
+
+    # Final de-overlap, restricted to the TERMINATOR span: the reflow can drop an unpaired
+    # residue onto a placed ladder/NAView residue (the per-core pass earlier cannot see this).
+    # Confined to [tlo..thi] so the upstream stems are never perturbed -- that keeps their
+    # coordinates byte-identical to graft_member's, which is the toggle's stem-pinning guarantee.
+    final0 = sorted(math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(2, n + 1))
+    fmed0 = (final0[len(final0) // 2] if final0 else 1.0) or 1.0
+    sx, sy = _spread_coincident(xs[tlo : thi + 1], ys[tlo : thi + 1], 0.5 * fmed0)
+    xs[tlo : thi + 1] = sx
+    ys[tlo : thi + 1] = sy
+
+    coords = xs[1 : n + 1] + ys[1 : n + 1]
+    if any(not math.isfinite(v) for v in coords):
         return None
-    xs, ys = layout
-    pt = _pair_table(dot)
-    pairs = sorted([min(i, pt[i]), max(i, pt[i])] for i in range(1, len(dot) + 1) if i < pt[i])
+    final = sorted(math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(2, n + 1))
+    fmed = final[len(final) // 2] if final else 1.0
+    if final and final[-1] / (fmed or 1.0) >= max_step_ratio:
+        return None
+
     return {
-        "seq": to_rna(seq),
-        "x": [round(v, 1) for v in xs],
-        "y": [round(v, 1) for v in ys],
-        "pairs": pairs,
-        "template": None,
-        "source": None,
+        "seq": seq,
+        "x": [round(xs[k], 1) for k in range(1, n + 1)],
+        "y": [round(ys[k], 1) for k in range(1, n + 1)],
+        "pairs": sorted([min(i, j), max(i, j)] for i, j in pairs),
+        "template": raw.get("template"),
+        "source": raw.get("source"),
     }
 
 
-def terminator(members: dict, out_dir: Path) -> tuple[int, list[str]]:
-    """Lay out every member's terminator hairpin -> committed ``r2dt/term/`` assets.
+def terminator(
+    raw_path: Path, members: dict, out_dir: Path, max_step_ratio: float = GRAFT_MAX_STEP_RATIO
+) -> tuple[int, list[str]]:
+    """Graft every member's terminator hairpin onto its full-length R2DT layout.
 
-    Clears stale per-member files first, then writes one ``<member_id>.json`` per member
-    with a drawable terminator plus ``manifest.json``. Returns ``(n_written, skipped)``
-    where ``skipped`` lists members with no drawable terminator (the toggle disables them).
+    Mirrors :func:`graft`: reads the combined raw R2DT snapshot (``r2dt_raw.json``), keeps
+    members with both raw coords and a drawable terminator, and writes one full-length
+    terminator diagram per kept member under ``out_dir`` + ``manifest.json`` (clearing stale
+    per-member files first). Returns ``(n_written, dropped)`` where ``dropped`` lists members
+    sent back to fornac. Members with no raw coords are simply absent from the snapshot and
+    never appear here (the frontend falls them back to fornac too).
     """
+    raw = json.loads(raw_path.read_text())
     out_dir.mkdir(parents=True, exist_ok=True)
     for stale in out_dir.glob("*.json"):
         stale.unlink()
     manifest: dict[str, dict] = {}
-    skipped: list[str] = []
-    for member_id in sorted(members):
-        diagram = terminator_member(members[member_id])
-        if diagram is None:
-            skipped.append(member_id)
+    dropped: list[str] = []
+    for member_id in sorted(raw):
+        member = members.get(member_id)
+        if member is None:
+            dropped.append(f"{member_id}: not in members.json")
+            continue
+        # Same colour-overlay guard as graft(): the snapshot must still match members.json
+        # (T->U), else the stem-colour overlay would misalign.
+        expected = to_rna(member.get("fasta_sequence") or "")
+        if raw[member_id].get("seq") != expected:
+            dropped.append(
+                f"{member_id}: raw sequence != fasta_sequence "
+                f"(len {len(raw[member_id].get('seq', ''))} vs {len(expected)}) -- colour overlay would misalign"
+            )
+            continue
+        grafted = graft_terminator_member(raw[member_id], member, max_step_ratio)
+        if grafted is None:
+            dropped.append(f"{member_id}: no drawable terminator graft -> fornac fallback")
             continue
         with (out_dir / f"{member_id}.json").open("w", encoding="utf-8") as fh:
-            json.dump(diagram, fh, separators=(",", ":"), ensure_ascii=True)
-        manifest[member_id] = {"template": None, "source": None}
+            json.dump(grafted, fh, separators=(",", ":"), ensure_ascii=True)
+        manifest[member_id] = {"template": grafted["template"], "source": grafted["source"]}
     manifest_obj = {"count": len(manifest), "diagrams": dict(sorted(manifest.items()))}
     with (out_dir / "manifest.json").open("w", encoding="utf-8") as fh:
         json.dump(manifest_obj, fh, separators=(",", ":"), ensure_ascii=True)
-    return len(manifest), skipped
+    return len(manifest), dropped
 
 
 # --- CLI --------------------------------------------------------------------
@@ -806,9 +1141,13 @@ def main(argv: list[str] | None = None) -> int:
     p_graft.add_argument("--out", type=Path, default=default_out, help="public/data/r2dt output dir")
     p_graft.add_argument("--max-step-ratio", type=float, default=GRAFT_MAX_STEP_RATIO)
 
-    p_term = sub.add_parser("terminator", help="lay out each member's standalone terminator hairpin")
+    p_term = sub.add_parser(
+        "terminator", help="graft each member's terminator hairpin onto its full-length R2DT diagram"
+    )
+    p_term.add_argument("--raw", type=Path, default=default_raw, help="combined raw R2DT snapshot")
     p_term.add_argument("--members", type=Path, default=default_members)
     p_term.add_argument("--out", type=Path, default=default_out / "term", help="public/data/r2dt/term output dir")
+    p_term.add_argument("--max-step-ratio", type=float, default=GRAFT_MAX_STEP_RATIO)
 
     args = parser.parse_args(argv)
     members = load_members(args.members)
@@ -828,9 +1167,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "terminator":
-        n, skipped = terminator(members, args.out)
-        print(f"wrote {n} terminator diagrams + manifest.json -> {args.out}")
-        print(f"{len(skipped)} member(s) without a drawable terminator hairpin.")
+        n, dropped = terminator(args.raw, members, args.out, args.max_step_ratio)
+        print(f"wrote {n} full-length terminator R2DT diagrams + manifest.json -> {args.out}")
+        for d in dropped:
+            print(f"  DROPPED {d}")
+        if dropped:
+            print(f"{len(dropped)} member(s) fall back to fornac (see above).")
         return 0
 
     n, problems = ingest(args.results, members, args.out, args.metadata)

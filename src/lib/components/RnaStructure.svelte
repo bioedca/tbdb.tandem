@@ -31,13 +31,19 @@
     STEM_META,
     FEATURE_OVERLAY_META,
     buildStemColorMap,
+    buildFullTerminatorColorMap,
     TERMINATOR_COLOR,
-    STEM_LINKER_COLOR,
   } from '../color'
   import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
-  import R2dtDiagram from './R2dtDiagram.svelte'
-  import { leaderRnaModel, terminatorRnaModel, varnaLink, type RnaModel } from '../rna'
+  import R2dtViewport from './R2dtViewport.svelte'
+  import {
+    leaderRnaModel,
+    terminatorRnaModel,
+    terminatorHairpinPairs,
+    varnaLink,
+    type RnaModel,
+  } from '../rna'
   import { overlayFeatures } from '../sequence'
   import { loadFornac, type FornaContainerCtor } from '../fornac'
   import {
@@ -66,6 +72,9 @@
   // Conserved-motif overlay (specifier loop + 5′-UGGN-3′ T-box motif) — the SAME
   // spans the sequence view paints, fed to BOTH viewers so the emphasis matches.
   const features = $derived(member ? overlayFeatures(member) : [])
+  // Terminator-hairpin pairs (the gene-OFF fold's own 3′ hairpin) — fed to BOTH viewers'
+  // colour maps so the terminator stem reads identically across R2DT and fornac.
+  const termPairs = $derived(member ? terminatorHairpinPairs(member) : [])
 
   // ── Conformation toggle (Antiterminator ⇄ Terminator) ───────────────────────
   // Orthogonal to the R2DT/fornac viewer toggle: which FOLD is shown — the gene-ON
@@ -152,6 +161,10 @@
     const present = new Set(features.map((f) => f.key))
     return FEATURE_OVERLAY_META.filter((f) => present.has(f.key))
   })
+  // Terminator-conformation legend: the conserved Stem I/II/IIA-B/III present on the
+  // active element (the antiterminator helix `at` is unfolded in this fold), shown
+  // alongside the terminator stem — the full-length terminator keeps the stems.
+  const legendTermStems = $derived(legendStems.filter((s) => s.key !== 'at'))
 
   function ordinalLabel(ordinal: number, n: number): string {
     if (ordinal === 1) return "5′ (1)"
@@ -209,6 +222,7 @@
     const name = member?.unique_name ?? ''
     const stems = member?.stems ?? []
     const feats = member ? overlayFeatures(member) : []
+    const tpairs = member ? terminatorHairpinPairs(member) : []
     if (!el || !ctor || !m) return
     el.innerHTML = '' // drop any previous render before re-mounting
 
@@ -247,18 +261,13 @@
       container.addRNA(m.structure, { sequence: m.sequence, name })
 
       // Per-nucleotide color overlay (PLAN §9). fornac returns a non-numeric custom value
-      // verbatim as the node fill, so we map nucleotide number → hex. Antiterminator: the
-      // shared stem + motif map the R2DT diagram also uses (so both viewers match). Terminator:
-      // the paired residues (the terminator stem) in the terminator hue, rest quiet grey.
-      let colorValues: Record<number, string>
-      if (term) {
-        colorValues = {}
-        for (let i = 1; i <= m.structure.length; i++) {
-          colorValues[i] = m.structure[i - 1] === '.' ? STEM_LINKER_COLOR : TERMINATOR_COLOR
-        }
-      } else {
-        colorValues = buildStemColorMap(stems, m.sequence.length, feats)
-      }
+      // verbatim as the node fill, so we map nucleotide number → hex. Both conformations
+      // use the SAME maps the R2DT diagram does, so the two viewers match. Antiterminator:
+      // the shared stem + motif map. Terminator (full-length): Stem I/II/III in their hues
+      // + the terminator hairpin in the terminator hue.
+      const colorValues = term
+        ? buildFullTerminatorColorMap(stems, tpairs, m.sequence.length)
+        : buildStemColorMap(stems, m.sequence.length, feats)
       container.addCustomColors({ colorValues: { [name]: colorValues } })
       container.changeColorScheme('custom')
     } catch {
@@ -283,7 +292,8 @@
   // zoom only cancels the page-scroll default for wheel-down, so wheel-up zooms AND
   // scrolls the window. Cancel the default ourselves in BOTH directions with a
   // non-passive listener — fornac still zooms; only the page scroll is suppressed.
-  // (The R2DT diagram is a static SVG and does not capture the wheel.)
+  // (The R2DT viewer manages its own wheel-zoom + page-scroll suppression in
+  // R2dtViewport, so this lockWheel applies only to the fornac host.)
   function lockWheel(node: HTMLElement) {
     const onWheel = (e: WheelEvent) => e.preventDefault()
     node.addEventListener('wheel', onWheel, { passive: false })
@@ -380,7 +390,7 @@
           type="button"
           aria-pressed={view === 'r2dt'}
           title={isTerm
-            ? 'Terminator hairpin layout (R2DT)'
+            ? 'Full-length terminator conformation (R2DT)'
             : 'RF00230 / T-box template layout (R2DT), antiterminator folded in'}
           class="rounded-sm px-2 py-0.5 text-small transition-colors duration-150 ease-standard"
           class:bg-brand-subtle={view === 'r2dt'}
@@ -416,11 +426,12 @@
       {#if view === 'r2dt'}
         {#if showR2dt && r2dtData}
           <div class="h-full w-full p-2">
-            <R2dtDiagram
+            <R2dtViewport
               diagram={r2dtData}
               stems={member.stems}
               {features}
               variant={isTerm ? 'terminator' : 'antiterm'}
+              terminatorPairs={termPairs}
             />
           </div>
         {:else}
@@ -466,6 +477,16 @@
           class="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted"
           aria-label="Terminator color key"
         >
+          {#each legendTermStems as s (s.key)}
+            <li class="inline-flex items-center gap-1.5">
+              <span
+                class="size-2.5 rounded-sm ring-1 ring-ink/10"
+                style:background={s.color}
+                aria-hidden="true"
+              ></span>
+              <span>{s.label}</span>
+            </li>
+          {/each}
           <li class="inline-flex items-center gap-1.5">
             <span
               class="size-2.5 rounded-sm ring-1 ring-ink/10"
@@ -509,9 +530,10 @@
       <p class="inline-flex items-center gap-1 text-caption text-muted">
         {#if showR2dt && isTerm}
           <span>
-            Terminator (gene-OFF) conformation · R2DT — the alternative terminator hairpin laid out
-            standalone from its own sequence + structure; the terminator stem is colored. The tbdb.io
-            VARNA diagram is the reference drawing.
+            Terminator (gene-OFF) conformation · R2DT — the full-length leader with the terminator
+            hairpin folded in where the antiterminator sat; Stem I/II/III are held in their canonical
+            positions{#if legendTermStems.length}, colored by domain{/if}, and the terminator stem is
+            colored. The tbdb.io VARNA diagram is the reference drawing.
           </span>
         {:else if showR2dt}
           <span>
