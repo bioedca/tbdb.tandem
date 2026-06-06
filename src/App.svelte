@@ -3,6 +3,7 @@
   import Router, { link, router } from 'svelte-spa-router'
   import { routes } from './router'
   import { store } from './lib/stores/filters.svelte'
+  import { navOverflowFade } from './lib/actions/navOverflowFade'
   import Spinner from './lib/components/Spinner.svelte'
 
   // Real nav (PLAN §7.2 routes); detail pages are reached from the table.
@@ -22,16 +23,19 @@
 </script>
 
 <div class="tv-app flex min-h-screen flex-col bg-surface-subtle text-body">
-  <!-- Deep-blue chrome header (PLAN §8.2). The two-bar wordmark evokes two stacked
-       T-box elements (§8.1); a light palette blue carries the brand mark on the bar. -->
+  <!-- Deep-blue chrome header (PLAN §8.2). The mark = two tandem T-box elements as two
+       OFFSET bars boxed into an ink tile (§8.1). The offset + the bounding tile are
+       deliberate: two equal centred bars read as a ≡ hamburger menu, so the mark is
+       staggered and lockup-bounded so it reads as a logo, not a menu control. -->
   <header class="bg-chrome text-chrome-fg">
     <div
       class="mx-auto flex max-w-content flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2.5 sm:gap-x-6 sm:px-6 sm:py-3"
     >
       <a href="/" use:link class="group flex shrink-0 items-center gap-2.5" aria-label="tbdb.tandem, home">
         <svg viewBox="0 0 24 24" class="size-6 shrink-0" aria-hidden="true">
-          <rect x="3" y="6" width="18" height="4.5" rx="2.25" fill="var(--color-chrome-fg)" />
-          <rect x="3" y="13.5" width="18" height="4.5" rx="2.25" fill="var(--color-brand-on-dark)" />
+          <rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="var(--color-ink)" />
+          <rect x="5.5" y="7.25" width="13" height="3.5" rx="1.75" fill="var(--color-chrome-fg)" />
+          <rect x="8" y="13.25" width="10.5" height="3.5" rx="1.75" fill="var(--color-brand-on-dark)" />
         </svg>
         <span class="flex items-baseline gap-2">
           <span class="text-h2 font-semibold tracking-tight text-white">tbdb<span class="text-brand-on-dark">.tandem</span></span>
@@ -42,8 +46,11 @@
       </a>
 
       <!-- On phones the nav wraps to its own full-width row and scrolls horizontally
-           (all four labels stay reachable); on ≥sm it sits inline beside the wordmark. -->
+           (all five labels stay reachable); on ≥sm it sits inline beside the wordmark.
+           `navOverflowFade` adds a directional edge fade when the row overflows (so the
+           swiped-off "About & method" is discoverable), gated reflow-free with pretext. -->
       <nav
+        use:navOverflowFade={{ font: '400 14px "Inter Variable"', gap: 4, itemPad: 16 }}
         class="tv-no-scrollbar -mx-1 flex w-full items-center gap-1 overflow-x-auto px-1 text-small sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0"
         aria-label="Primary"
       >

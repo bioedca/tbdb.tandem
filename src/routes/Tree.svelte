@@ -8,7 +8,9 @@
 </script>
 
 <section class="space-y-6">
-  <!-- Masthead (PLAN §8): shared PageHeader — kicker, fitText hero, measure-capped lead. -->
+  <!-- Masthead (PLAN §8): shared PageHeader — kicker, fitText hero, measure-capped lead.
+       The no-polarity banner is promoted into the masthead aside (up-and-right on wide
+       screens) so it sits above the fold and fills the otherwise-empty right half. -->
   <PageHeader kicker="Sequence similarity" title="Similarity map">
     <p class="max-w-measure text-lead text-muted">
       An unrooted map that groups the tandem T-box riboswitches by how alike their Stem I sequences are,
@@ -19,9 +21,10 @@
       per-locus and per-element views, swap the main tree for the alternate (fallback) tree, fade
       weakly-supported branches, and isolate the non-Firmicutes minority.
     </p>
+    {#snippet aside()}
+      <NoPolarityBanner />
+    {/snippet}
   </PageHeader>
-
-  <NoPolarityBanner />
 
   <PhyloTree />
 </section>

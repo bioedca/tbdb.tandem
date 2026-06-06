@@ -1,8 +1,12 @@
-<!-- tbdb.tandem mark (PLAN §8.1): two stacked bars = two tandem T-box elements.
-     Dark-slate chrome ground, light upper bar + teal brand accent lower bar.
-     Standalone asset — hex literals mirror the tokens (--color-chrome-fg / --color-brand). -->
+<!-- tbdb.tandem mark (PLAN §8.1): two tandem T-box elements as two OFFSET bars on a
+     bounded ink tile. The offset (the lower bar starts further right, both right-aligned)
+     and the enclosing tile are deliberate: two equal centred bars read as a ≡ hamburger
+     menu, so the bars are staggered and boxed into a logo lockup instead. Hex literals
+     mirror the tokens — tile = --color-ink, upper bar = --color-chrome-fg, lower bar =
+     --color-brand-on-dark — so the favicon, the in-app header mark, and the design tokens
+     all carry the SAME teal (resolving the prior favicon-teal drift). -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="tbdb.tandem">
   <rect width="32" height="32" rx="7" fill="#0f172a" />
-  <rect x="7" y="10" width="18" height="5" rx="2.5" fill="#e2e8f0" />
-  <rect x="7" y="18" width="18" height="5" rx="2.5" fill="#0f766e" />
+  <rect x="7.5" y="10" width="17" height="4.5" rx="2.25" fill="#e7eff2" />
+  <rect x="10.5" y="17.5" width="14" height="4.5" rx="2.25" fill="#93bfcf" />
 </svg>

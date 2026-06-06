@@ -16,6 +16,7 @@ import {
   leafNames,
   parseNewick,
   parseSupport,
+  scaleBranchLengths,
   serializeNewick,
   specifierFill,
   tipTandemMap,
@@ -51,6 +52,33 @@ describe('parseNewick / serializeNewick', () => {
 
   test('throws on malformed input', () => {
     expect(() => parseNewick('((A,B);')).toThrow()
+  })
+})
+
+describe('scaleBranchLengths', () => {
+  test('applies fn to every numeric length, preserving topology + null lengths', () => {
+    const t = parseNewick('((A:4,B:9)0.9:0.25,C:16)root;')
+    const s = scaleBranchLengths(t, Math.sqrt)
+    expect(leafNames(s)).toEqual(['A', 'B', 'C']) // structure unchanged
+    expect(s.children[0].name).toBe('0.9') // internal support label kept
+    expect(s.children[0].children[0].length).toBe('2') // √4
+    expect(s.children[0].children[1].length).toBe('3') // √9
+    expect(s.children[1].length).toBe('4') // √16
+    expect(s.children[0].length).toBe('0.5') // √0.25
+    expect(s.length).toBeNull() // root has no length → stays null
+  })
+
+  test('does not mutate the input tree', () => {
+    const t = parseNewick('(A:4,B:9);')
+    scaleBranchLengths(t, Math.sqrt)
+    expect(t.children[0].length).toBe('4')
+  })
+
+  test('compresses long branches relative to short ones (the §4.4 intent)', () => {
+    // A 1:100 length ratio collapses to 1:10 under √ — the long branch stops dominating.
+    const s = scaleBranchLengths(parseNewick('(A:1,B:100);'), Math.sqrt)
+    expect(Number(s.children[0].length)).toBe(1)
+    expect(Number(s.children[1].length)).toBe(10)
   })
 })
 

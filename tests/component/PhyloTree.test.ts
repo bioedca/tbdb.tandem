@@ -100,6 +100,25 @@ describe('PhyloTree', () => {
     })
   })
 
+  test('the √-compressed branch toggle re-renders with rescaled lengths, same topology', async () => {
+    const { getByRole } = render(PhyloTree)
+    await waitFor(() => expect(mock.constructed.length).toBeGreaterThanOrEqual(1))
+    const trueNwk = mock.constructed[mock.constructed.length - 1]
+
+    // Switch to √-compressed: the $derived re-applies scaleBranchLengths(tree, Math.sqrt),
+    // so a NEW Newick is constructed with different branch lengths but the same tips (§4.4).
+    await fireEvent.click(getByRole('button', { name: /compressed/ }))
+    await waitFor(() => expect(mock.constructed[mock.constructed.length - 1]).not.toBe(trueNwk))
+    const sqrtNwk = mock.constructed[mock.constructed.length - 1]
+    expect(countLeaves(parseNewick(sqrtNwk))).toBe(countLeaves(parseNewick(trueNwk))) // topology kept
+    // √(0.2) ≈ 0.447 — a length the linear emission does not contain — proves the transform ran.
+    expect(sqrtNwk).toMatch(/0\.447/)
+
+    // Back to True restores the distance-proportional (verbatim-collapsed) emission.
+    await fireEvent.click(getByRole('button', { name: 'True' }))
+    await waitFor(() => expect(mock.constructed[mock.constructed.length - 1]).toBe(trueNwk))
+  })
+
   test('renders the controls and a specifier legend', () => {
     const { getByRole, getByText } = render(PhyloTree)
     expect(getByRole('button', { name: 'Locus' })).toBeInTheDocument()
