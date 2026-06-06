@@ -28,7 +28,7 @@
       mRNA leader that senses whether its cognate tRNA is charged with its amino acid, switching the
       downstream gene on when that amino acid is scarce. A
       <strong class="font-medium text-ink">tandem</strong> locus stacks two or more T-box elements in one
-      leader — this explorer covers all 470 such loci.
+      leader. This explorer covers all 470 such loci.
     </p>
     <p class="mt-3 max-w-measure text-small text-muted">
       Filter once: every panel and the table update together, so a selection in any chart

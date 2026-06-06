@@ -80,13 +80,13 @@
 <div class="space-y-8">
   <PageHeader kicker="Design system · dev" title="Design system">
     <p class="max-w-measure text-lead text-muted">
-      tbdb.tandem identity (PLAN §8) — dev-only review surface at <code
+      tbdb.tandem identity (PLAN §8): dev-only review surface at <code
         class="font-mono text-small">/styleguide</code
       >.
     </p>
   </PageHeader>
 
-  <Card title="Chrome ⟂ data disjointness" subtitle="§8.2 invariant — proven at runtime">
+  <Card title="Chrome ⟂ data disjointness" subtitle="§8.2 invariant, proven at runtime">
     <div class="flex flex-wrap gap-8 text-small">
       <div>
         <div class="font-mono text-display text-ink">{proof.minHueGap.toFixed(1)}°</div>
@@ -105,12 +105,12 @@
     </div>
   </Card>
 
-  <Card title="Typography" subtitle="Inter (UI) · JetBrains Mono (data) — self-hosted">
+  <Card title="Typography" subtitle="Inter (UI) · JetBrains Mono (data), self-hosted">
     <div class="space-y-2">
       {#each typeRamp as t (t.cls)}
         <div class="flex items-baseline gap-4">
           <span class="w-20 shrink-0 font-mono text-caption text-muted">{t.label}</span>
-          <span class={t.cls}>The quick brown fox — tbdb.tandem</span>
+          <span class={t.cls}>The quick brown fox, tbdb.tandem</span>
         </div>
       {/each}
       <div class="flex items-baseline gap-4">
@@ -172,7 +172,7 @@
     </div>
   </Card>
 
-  <Card title="Phylum context ramp" subtitle="separate, neutral — never competes with specifier (§8.2)">
+  <Card title="Phylum context ramp" subtitle="separate, neutral: never competes with specifier (§8.2)">
     <div class="flex flex-wrap gap-3">
       {#each phyla as [name, hex] (name)}
         <div class="w-32">
@@ -224,7 +224,7 @@
 
   <Card
     title="Tandem architecture + element comparison"
-    subtitle="§9① signature view (S2.1) — to-scale, biological 5′→3′; element tinted by its own specifier"
+    subtitle="§9① signature view (S2.1), to-scale, biological 5′→3′; element tinted by its own specifier"
   >
     <div class="space-y-8">
       {#each archCases as c (c.id)}

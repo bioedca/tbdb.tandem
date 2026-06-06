@@ -208,8 +208,8 @@
         : `${p.tandem_id} · ${p.member_id}`,
       `Specifier: ${p.spec ?? '?'}`,
       `Phylum: ${p.phylum ?? 'unassigned'}`,
-      `Function: ${p.func ?? 'unknown'} · ${p.type ?? '—'} · ${p.conf ?? '—'} conf`,
-      `ΔΔG: ${p.ddg ?? '—'} · identity: ${p.ident ?? '—'}`,
+      `Function: ${p.func ?? 'unknown'} · ${p.type ?? 'n/a'} · ${p.conf ?? 'n/a'} conf`,
+      `ΔΔG: ${p.ddg ?? 'n/a'} · identity: ${p.ident ?? 'n/a'}`,
     ]
     tip = { visible: true, x: ev.clientX + 14, y: ev.clientY + 14, lines }
   }
@@ -894,7 +894,7 @@
             bind:this={containerEl}
             class="h-full w-full"
             role="img"
-            aria-label="3D Stem I similarity cloud — an exploratory, unrooted embedding; {tipCount} {granularity === 'locus' ? 'loci' : 'elements'} positioned by sequence similarity, not ancestry."
+            aria-label="3D Stem I similarity cloud, an exploratory, unrooted embedding; {tipCount} {granularity === 'locus' ? 'loci' : 'elements'} positioned by sequence similarity, not ancestry."
           ></div>
           {#if !ready}
             <div class="absolute inset-0 grid place-items-center bg-surface">
@@ -925,12 +925,12 @@
         </p>
         {#if spread > 0.001}
           <p class="mt-1 text-caption text-muted">
-            ⚠ Positions inflated for clarity — mean offset
+            ⚠ Positions inflated for clarity: mean offset
             <span class="font-mono">{meanOffset.toFixed(1)}</span> units from true position. Set spread to 0 for true distances.
           </p>
         {/if}
         <p class="mt-1 max-w-measure text-caption text-muted">
-          A navigation aid for spotting structure — not a measurement instrument. Distances are an
+          A navigation aid for spotting structure, not a measurement instrument. Distances are an
           imperfect 3D projection; the locus detail pages are the source of truth. Drag to orbit,
           scroll to zoom, shift-drag to pan; hover a point for its locus;
           {selectable ? 'click to filter the dashboard by its specifier.' : 'click to open its detail page.'}

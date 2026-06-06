@@ -530,7 +530,7 @@
       <p class="inline-flex items-center gap-1 text-caption text-muted">
         {#if showR2dt && isTerm}
           <span>
-            Terminator (gene-OFF) conformation · R2DT — the full-length leader with the terminator
+            Terminator (gene-OFF) conformation · R2DT: the full-length leader with the terminator
             hairpin folded in where the antiterminator sat; Stem I/II/III are held in their canonical
             positions{#if legendTermStems.length}, colored by domain{/if}, and the terminator stem is
             colored. The tbdb.io VARNA diagram is the reference drawing.
@@ -544,13 +544,13 @@
           </span>
         {:else if view === 'fornac'}
           <span>
-            {#if model}{model.source} · {model.pairs} base pairs · {/if}fornac force layout — the base
+            {#if model}{model.source} · {model.pairs} base pairs · {/if}fornac force layout: the base
             pairs are exact, but the layout is approximate; the tbdb.io VARNA diagram is the reference
             drawing.
           </span>
         {:else}
           <span>
-            No R2DT diagram for this element — switch to Fornac, or open the tbdb.io VARNA
+            No R2DT diagram for this element. Switch to Fornac, or open the tbdb.io VARNA
             secondary-structure view.
           </span>
         {/if}

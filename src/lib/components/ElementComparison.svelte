@@ -29,7 +29,7 @@
     return Math.max(0, Math.min(1, value / floor))
   }
   function num(value: number | null): string {
-    return value === null ? '—' : value.toFixed(1)
+    return value === null ? '–' : value.toFixed(1)
   }
   function ordinalLabel(ordinal: number, n: number): string {
     if (ordinal === 1) return '5′ (1)'
@@ -99,7 +99,7 @@
                 {#if m.specifier.codon}<span class="font-mono text-caption text-muted">{m.specifier.codon}</span>{/if}
               </span>
             </td>
-            <td class="py-2 pr-3 font-mono text-caption text-muted">{m.trna ?? '—'}</td>
+            <td class="py-2 pr-3 font-mono text-caption text-muted">{m.trna ?? '–'}</td>
             <td class="py-2 pr-3">
               <span class="inline-flex items-center gap-1" title={m.completeness ?? 'unknown'}>
                 {#if m.completeness === 'Full'}
@@ -109,7 +109,7 @@
                   <span class="size-2.5 rounded-full border-[1.5px] border-muted" aria-hidden="true"></span>
                   <span class="text-caption text-muted">Partial</span>
                 {:else}
-                  <span class="text-caption text-muted">—</span>
+                  <span class="text-caption text-muted">–</span>
                 {/if}
               </span>
             </td>
@@ -160,7 +160,7 @@
             </div>
             <span class="font-mono text-caption text-ink tabular-nums">{r.identity.toFixed(1)}%</span>
             {#if r.sharedLeader && r.identity >= 100}
-              <span class="text-caption text-muted" title="Both cores lie in one leader window (collapse-recovered locus), so the leader sequences are identical — this does not measure core-vs-core divergence.">
+              <span class="text-caption text-muted" title="Both cores lie in one leader window (collapse-recovered locus), so the leader sequences are identical; this does not measure core-vs-core divergence.">
                 ⓘ identical leader window
               </span>
             {/if}

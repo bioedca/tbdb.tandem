@@ -9,7 +9,7 @@
   <!-- Masthead (PLAN §8): shared PageHeader — kicker, fitText hero, measure-capped lead. -->
   <PageHeader kicker="Data table" title="Browse">
     <p class="max-w-measure text-lead text-muted">
-      All 470 tandem T-box loci — sort any column, stack facet filters, search, and export the
+      All 470 tandem T-box loci: sort any column, stack facet filters, search, and export the
       current selection as CSV. Click a row for its locus detail.
     </p>
   </PageHeader>

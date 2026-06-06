@@ -65,7 +65,7 @@
 
   function textOrDash(cell: CellComponent): string {
     const v = cell.getValue()
-    return v === null || v === undefined || v === '' ? '—' : esc(v)
+    return v === null || v === undefined || v === '' ? '–' : esc(v)
   }
 
   /** Specifier cell: a data-color swatch (two-tone for mixed loci) + the label. */
@@ -88,7 +88,7 @@
 
   function pctCell(cell: CellComponent): string {
     const v = cell.getValue()
-    return v === null || v === undefined ? '—' : Number(v).toFixed(1)
+    return v === null || v === undefined ? '–' : Number(v).toFixed(1)
   }
 
   const columns: ColumnDefinition[] = [

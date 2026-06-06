@@ -12,13 +12,13 @@
        title was previously a smaller `text-h1`, breaking the page-title hierarchy). -->
   <PageHeader kicker="Sequence similarity · 3D" title="Similarity cloud">
     <p class="max-w-measure text-lead text-muted">
-      A 3D view of the same Stem I sequence-similarity relationships as the 2D map — embedded so that
+      A 3D view of the same Stem I sequence-similarity relationships as the 2D map, embedded so that
       points which sit close together have similar Stem I sequences. A flat 2D layout can only show a
       fraction of that structure (the dense Firmicutes core becomes an unreadable hairball precisely
       because it is not flat); the third dimension recovers more of it. Like the 2D map it is unrooted
       and has no time axis, so nearness means “these sequences resemble each other,” not lineage or
       order of appearance. Use the controls to color and size points by the metadata each locus
-      carries, and the spread slider to gently de-pile the crowded core for clicking — a navigation
+      carries, and the spread slider to gently de-pile the crowded core for clicking: a navigation
       aid, never a measurement.
     </p>
   </PageHeader>

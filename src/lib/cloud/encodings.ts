@@ -121,7 +121,7 @@ export const PRESETS: Record<PresetKey, Preset> = {
     label: 'Switch strength',
     color: 'ddg',
     size: 'absDdg',
-    blurb: 'Color + size by ΔΔG — how strongly the element favours one conformation.',
+    blurb: 'Color + size by ΔΔG: how strongly the element favours one conformation.',
   },
   function: {
     key: 'function',

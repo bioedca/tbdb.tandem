@@ -25,6 +25,14 @@
   const unknownLoci = $derived(
     s?.distributions.specifier.find((d) => d.value === '?')?.count ?? null,
   )
+  // The named non-Firmicutes phyla, bound live from the same distribution so the
+  // taxonomy caveat lists exactly the phyla present in the build (never a stale subset).
+  const nonFirmicutesPhyla = $derived(
+    s?.distributions.phylum
+      .filter((d) => d.value !== 'Firmicutes')
+      .map((d) => d.value)
+      .join(', ') ?? 'a few other bacterial phyla',
+  )
 
   // The self-contained reproduction script ships as a static asset under the
   // Pages base path (committed in public/), so the labmate can download and run
@@ -91,8 +99,8 @@
       <p>
         A <strong class="font-medium text-ink">tandem</strong> locus stacks two or more complete T-box
         elements in the same leader, all regulating the same downstream gene or operon. Tandem copies
-        extend the switch's regulatory range — each element must independently capture an uncharged tRNA
-        to permit read-through — and are expected to give tighter control than a single T-box. Such
+        extend the switch's regulatory range (each element must independently capture an uncharged tRNA
+        to permit read-through) and are expected to give tighter control than a single T-box. Such
         arrangements were systematically surveyed across bacterial genomes by
         <TbdbLink href="https://doi.org/10.1261/rna.819308">Vitreschak et al., 2008</TbdbLink>
         and catalogued in the T-box review of
@@ -100,7 +108,7 @@
       </p>
       <p>
         tbdb.tandem is a companion to {@render code('tbdb.io')} focused on the
-        <em>tandem-level</em> view of T-box riboswitches — stacked-element architecture, specifier–tRNA
+        <em>tandem-level</em> view of T-box riboswitches: stacked-element architecture, specifier–tRNA
         pairing, shared-operon regulation, and a sequence-similarity map. It does not duplicate the
         single-element views in tbdb.io; every element deep-links back to its canonical tbdb.io entry
         for the structure render, genome browser, and tRNA pairing.
@@ -120,13 +128,13 @@
 
   <Card
     title="How the database is built"
-    subtitle="From the raw TBDB master table to the loci shown here — every step is deterministic and scriptable."
+    subtitle="From the raw TBDB master table to the loci shown here: every step is deterministic and scriptable."
     class="mb-6 break-inside-avoid"
   >
     <div class="text-body space-y-3 leading-relaxed">
       <p>
         The entire dataset is derived from a <strong class="font-medium text-ink">single public
-        source file</strong> — the TBDB master table ({@render code('Master_tboxes.csv')}, ≈23,500
+        source file</strong>: the TBDB master table ({@render code('Master_tboxes.csv')}, ≈23,500
         annotated T-box rows). A deterministic pipeline turns it into the loci, elements, and pairings
         on every panel.
       </p>
@@ -138,25 +146,25 @@
         </li>
         <li>
           <strong class="font-medium text-ink">Orient each T-box.</strong> Strand comes from the
-          coordinate order; each core's genomic 5′ anchor (the {@render code('core5')} position) is
-          projected so cores can be placed along the leader.
+          coordinate order; each element's genomic 5′ anchor (the {@render code('core5')} position) is
+          projected so elements can be placed along the leader.
         </li>
         <li>
-          <strong class="font-medium text-ink">Cluster nearby cores.</strong> Within each
-          {@render code('(accession, strand)')}, cores that sit within 600&nbsp;bp are chained into one
-          candidate window (single-linkage — the chaining is transitive).
+          <strong class="font-medium text-ink">Cluster nearby elements.</strong> Within each
+          {@render code('(accession, strand)')}, elements that sit within 600&nbsp;bp are chained into one
+          candidate window (single-linkage: the chaining is transitive).
         </li>
         <li>
           <strong class="font-medium text-ink">Collapse redundant annotations.</strong> The same
-          physical T-box is often annotated by several pipelines; cores within 60&nbsp;bp are one
-          physical core, and the best representative row is kept (complete &gt; has a called codon &gt;
+          physical T-box is often annotated by several pipelines; elements within 60&nbsp;bp are one
+          physical element, and the best representative row is kept (complete &gt; has a called codon &gt;
           carries a TBDB id &gt; lowest E-value).
         </li>
         <li>
           <strong class="font-medium text-ink">Keep the tandems.</strong> A window with ≥2 physical
-          cores is a tandem locus when its cores are plausibly co-regulated — they share a downstream
+          elements is a tandem locus when its elements are plausibly co-regulated: they share a downstream
           gene, share a specifier amino acid, <em>or</em> sit in overlapping leaders. A locus is
-          high-confidence when ≥2 of its cores have a called specifier codon.
+          high-confidence when ≥2 of its elements have a called specifier codon.
         </li>
         <li>
           <strong class="font-medium text-ink">Order &amp; derive.</strong> Elements are numbered
@@ -168,15 +176,15 @@
       </ol>
       <p class="text-small text-muted">
         This yields {s ? s.counts.loci : 470} loci and exactly {s ? s.counts.members : 949} T-box
-        elements — one representative per physical core (duplicate annotation rows are collapsed) —
-        with {s ? s.counts.intra_locus_pairs : 488} intra-locus pairwise identities.
+        elements (one representative per physical element; duplicate annotation rows are collapsed) and
+        {s ? s.counts.intra_locus_pairs : 488} intra-locus pairwise identities.
       </p>
     </div>
   </Card>
 
   <Card
     title="Reproduce it yourself"
-    subtitle="One script, one input file — regenerate the entire dataset from scratch."
+    subtitle="One script, one input file: regenerate the entire dataset from scratch."
     class="mb-6 break-inside-avoid"
   >
     <div class="text-body space-y-4 leading-relaxed">
@@ -208,7 +216,7 @@
       <div class="rounded-md border border-hairline bg-surface px-4 py-3">
         <p class="text-small text-muted">
           <span class="font-medium text-ink">Prefer the finished table?</span> Download the
-          member-level base table directly — one row per T-box element, every per-element field plus the
+          member-level base table directly: one row per T-box element, every per-element field plus the
           component-stem spans (Stem&nbsp;I / II / IIA-B / III / antiterminator) the app colours the RNA
           secondary structure by. It is the same {@render code('members.csv')} the build emits and the
           script regenerates.
@@ -233,7 +241,7 @@
       </div>
       <div class="space-y-2">
         <p class="text-small text-muted">
-          Get the source table — {@render code('Master_tboxes.csv')} — from the TBDB repository, then
+          Get the source table ({@render code('Master_tboxes.csv')}) from the TBDB repository, then
           run:
         </p>
         <pre
@@ -249,7 +257,7 @@ python3 reproduce_tandem_tbox_db.py \
             >github.com/mpiersonsmela/tbox</TbdbLink
           >. The script writes {@render code('loci.json')}, {@render code('members.json')},
           {@render code('identity.json')}, {@render code('summary.json')}, {@render code('members.csv')}
-          (above), the tree-input FASTAs, and — with {@render code('--emit-table')} — a readable
+          (above), the tree-input FASTAs, and, with {@render code('--emit-table')}, a readable
           {@render code('tandem_loci.tsv')}.
         </p>
       </div>
@@ -260,8 +268,8 @@ python3 reproduce_tandem_tbox_db.py \
           : 488} counts, the
         {#if s}{s.confidence.high}&nbsp;/&nbsp;{s.confidence.low}{:else}high&nbsp;/&nbsp;low{/if}
         confidence split, and every specifier and phylum distribution reproduce exactly, and 943 of 949
-        element records are byte-identical. The few differences are curatorial edge cases — a handful of
-        physical cores carry redundant source annotations, and locus IDs follow genomic order rather than
+        element records are byte-identical. The few differences are curatorial edge cases: a handful of
+        physical elements carry redundant source annotations, and locus IDs follow genomic order rather than
         original discovery order. The script's header comment documents every step.
       </div>
     </div>
@@ -275,48 +283,71 @@ python3 reproduce_tandem_tbox_db.py \
     <div class="text-body leading-relaxed">
       <dl class="space-y-4">
         <div>
-          <dt class="font-medium text-ink">Contamination is dropped first.</dt>
+          <dt class="font-medium text-ink">Detection finds canonical T-boxes and misses divergent ones.</dt>
           <dd class="mt-0.5 text-muted">
-            The 24 confirmed non-bacterial (eukaryotic) rows removed in step 1 of the build never reach a
-            view.
+            The source catalogue is built by covariance-model homology search against the Rfam T-box model
+            (<TbdbLink href="https://rfam.org/family/RF00230">RF00230</TbdbLink>, with a separate model for
+            the translational class). That reliably recovers canonical, well-conserved elements but can
+            miss highly divergent or degenerate ones, so the loci shown here, and any tandem inferred from
+            neighboring elements, are bounded by what the model can recognize.
           </dd>
         </div>
         <div>
-          <dt class="font-medium text-ink">The raw codon column is corrupt.</dt>
+          <dt class="font-medium text-ink">Tandem co-regulation is inferred, not measured.</dt>
           <dd class="mt-0.5 text-muted">
-            Every specifier is read from {@render code('amino_acid_top')} / {@render code(
-              'refine_codon_top',
-            )}, never the raw {@render code('codon')} field.
+            Tandem grouping and shared regulation are read from genomic context: neighboring elements that
+            share a downstream gene, a specifier amino acid, or overlapping leaders. Direct experimental
+            evidence that stacked elements act together exists for only a handful of loci, so the tighter,
+            additive control these arrangements suggest is an expectation here, not a per-locus
+            measurement.
+          </dd>
+        </div>
+        <div>
+          <dt class="font-medium text-ink">Some loci have no confident specifier.</dt>
+          <dd class="mt-0.5 text-muted">
+            Which amino acid each T-box senses is taken from TBDB's curated specifier calls
+            ({@render code('amino_acid_top')} / {@render code('refine_codon_top')}); the raw per-row
+            {@render code('codon')} field is unreliable and is never used.
             {#if unknownLoci != null}<span
-                >{unknownLoci} of the {s?.counts.loci} loci have no confident specifier and are shown
-                as “?”.</span
+                >For {unknownLoci} of the {s?.counts.loci} loci no specifier could be confidently
+                assigned, so they are shown as “?” and their sensed amino acid is genuinely unknown; any
+                view grouped or filtered by specifier is incomplete for them.</span
               >{/if}
+          </dd>
+        </div>
+        <div>
+          <dt class="font-medium text-ink">The taxonomy mirrors the source, not this subset.</dt>
+          <dd class="mt-0.5 text-muted">
+            {#if firmicutes != null}{firmicutes} of {s?.counts.loci}{:else}Most{/if} loci are Firmicutes
+            (Bacillota), but that skew is a property of T-box biology and of the whole TBDB, not an effect
+            of restricting to tandem loci: this subset has the same makeup as the complete T-box
+            collection. T-boxes are not exclusive to Firmicutes; the {s ? s.counts.non_firmicutes : 16}
+            non-Firmicutes loci here span {nonFirmicutesPhyla}, but they are far fewer. Specifier, not
+            phylum, is therefore the primary color axis, and those loci have a dedicated filter. Any
+            taxonomic reading also carries genome-sequencing sampling bias, since sequenced genomes
+            over-represent cultured organisms, so the apparent dominance reflects both real biology and
+            uneven sampling.
           </dd>
         </div>
         <div>
           <dt class="font-medium text-ink">Low-confidence loci are kept and flagged.</dt>
           <dd class="mt-0.5 text-muted">
             {#if s}{s.confidence.low} of {s.counts.loci}{:else}The low-confidence{/if} loci are badged,
-            never silently dropped. Filters can hide them — but that is your choice, not an editorial one.
+            never silently dropped. Filters can hide them.
           </dd>
         </div>
         <div>
-          <dt class="font-medium text-ink">Taxonomy is near-monochrome.</dt>
+          <dt class="font-medium text-ink">Contamination is dropped first.</dt>
           <dd class="mt-0.5 text-muted">
-            {#if firmicutes != null}{firmicutes} of {s?.counts.loci}{:else}Most{/if} loci are
-            Firmicutes, so phylum carries little color signal. Specifier is the primary color axis, and
-            the {s ? s.counts.non_firmicutes : 16} non-Firmicutes loci have a dedicated filter.
+            The 24 confirmed non-bacterial (eukaryotic) rows removed in step 1 of the build never reach a
+            view.
           </dd>
         </div>
       </dl>
     </div>
   </Card>
 
-  <Card
-    title="The similarity map is not a phylogeny"
-    subtitle="A lab standard: no polarity is read from the tips."
-    class="mb-6 break-inside-avoid"
-  >
+  <Card title="The similarity map is not a phylogeny" class="mb-6 break-inside-avoid">
     <div class="text-body space-y-3 leading-relaxed">
       <NoPolarityBanner />
       <p>
@@ -331,13 +362,17 @@ python3 reproduce_tandem_tbox_db.py \
       </p>
       <ul class="list-disc space-y-1.5 pl-5 marker:text-muted">
         <li>
-          Each leader is structurally aligned to the RF00230 covariance model (Infernal {@render code(
+          Each leader is structurally aligned to the RF00230 T-box covariance model (Infernal {@render code(
             'cmalign',
-          )}), and only the Stem I consensus columns are used to build the tree.
+          )}), and the tree is built from the Stem&nbsp;I consensus columns only. Stem&nbsp;I is the
+          conserved, alignable core the model captures, and it carries the specifier that pairs the cognate
+          tRNA, so it is the standard region for comparing T-boxes across the family.
         </li>
         <li>
-          The tree is built with FastTree (GTR + Γ, SH-like local supports) — a quick map, not an
-          over-interpretable bootstrap.
+          The trade-off is that the map sees Stem&nbsp;I only: it does not read variation elsewhere in the
+          leader (Stem&nbsp;II, the Stem&nbsp;IIA/B pseudoknot, Stem&nbsp;III, the antiterminator, or
+          taxon-specific insertions), so elements that differ only outside Stem&nbsp;I can still look
+          alike here.
         </li>
         <li>
           It is midpoint-rooted internally for a stable on-screen layout only, and is always displayed
@@ -364,28 +399,28 @@ python3 reproduce_tandem_tbox_db.py \
     <div class="text-body space-y-3 leading-relaxed">
       <p>
         Each element's detail page renders its RNA secondary structure two ways, toggled in place. Both
-        color every nucleotide by its structural domain — Stem&nbsp;I, Stem&nbsp;II, Stem&nbsp;IIA/B,
-        Stem&nbsp;III, and the antiterminator — from one shared palette, and a link to the element's
+        color every nucleotide by its structural domain (Stem&nbsp;I, Stem&nbsp;II, Stem&nbsp;IIA/B,
+        Stem&nbsp;III, and the antiterminator) from one shared palette, and a link to the element's
         canonical tbdb.io VARNA drawing always sits alongside. Either render can also be switched between
-        the gene-on antiterminator and gene-off terminator conformations — full-length folds that share
+        the gene-on antiterminator and gene-off terminator conformations: full-length folds that share
         the same upstream stems and differ only at the 3′ end.
       </p>
       <ul class="list-disc space-y-1.5 pl-5 marker:text-muted">
         <li>
-          <strong class="font-medium text-ink">R2DT</strong> — the canonical <TbdbLink
+          <strong class="font-medium text-ink">R2DT</strong> draws the canonical <TbdbLink
             href="https://github.com/r2dt-bio/R2DT">R2DT</TbdbLink
           > layout on the RF00230 / T-box template: the recognizable, reproducible textbook shape, drawn
           the same way for every element so they are directly comparable.
         </li>
         <li>
-          <strong class="font-medium text-ink">Fornac</strong> — a force-directed layout of the
+          <strong class="font-medium text-ink">Fornac</strong> gives a force-directed layout of the
           whole-leader antiterminator conformation (best-effort; the base pairs are exact, the layout is
           approximate).
         </li>
       </ul>
       <p class="text-small text-muted">
         Like the similarity map, the R2DT diagrams are computed offline (R2DT cannot run in the browser)
-        and committed as small per-element files the app fetches and colors on the fly — so they are
+        and committed as small per-element files the app fetches and colors on the fly, so they are
         generated by a separate step, not by the master-only reproduction script above. R2DT draws a
         faithful full-leader diagram for most elements; a minority with degenerate or atypically long
         leaders fall back to the fornac view.
@@ -401,7 +436,7 @@ python3 reproduce_tandem_tbox_db.py \
         annotations are TBDB's.
       </p>
       <p>
-        If you use this resource, please cite the TBDB database paper — the data source — together with
+        If you use this resource, please cite the TBDB database paper (the data source) together with
         the foundational analyses of the T-box mechanism and its tandem arrangement:
       </p>
       <ul class="space-y-2">
@@ -445,7 +480,7 @@ python3 reproduce_tandem_tbox_db.py \
       <div>
         <dt class="font-medium text-ink">Element (also member)</dt>
         <dd class="text-muted">
-          One complete T-box unit — Stem I plus its antiterminator/terminator decision module — within a
+          One complete T-box unit (Stem I plus its antiterminator/terminator decision module) within a
           locus (the 949 total).
         </dd>
       </div>
@@ -472,7 +507,7 @@ python3 reproduce_tandem_tbox_db.py \
         <dt class="font-medium text-ink">{@render code('func_class')}</dt>
         <dd class="text-muted">
           The regulated downstream function (aaRS, biosynthesis, transporter, oxidoreductase, or
-          unknown), EC-backed or text-inferred — its provenance is {@render code('func_source')}, and
+          unknown), EC-backed or text-inferred; its provenance is {@render code('func_source')}, and
           text-inferred classes are marked with an asterisk.
         </dd>
       </div>

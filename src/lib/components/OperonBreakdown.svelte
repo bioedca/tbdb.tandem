@@ -260,7 +260,7 @@
 
 <Card
   title="Regulated-operon breakdown"
-  subtitle="Each T-box sits in the leader of a downstream gene or operon and toggles its expression by sensing the charging state of one cognate tRNA — uncharged tRNA, which builds up when its amino acid is scarce, flips the switch. Loci are grouped here by the function class of that regulated gene or operon (split by classification source). Observed associations only — no evolutionary direction is implied."
+  subtitle="Each T-box sits in the leader of a downstream gene or operon and toggles its expression by sensing the charging state of one cognate tRNA: uncharged tRNA, which builds up when its amino acid is scarce, flips the switch. Loci are grouped here by the function class of that regulated gene or operon (split by classification source). Observed associations only, no evolutionary direction is implied."
 >
   <!-- Regulation type — shown as chips, not a toggle (§2.2/§9③) -->
   <div class="mb-4 flex flex-wrap items-center gap-2">
@@ -292,13 +292,13 @@
         <InfoTip term="func_class" />
       </div>
       <p class="mb-2 text-caption text-muted">
-        Function of the regulated gene (from its EC number or text annotation) —
+        Function of the regulated gene (from its EC number or text annotation):
         <span class="font-mono">aaRS</span> = aminoacyl-tRNA synthetase · biosynthesis = biosynthetic
         enzyme (transferase/lyase) · transporter = membrane transporter/permease · oxidoreductase =
         oxidation–reduction (redox) enzyme · unknown = no annotation.
       </p>
       <p class="mb-2 text-caption text-muted">
-        Classification source — backed by an EC (Enzyme Commission) number · inferred from the gene's
+        Classification source: backed by an EC (Enzyme Commission) number · inferred from the gene's
         text annotation (<span class="font-mono">*</span>lower confidence) · or no annotation. Click a
         bar to cross-filter.
       </p>
@@ -333,7 +333,7 @@
       <h3 class="mb-1 text-small font-medium text-ink">Specifier → function coupling</h3>
       <p class="mb-2 text-caption text-muted">
         Each band counts the loci whose specifier amino acid (left, colored by amino acid) regulates a
-        given function class (right, in muted function-class colors). Width = number of loci — an observed
+        given function class (right, in muted function-class colors). Width = number of loci, an observed
         association, not a cause.
       </p>
       <div class="relative h-[clamp(20rem,50vh,30rem)] w-full">
