@@ -17,8 +17,8 @@
     actions?: Snippet
     children?: Snippet
     class?: string
-    /** Heading size class — defaults to the fixed `text-h2`; pass `text-card-title`
-     *  (fluid) on surfaces whose body scales up so the heading stays above it. */
+    /** Heading size class. Defaults to `text-h2` — the single, gently-fluid section/card
+     *  title tier used app-wide. Override only for a deliberately different surface. */
     titleClass?: string
   } = $props()
 </script>
@@ -28,11 +28,11 @@
 >
   {#if title || subtitle || actions}
     <header class="flex items-start justify-between gap-4 border-b border-hairline px-4 py-3 sm:px-5">
-      <div>
+      <div class="min-w-0">
         {#if title}<h2 class="{titleClass} text-ink">{title}</h2>{/if}
         <!-- Cap the subtitle at the shared reading measure so long explanatory lines
              wrap to a comfortable length instead of running the full panel width. -->
-        {#if subtitle}<p class="max-w-measure text-small text-muted">{subtitle}</p>{/if}
+        {#if subtitle}<p class="mt-1 max-w-measure text-small text-muted">{subtitle}</p>{/if}
       </div>
       {#if actions}<div class="shrink-0">{@render actions()}</div>{/if}
     </header>

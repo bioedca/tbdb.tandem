@@ -45,45 +45,45 @@
   --color-chrome: #234b5e; /* deep palette-blue header/footer bar */
   --color-chrome-fg: #e7eff2; /* light text on the chrome bar */
 
-  /* Type ramp (§8.3): display / h1 / h2 / small / caption as size utilities.
-     "body" is the base default size (1rem/1.5rem, set in @layer base), so there
-     is deliberately NO `text-body` size utility — that name is the body COLOR
-     above (`--color-body`). Mirrored in tokens.ts `type`.
-     The top of the ramp (display, h1) is FLUID via clamp() so big headings/KPI
-     numbers shrink on phones and grow on wide screens; the lower steps stay fixed
-     (already comfortable at every width). The `type` token in tokens.ts is
-     reference-only (never parsed at runtime — Plotly/D3 font sizes are literals),
-     so the clamp() strings live safely on both sides of the mirror. */
-  --text-display: clamp(1.6rem, 1.1rem + 2.2vw, 2.25rem); /* ≈26px → 36px */
-  --text-display--line-height: 2.5rem;
-  --text-display--font-weight: 700;
-  /* Page-banner hero — the per-page title (Dashboard / Browse / Similarity map /
-     About). Fluid by VIEWPORT (≈23px on a phone → 48px on a wide desktop) so the
-     banner reads as an intentional hero, not a small label in a vast band. This is
-     the CSS *target* max; `use:fitText` (pretext) then guarantees the title never
-     overflows its actual band on a narrow screen and re-grows when it widens. */
-  --text-hero: clamp(1.4375rem, 0.8rem + 2.85vw, 3rem); /* ≈23px → 48px */
-  --text-hero--line-height: 1.1;
+  /* ── Type ramp (§8.3) — ONE monotonic hierarchy, mirrored in tokens.ts `type`.
+     "body" is the base default (1rem/1.5rem, set in @layer base); there is
+     deliberately NO `text-body` SIZE utility — that name is the body COLOR above.
+
+     The whole ramp is ordered so SIZE alone encodes hierarchy at EVERY width:
+        hero > display > h2 > lead > body > small > caption
+     The four upper steps are FLUID via clamp() so they breathe between phone and
+     desktop while keeping that order intact (verified in tests/e2e/responsive.spec.ts).
+     The clamp() ceilings are the CSS *targets*; `use:fitText` (pretext) then guarantees
+     a single-line head/number never overflows its real box and re-grows when it widens.
+     tokens.ts is reference-only (never parsed at runtime), so the clamp() strings live
+     safely on both sides of the mirror.
+
+     One page-title tier (`text-hero`) and one section/card-title tier (`text-h2`) — the
+     old parallel `text-h1` / `text-card-title` steps are retired so a heading reads the
+     same on every page. Prose (lead + body) is held to a comfortable reading MEASURE
+     (max-w-measure / max-w-readable below) rather than scaled up to fill the band, so it
+     always sits BELOW the section title — fixing the prior intro-larger-than-heading
+     inversion (supersedes the full-width band-fill of the earlier banner pass). ── */
+
+  /* Page title — the per-page hero (Dashboard / Browse / Similarity / About / a locus ID).
+     ≈30px on a phone → 42px on a wide desktop: confident but calm, never shouty. */
+  --text-hero: clamp(1.875rem, 1.3rem + 2.2vw, 2.625rem); /* ≈30px → 42px */
+  --text-hero--line-height: 1.05;
   --text-hero--font-weight: 700;
-  --text-h1: clamp(1.3rem, 1.15rem + 0.9vw, 1.5rem); /* ≈21px → 24px */
-  --text-h1--line-height: 2rem;
-  --text-h1--font-weight: 600;
-  --text-h2: 1.25rem;
-  --text-h2--line-height: 1.75rem;
+  /* Data display — the big mono KPI / stat numbers. ≈26px → 34px; sits just below the
+     hero so a headline figure reads as prominent data, never out-shouting the title. */
+  --text-display: clamp(1.625rem, 1.35rem + 1.4vw, 2.125rem); /* ≈26px → 34px */
+  --text-display--line-height: 1.05;
+  --text-display--font-weight: 700;
+  /* Section / card title — the SINGLE heading tier for every panel & card header.
+     Gently fluid ≈19px → 23px so it scales with the page yet stays clearly above the
+     lead (≤19px) at all widths. Replaces the old fixed-20 `h2` + fluid-30 `card-title`. */
+  --text-h2: clamp(1.1875rem, 1rem + 0.8vw, 1.4375rem); /* ≈19px → 23px */
+  --text-h2--line-height: 1.25;
   --text-h2--font-weight: 600;
-  /* Fluid panel-title — an OPT-IN larger card heading (≈20px → 30px) for surfaces whose
-     BODY scales up too (the About reference cards, sized full-width by `use:fitMeasure`),
-     so the heading stays clearly above the body at every width. Plain `text-h2` (fixed
-     20px) remains the default for dashboard viz panels, whose bodies are charts not prose. */
-  --text-card-title: clamp(1.25rem, 1rem + 1.25vw, 1.875rem); /* ≈20px → 30px */
-  --text-card-title--line-height: 1.2;
-  --text-card-title--font-weight: 600;
-  /* Lead / standfirst — the one FLUID body step (intro paragraphs under a page or
-     panel heading). Scales ≈15px → 19px with the viewport. On the page-banner intros
-     this is the CSS FALLBACK size: `use:fitMeasure` (pretext) then drives the font
-     further so the FULL-width line holds a steady character measure (no narrow cap).
-     `leading` is unitless so it tracks the fitted size. */
-  --text-lead: clamp(0.9375rem, 0.85rem + 0.55vw, 1.1875rem);
+  /* Lead / standfirst — the intro paragraph under a page title. Gently fluid ≈17px → 19px;
+     held to `max-w-measure` so the line length stays readable instead of running the band. */
+  --text-lead: clamp(1.0625rem, 0.95rem + 0.5vw, 1.1875rem); /* ≈17px → 19px */
   --text-lead--line-height: 1.6;
   --text-small: 0.875rem;
   --text-small--line-height: 1.25rem;
@@ -103,14 +103,17 @@
   /* Layout (§8.4): max-width content container — mirrored in tokens.ts `layout`. */
   --container-content: 90rem;
 
-  /* Reading measure (§8.4) — ONE fluid line-length cap for SECONDARY text that stays a
-     simple static column: panel/card subtitles and the similarity-map caption. (The
-     page-banner intros and the About card BODIES no longer use this — they run full
-     banner width and hold their measure by scaling the font via `use:fitMeasure`.)
-     Expressed in `ch`: it scales with the element's own font-size, so the pixel COLUMN
-     widens with the text while the character measure stays constant (~56ch of Inter ≈
-     70 chars/line — the comfortable band). Generates `max-w-measure` (mirrored in tokens.ts). */
-  --container-measure: 56ch;
+  /* Reading measure (§8.4) — line-length caps that keep prose readable instead of letting
+     it run the full content width. Expressed in `ch`, so each scales with the element's own
+     font-size: the pixel column widens with the text while the character measure stays put.
+       · measure  — tighter band (~58ch ≈ 70 chars/line) for LEADS, card subtitles, and
+                    secondary captions. The standfirst under every page title uses this.
+       · readable — roomier band (~60ch ≈ 75 chars/line of Inter) for sustained BODY prose:
+                    the About method cards and any multi-paragraph copy — wider than the
+                    lead measure, but still inside the comfortable reading band.
+     Generate `max-w-measure` / `max-w-readable` (both mirrored in tokens.ts). */
+  --container-measure: 58ch;
+  --container-readable: 60ch;
 }
 
 /* ── Base layer (§8.4): page surface, default font, sensible focus ── */
