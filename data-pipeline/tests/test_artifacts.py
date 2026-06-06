@@ -259,10 +259,16 @@ def test_grafts_keep_identical_stem_pairs_for_non_partial(members):
         if t0 < 0 or seq.find(tseq, t0 + 1) >= 0:
             continue  # terminator absent or not a UNIQUE substring -> term graft skips it too
         tlo, thi = t0 + 1, t0 + len(tseq)
-        in_at = lambda p: at is not None and at["start"] <= p <= at["end"]  # noqa: E731
-        in_sw = lambda p: in_at(p) or (tlo <= p <= thi)  # noqa: E731
-        kept_at = {(min(i, j), max(i, j)) for (i, j) in rpairs if not (in_at(i) or in_at(j))}
-        kept_tm = {(min(i, j), max(i, j)) for (i, j) in rpairs if not (in_sw(i) or in_sw(j))}
+        a0, a1 = (at["start"], at["end"]) if at else (1, 0)  # a0 > a1 -> empty AT span
+        # graft_member drops AT-touching pairs; graft_terminator_member also the terminator span
+        kept_at = {
+            (min(i, j), max(i, j)) for (i, j) in rpairs if not (a0 <= i <= a1 or a0 <= j <= a1)
+        }
+        kept_tm = {
+            (min(i, j), max(i, j))
+            for (i, j) in rpairs
+            if not (a0 <= i <= a1 or a0 <= j <= a1 or tlo <= i <= thi or tlo <= j <= thi)
+        }
         checked += 1
         if kept_at != kept_tm:
             differing.append(mid)
