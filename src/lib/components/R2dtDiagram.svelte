@@ -19,7 +19,7 @@
   import { diagramViewBox, nucleotideSpacing } from '../r2dt'
   import {
     buildStemColorMap,
-    buildTerminatorColorMap,
+    buildFullTerminatorColorMap,
     featurePositions,
     STEM_LINKER_COLOR,
     type OverlayFeature,
@@ -30,15 +30,20 @@
     stems = [],
     features = [],
     variant = 'antiterm',
+    terminatorPairs = [],
     viewBoxOverride = null,
     lettersOverride = null,
   }: {
     diagram: R2dtDiagram
     stems?: MemberStem[]
     features?: OverlayFeature[]
-    /** 'antiterm' = the RF00230 stems + motif overlay; 'terminator' = the standalone
-     *  terminator hairpin, coloured purely by its own pairing (no stems/motifs apply). */
+    /** 'antiterm' = the RF00230 stems + motif overlay; 'terminator' = the full-length
+     *  terminator conformation — Stem I/II/III in their hues + the terminator hairpin in
+     *  the terminator hue (the antiterminator motif overlay does not apply). */
     variant?: 'antiterm' | 'terminator'
+    /** Terminator-hairpin pairs (`terminatorHairpinPairs(member)`) — colours the terminator
+     *  variant's hairpin identically to the fornac viewer. Ignored for `antiterm`. */
+    terminatorPairs?: [number, number][]
     /** Optional SVG `viewBox` string. When set (by R2dtViewport's zoom/pan), it
      *  replaces the auto full-extent box so the wrapper controls the visible window;
      *  glyph sizes stay in diagram units, so zooming in enlarges them on screen. */
@@ -50,11 +55,12 @@
   } = $props()
 
   const n = $derived(diagram.seq.length)
-  // Antiterminator: stems + the deeper-shaded motif overlay (with a ring). Terminator:
-  // the stem (paired residues) in the terminator hue, no stems/feature overlay.
+  // Antiterminator: stems + the deeper-shaded motif overlay (with a ring). Terminator
+  // (full-length): Stem I/II/III in their hues + the terminator hairpin in the terminator
+  // hue (no motif overlay — the antiterminator is unfolded in this conformation).
   const colorAt = $derived(
     variant === 'terminator'
-      ? buildTerminatorColorMap(diagram.pairs, n)
+      ? buildFullTerminatorColorMap(stems, terminatorPairs, n)
       : buildStemColorMap(stems, n, features),
   )
   const featureSet = $derived(

@@ -4,7 +4,15 @@
 // artifact drift guard that all 949 members yield a renderable model (the S2.3
 // empirical "0 null / 0 length-mismatch / 0 unbalanced").
 import { describe, expect, test } from 'vitest'
-import { isBalancedDotBracket, leaderRnaModel, terminatorRnaModel, toRna, varnaLink } from '../../src/lib/rna'
+import {
+  dotBracketPairs,
+  isBalancedDotBracket,
+  leaderRnaModel,
+  terminatorHairpinPairs,
+  terminatorRnaModel,
+  toRna,
+  varnaLink,
+} from '../../src/lib/rna'
 import type { Member, MembersMap } from '../../src/lib/data/types'
 import { makeMember } from '../fixtures'
 import membersJson from '../../public/data/members.json'
@@ -49,29 +57,55 @@ describe('leaderRnaModel', () => {
   })
 })
 
-describe('terminatorRnaModel (the gene-OFF conformation)', () => {
-  test('builds a renderable model from term_sequence + term_structure (T→U)', () => {
+describe('terminatorRnaModel (the gene-OFF conformation, full-length)', () => {
+  test('builds a full-leader model from whole_term_structure + fasta (T→U)', () => {
     const m = makeMember({
       member_id: 'X.m1', tandem_id: 'X',
-      term_sequence: 'ACGTACGT',
-      term_structure: '((....))',
+      fasta_sequence: 'ACGTACGTACGT', // 12 nt whole leader
+      whole_term_structure: '((......))..', // Stem + terminator folded over the whole leader
     })
     const model = terminatorRnaModel(m)!
     expect(model).not.toBeNull()
-    expect(model.sequence).toBe('ACGUACGU')
-    expect(model.structure).toBe('((....))')
+    expect(model.sequence).toBe('ACGUACGUACGU') // the WHOLE leader, not the hairpin
+    expect(model.structure).toBe('((......))..')
     expect(model.pairs).toBe(2)
     expect(model.source).toMatch(/terminator/i)
   })
 
-  test('returns null when the terminator is missing, length-mismatched, unbalanced, or pairless', () => {
-    const base = { member_id: 'X.m1', tandem_id: 'X', term_sequence: 'ACGTACGT' }
-    expect(terminatorRnaModel(makeMember({ ...base, term_structure: null }))).toBeNull()
-    expect(terminatorRnaModel(makeMember({ ...base, term_sequence: null, term_structure: '((....))' }))).toBeNull()
-    expect(terminatorRnaModel(makeMember({ ...base, term_structure: '((..))' }))).toBeNull() // len 6 ≠ 8
-    expect(terminatorRnaModel(makeMember({ ...base, term_structure: '(((...))' }))).toBeNull() // unbalanced
+  test('returns null when whole_term_structure is missing, length-mismatched, unbalanced, or pairless', () => {
+    const base = { member_id: 'X.m1', tandem_id: 'X', fasta_sequence: 'ACGTACGT' }
+    expect(terminatorRnaModel(makeMember({ ...base, whole_term_structure: null }))).toBeNull()
+    expect(terminatorRnaModel(makeMember({ ...base, whole_term_structure: '((..))' }))).toBeNull() // len 6 ≠ 8
+    expect(terminatorRnaModel(makeMember({ ...base, whole_term_structure: '(((...))' }))).toBeNull() // unbalanced
     // pairless (all dots): a terminator is a hairpin, so 0 bp ⇒ null (matches the build gate)
-    expect(terminatorRnaModel(makeMember({ ...base, term_structure: '........' }))).toBeNull()
+    expect(terminatorRnaModel(makeMember({ ...base, whole_term_structure: '........' }))).toBeNull()
+  })
+})
+
+describe('dotBracketPairs', () => {
+  test('extracts ordered 1-based [lo, hi] pairs (nested + sequential)', () => {
+    expect(dotBracketPairs('((..))')).toEqual([[2, 5], [1, 6]]) // innermost closes first
+    expect(dotBracketPairs('(())(())')).toEqual([[2, 3], [1, 4], [6, 7], [5, 8]])
+    expect(dotBracketPairs('......')).toEqual([])
+  })
+})
+
+describe('terminatorHairpinPairs (the pairs new to the terminator fold)', () => {
+  test('returns whole_term pairs absent from whole_antiterm (drops shared Stem I/II/III)', () => {
+    // 12-nt leader. Both folds share the Stem I pairs (1,4)(2,3); the antiterminator has its own
+    // helix (5,10)(6,9), the terminator its own hairpin (9,12)(10,11). Only the terminator's own
+    // pairs come back (the shared Stem I is excluded).
+    const m = makeMember({
+      member_id: 'Y.m1', tandem_id: 'Y',
+      whole_antiterm_structure: '(())((..))..',
+      whole_term_structure: '(())....(())',
+    })
+    expect(terminatorHairpinPairs(m)).toEqual([[10, 11], [9, 12]]) // only the NEW terminator pairs
+  })
+
+  test('empty when the member has no terminator', () => {
+    const m = makeMember({ member_id: 'X.m1', tandem_id: 'X', whole_term_structure: null })
+    expect(terminatorHairpinPairs(m)).toEqual([])
   })
 })
 
@@ -98,14 +132,16 @@ describe('committed members.json', () => {
     expect(unrenderable).toHaveLength(0)
   })
 
-  test('922 members produce a renderable TERMINATOR model (matches the committed r2dt/term set)', () => {
+  test('922 members produce a full-length TERMINATOR model (the conformation toggle set)', () => {
     const withTerm = members.filter((m) => terminatorRnaModel(m) !== null)
-    // 949 − 14 (no term_sequence) − 13 (balanced but pairless) = 922, == the build's committed count
+    // == the non-null whole_term_structure set the build derives (949 − 14 no term_sequence
+    // − 13 balanced-but-pairless = 922); the toggle enables exactly these.
     expect(withTerm).toHaveLength(922)
     for (const m of withTerm) {
       const model = terminatorRnaModel(m)!
       expect(model.sequence.length).toBe(model.structure.length) // sequence threads the structure
-      expect(model.pairs).toBeGreaterThan(0) // every renderable terminator is a real hairpin
+      expect(model.sequence.length).toBe(m.fasta_sequence.length) // FULL leader, not the hairpin
+      expect(model.pairs).toBeGreaterThan(0) // every renderable terminator has a hairpin
     }
   })
 })

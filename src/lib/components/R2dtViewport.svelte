@@ -23,11 +23,15 @@
     stems = [],
     features = [],
     variant = 'antiterm',
+    terminatorPairs = [],
   }: {
     diagram: R2dtDiagramData
     stems?: MemberStem[]
     features?: OverlayFeature[]
     variant?: 'antiterm' | 'terminator'
+    /** Forwarded to R2dtDiagram: the terminator-hairpin pairs that colour the terminator
+     *  conformation (ignored for `antiterm`). */
+    terminatorPairs?: [number, number][]
   } = $props()
 
   // Smallest on-screen font (CSS px) at which letters stay legible; below it the diagram
@@ -251,6 +255,7 @@
     {stems}
     {features}
     {variant}
+    {terminatorPairs}
     viewBoxOverride={displayViewBox}
     lettersOverride={smartLetters}
   />

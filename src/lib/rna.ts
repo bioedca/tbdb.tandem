@@ -44,6 +44,39 @@ export function isBalancedDotBracket(s: string): boolean {
   return depth === 0
 }
 
+/** Base pairs of a (balanced) round-bracket dot-bracket as ordered 1-based `[lo, hi]`
+ *  index pairs — the same shape as an R2DT diagram's `pairs`, so a fornac model and an
+ *  R2DT diagram can feed the SAME colour map. Unmatched `)` are ignored (defensive). */
+export function dotBracketPairs(structure: string): [number, number][] {
+  const stack: number[] = []
+  const pairs: [number, number][] = []
+  for (let i = 0; i < structure.length; i++) {
+    const ch = structure[i]
+    if (ch === '(') stack.push(i + 1)
+    else if (ch === ')') {
+      const lo = stack.pop()
+      if (lo !== undefined) pairs.push([lo, i + 1])
+    }
+  }
+  return pairs
+}
+
+/** The TERMINATOR hairpin's own base pairs (leader coordinates): the pairs that are in the
+ *  member's `whole_term_structure` (the gene-OFF fold) but NOT in `whole_antiterm_structure`
+ *  — i.e. the genuinely-new 3′ hairpin that replaced the antiterminator helix, with the
+ *  shared upstream Stem I/II/III pairs excluded. Both structure viewers feed THIS into
+ *  `buildFullTerminatorColorMap` so they colour the terminator stem identically (the R2DT
+ *  diagram's own template pairing differs slightly from the fold, so colouring from it would
+ *  drift). Empty when the member has no terminator. */
+export function terminatorHairpinPairs(member: Member): [number, number][] {
+  const wt = member.whole_term_structure
+  if (!wt) return []
+  const antiterm = new Set(
+    dotBracketPairs(member.whole_antiterm_structure ?? '').map(([a, b]) => `${a},${b}`),
+  )
+  return dotBracketPairs(wt).filter(([a, b]) => !antiterm.has(`${a},${b}`))
+}
+
 /** A renderable RNA: a clean sequence + an equal-length dot-bracket structure. */
 export interface RnaModel {
   /** RNA sequence (T→U), same length as `structure`. */
@@ -77,26 +110,27 @@ export function leaderRnaModel(member: Member): RnaModel | null {
 }
 
 /** Build the in-app render model for a member's TERMINATOR conformation — the gene-OFF
- *  hairpin over its own `term_sequence` + `term_structure` (the alternative fold to
- *  `leaderRnaModel`'s antiterminator). Returns null when the member has no drawable
- *  terminator: missing/length-mismatched/unbalanced, OR pairless (a terminator is a
- *  hairpin, so a structure with zero base pairs is not one). This matches the build's
- *  `terminator_member` gate EXACTLY — so `hasTerminator` agrees with the committed
- *  `r2dt/term/` set (922 renderable; 14 lack a sequence, 13 are balanced-but-pairless).
- *  The conformation toggle disables the 27 that yield null here. */
+ *  fold over the WHOLE leader (`whole_term_structure`, the derived analogue of
+ *  `whole_antiterm_structure`): Stem I/II/III stay folded and only the 3′ region swaps
+ *  the antiterminator helix for the terminator hairpin, so the render is full-length and
+ *  directly comparable to `leaderRnaModel` (tbdb draws both conformations full-length).
+ *  Returns null when the member has no drawable terminator — `whole_term_structure` is
+ *  null exactly when the build could not derive one (missing/length-mismatched/unbalanced/
+ *  pairless `term_*`, or a terminator that does not align into the leader). Its non-null
+ *  set is the 922 the conformation toggle enables (the other 27 yield null here). */
 export function terminatorRnaModel(member: Member): RnaModel | null {
-  const dot = member.term_structure
-  const seq = member.term_sequence
+  const dot = member.whole_term_structure
+  const seq = member.fasta_sequence
   if (!dot || !seq) return null
   if (dot.length !== seq.length) return null
   if (!isBalancedDotBracket(dot)) return null
   let pairs = 0
   for (const ch of dot) if (ch === '(') pairs++
-  if (pairs === 0) return null // pairless ⇒ no hairpin to draw (the build skips it too)
+  if (pairs === 0) return null // pairless ⇒ no terminator to draw (the build skips it too)
   return {
     sequence: toRna(seq),
     structure: dot,
-    source: 'Terminator conformation · terminator hairpin',
+    source: 'Terminator conformation · whole leader',
     pairs,
   }
 }

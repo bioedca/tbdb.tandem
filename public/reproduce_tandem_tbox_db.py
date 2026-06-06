@@ -564,6 +564,81 @@ def _member_structure(value, *, legacy: bool):
     return wuss_to_dotbracket(struct) if struct else None
 
 
+def _pair_table(dot: str) -> list:
+    """1-based partner table for a round-bracket dot-bracket (``pt[i]`` = partner or 0)."""
+    pt = [0] * (len(dot) + 1)
+    stack = []
+    for i, ch in enumerate(dot, start=1):
+        if ch == "(":
+            stack.append(i)
+        elif ch == ")" and stack:
+            j = stack.pop()
+            pt[i] = j
+            pt[j] = i
+    return pt
+
+
+def derive_whole_term_structure(fasta_sequence, whole_antiterm_structure, term_sequence,
+                                term_structure, stems) -> str:
+    """Full-leader TERMINATOR-conformation dot-bracket -- the analogue of
+    ``whole_antiterm_structure`` for the gene-OFF fold (the web app draws the terminator
+    full-length, like tbdb: Stem I/II/III unchanged, only the 3' region swapping the
+    antiterminator helix -> terminator hairpin). ``term_sequence`` (T->U) is an exact,
+    unique substring of the leader; keep the ``whole_antiterm_structure`` pairs entirely
+    OUTSIDE the switch region ``[min(antiterm_start, term_start) .. max(antiterm_end,
+    term_end)]`` (preserves the upstream stems) and add the terminator-hairpin pairs
+    shifted into leader coordinates. Returns the leader-length dot-bracket, or ``None``
+    when the member has no drawable terminator. Pure -- mirrors build_json.py exactly.
+    """
+    if not fasta_sequence or not term_sequence or not term_structure:
+        return None
+    if len(term_sequence) != len(term_structure):
+        return None
+    if not is_balanced(term_structure) or "(" not in term_structure:
+        return None
+    leader = fasta_sequence.upper().replace("T", "U")
+    tseq = term_sequence.upper().replace("T", "U")
+    t0 = leader.find(tseq)
+    if t0 < 0 or leader.find(tseq, t0 + 1) >= 0:
+        return None  # terminator absent, or not a UNIQUE substring -> can't place it unambiguously
+    n = len(leader)
+    tlo, thi = t0 + 1, t0 + len(tseq)
+    at = next((s for s in stems if s.get("key") == "at"), None)
+
+    # Drop antiterminator pairs touching the antiterminator-helix span OR the terminator span
+    # (each region SEPARATELY, not their contiguous union -- a single [min..max] span would
+    # swallow a stem sitting between a disjoint terminator + antiterminator, e.g. T0396.m2).
+    def _in_switch(p):
+        return (tlo <= p <= thi) or (at is not None and at["start"] <= p <= at["end"])
+
+    kept = []
+    if whole_antiterm_structure and len(whole_antiterm_structure) == n:
+        apt = _pair_table(whole_antiterm_structure)
+        for i in range(1, n + 1):
+            j = apt[i]
+            if j and i < j and not (_in_switch(i) or _in_switch(j)):
+                kept.append((i, j))
+    tpt = _pair_table(term_structure)
+    term_pairs = [(i + t0, tpt[i] + t0) for i in range(1, len(term_structure) + 1) if i < tpt[i]]
+
+    all_pairs = kept + term_pairs
+    arr = ["."] * (n + 1)
+    occupied = [False] * (n + 1)
+    for i, j in all_pairs:
+        if occupied[i] or occupied[j]:
+            return None
+        occupied[i] = occupied[j] = True
+        arr[i], arr[j] = "(", ")"
+    whole_term = "".join(arr[1:])
+    if not is_balanced(whole_term):
+        return None
+    vpt = _pair_table(whole_term)
+    recovered = {(min(i, vpt[i]), max(i, vpt[i])) for i in range(1, n + 1) if vpt[i]}
+    if recovered != {(min(a, b), max(a, b)) for a, b in all_pairs}:
+        return None
+    return whole_term
+
+
 def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str,
                      legacy_structure: bool = False) -> dict:
     """Build one ``members.json`` element record from its representative Master row."""
@@ -585,6 +660,13 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str,
     ec, protein = _clean_str(row["downstream_protein_EC"]), _clean_str(row["downstream_protein"])
     func_class, func_source = classify_func(ec, protein)
 
+    # Locals the terminator conformation derives from (same assembled values the dict emits).
+    _fasta_sequence = _clean_str(row["FASTA_sequence"])
+    _whole_antiterm_structure = _clean_str(row["whole_antiterm_structure"])
+    _term_structure = _clean_str(row["term_structure"])
+    _term_sequence = _clean_str(row["term_sequence"])
+    _stems = derive_stems(row)
+
     return {
         "member_id": member["member_id"],
         "tandem_id": member["tandem_id"],
@@ -594,15 +676,20 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str,
         "ncbi_url": ncbi_url,
         "specifier": {"aa": _clean_str(row["amino_acid_top"]), "codon": _clean_str(row["refine_codon_top"])},
         "coords": {"leader": [locus_start, locus_end], "window": window, "genome": genome},
-        "fasta_sequence": _clean_str(row["FASTA_sequence"]),
+        "fasta_sequence": _fasta_sequence,
         "aligned_sequence": _clean_str(row["Sequence"]),
         "structure": _member_structure(row["Structure"], legacy=legacy_structure),
-        "whole_antiterm_structure": _clean_str(row["whole_antiterm_structure"]),
-        "term_structure": _clean_str(row["term_structure"]),
+        "whole_antiterm_structure": _whole_antiterm_structure,
+        "term_structure": _term_structure,
         # Terminator-hairpin sequence; pairs 1:1 with term_structure WHERE PRESENT.
         # Independent source cell -> can be null even when term_structure is not (T0360.m2).
-        "term_sequence": _clean_str(row["term_sequence"]),
-        "stems": derive_stems(row),
+        "term_sequence": _term_sequence,
+        # Full-leader TERMINATOR conformation (gene-OFF) -- derived, the analogue of
+        # whole_antiterm_structure; null for members with no drawable terminator.
+        "whole_term_structure": derive_whole_term_structure(
+            _fasta_sequence, _whole_antiterm_structure, _term_sequence, _term_structure, _stems
+        ),
+        "stems": _stems,
         "deltadelta_g": _to_float(row["deltadelta_g"]),
         "terminator_energy": _to_float(row["terminator_energy"]),
         "type": _clean_str(row["type"]),
@@ -1006,6 +1093,12 @@ def verify_invariants(locus_objs: list[dict], members_map: dict[str, dict], pair
             problems.append(f"{member_id}: empty fasta_sequence")
         if m["structure"] and not is_balanced(m["structure"]):
             problems.append(f"{member_id}: Stem-I structure not balanced")
+        for col in ("whole_antiterm_structure", "term_structure", "whole_term_structure"):
+            if m[col] is not None and not is_balanced(m[col]):
+                problems.append(f"{member_id}: {col} not balanced")
+        wts = m["whole_term_structure"]
+        if wts is not None and m["fasta_sequence"] and len(wts) != len(m["fasta_sequence"]):
+            problems.append(f"{member_id}: whole_term_structure length != leader")
         a, b = m["coords"]["leader"]
         if m["fasta_sequence"] and len(m["fasta_sequence"]) != abs(b - a) + 1:
             problems.append(f"{member_id}: fasta length != leader span")
