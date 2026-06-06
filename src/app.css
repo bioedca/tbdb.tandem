@@ -100,8 +100,14 @@
      programmatic (Plotly/D3) transitions read tokens.ts `motion`. */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Layout (§8.4): max-width content container — mirrored in tokens.ts `layout`. */
-  --container-content: 90rem;
+  /* Layout (§8.4): max-width content container — mirrored in tokens.ts `layout`. Sized to
+     actually use the horizontal real estate on large / QHD (≈2560px) desktops while still
+     centering with a gutter on ultrawide / 4K. Below this width the container is `w-full`
+     and simply fills the viewport, so phones and ≤1440 laptops are unchanged (their content
+     never reached the old 90rem cap either). Prose is NEVER stretched to this width — page
+     leads stay measure-capped and the About method cards tile into measure-width masonry
+     columns — so widening the band fills it with more columns / wider data viz, not long lines. */
+  --container-content: 144rem; /* 2304px — fills a 2560/QHD screen to ~90%; caps ultrawide/4K */
 
   /* Reading measure (§8.4) — line-length caps that keep prose readable instead of letting
      it run the full content width. Expressed in `ch`, so each scales with the element's own

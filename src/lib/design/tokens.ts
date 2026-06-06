@@ -88,7 +88,7 @@ export const motion = {
 
 /** Layout (§8.4): max-width content container + dashboard grid gutter + reading measures. */
 export const layout = {
-  maxWidth: '90rem', // 1440px content container
+  maxWidth: '144rem', // 2304px content container — QHD-friendly (fills a 2560 screen to ~90%), caps ultrawide/4K
   gutter: '1.5rem', // 24px grid gutter
   measure: '58ch', // tight reading measure — leads, subtitles, captions (→ `max-w-measure`)
   readable: '60ch', // roomier reading measure — sustained body prose (→ `max-w-readable`)
