@@ -28,6 +28,10 @@ export interface RelaxState {
   /** Fixed PCoA anchor coordinates, length `n*3`. */
   anchors: Float32Array
   n: number
+  /** Cooling factor (1 = fully energized → 0 = frozen). Forces are injected ∝ alpha,
+   *  so motion necessarily decays to rest — the layout settles instead of jiggling
+   *  forever in a force limit-cycle. `reheat()` re-energizes it on a spread change. */
+  alpha: number
 }
 
 /** Resolved force parameters for a given spread (exported for inspection/tests). */
@@ -52,6 +56,20 @@ const EASE = 0.25
  *  `spread === 0` is byte-exactly reversible after convergence — invariant #1). */
 const REST_EPS = 1e-3
 
+// ── Cooling schedule (kills the perpetual "jiggle" at non-zero spread) ─────────────
+// The anchored-repulsion field has no exact fixed point — the hard repulsion cutoff at
+// `d = R` and the `1/d` core singularity leave a stable limit-cycle, so without cooling
+// the dots oscillate forever. Borrowing d3-force's remedy: an `alpha` that eases 1→0 and
+// scales the injected force, so the velocity damps to zero and the layout FREEZES at its
+// (near-)equilibrium. A spread change calls `reheat()` to re-energize it.
+/** Per-step geometric decay of `alpha` toward 0 (≈110 steps, ~1.8 s, to ALPHA_MIN). */
+export const ALPHA_DECAY = 0.035
+/** At/under this alpha the forces are negligible; combined with a tiny residual speed
+ *  the layout is treated as settled (see {@link isSettled}). */
+export const ALPHA_MIN = 0.02
+/** Per-step speed (world units/step) under which a cooled layout counts as at rest. */
+export const SETTLE_SPEED = 0.02
+
 /** Force parameters for a spread in (0,1] (PLAN §4.2 — the documented constants). */
 export function relaxParams(spread: number): RelaxParams {
   const s = Math.min(1, Math.max(0, spread))
@@ -65,7 +83,8 @@ export function relaxParams(spread: number): RelaxParams {
 }
 
 /** Create a relaxation state from anchor coordinates (positions start AT the anchors,
- *  velocities zero). `anchors` is copied so the caller's array is never mutated. */
+ *  velocities zero, fully energized). `anchors` is copied so the caller's array is
+ *  never mutated. */
 export function createRelaxState(anchors: Float32Array): RelaxState {
   const a = Float32Array.from(anchors)
   return {
@@ -73,7 +92,36 @@ export function createRelaxState(anchors: Float32Array): RelaxState {
     velocities: new Float32Array(anchors.length),
     anchors: a,
     n: anchors.length / 3,
+    alpha: 1,
   }
+}
+
+/** Re-energize the layout so it relaxes toward the equilibrium for a NEW spread (call
+ *  on every spread change). Without this a cooled layout would stay frozen and ignore
+ *  the slider. */
+export function reheat(state: RelaxState, alpha = 1): void {
+  state.alpha = Math.max(state.alpha, alpha)
+}
+
+/** Largest per-component speed across all points — the residual motion the settle test
+ *  watches (a cooled layout with near-zero speed is at rest). */
+export function maxSpeed(state: RelaxState): number {
+  const V = state.velocities
+  let m = 0
+  for (let k = 0; k < V.length; k++) {
+    const a = V[k] < 0 ? -V[k] : V[k]
+    if (a > m) m = a
+  }
+  return m
+}
+
+/** True once the layout has come to rest, so the render loop can stop stepping (no
+ *  perpetual jiggle): at/under the rest spread it must sit EXACTLY on the anchors;
+ *  above it, `alpha` must have cooled past ALPHA_MIN and motion fallen below
+ *  SETTLE_SPEED. */
+export function isSettled(state: RelaxState, spread: number): boolean {
+  if (spread <= SPREAD_REST) return maxAnchorOffset(state) === 0
+  return state.alpha <= ALPHA_MIN && maxSpeed(state) <= SETTLE_SPEED
 }
 
 /** Optional per-step instrumentation (the O(n²) guard asserts `pairChecks ≪ n²`). */
@@ -100,6 +148,7 @@ export function step(state: RelaxState, spread: number, stats?: StepStats): void
       else P[k] += residual * EASE
       V[k] = 0
     }
+    state.alpha = 0
     return
   }
 
@@ -167,17 +216,24 @@ export function step(state: RelaxState, spread: number, stats?: StepStats): void
   }
 
   // ── Spring toward anchor + integrate (damping + velocity cap) ────────────────────
+  // Forces are injected ∝ alpha (the cooling factor): the spread EQUILIBRIUM is where
+  // repulsion balances spring, and scaling both by alpha preserves that balance point
+  // while letting the per-step force — and hence the velocity — decay to zero, so the
+  // layout freezes at equilibrium instead of orbiting it forever.
+  const a = state.alpha
   const cap = (v: number): number => (v > velCap ? velCap : v < -velCap ? -velCap : v)
   for (let i = 0; i < n; i++) {
     for (let c = 0; c < 3; c++) {
       const k = i * 3 + c
-      const f = (c === 0 ? fx : c === 1 ? fy : fz)[i] + (A[k] - P[k]) * kSpring
+      const f = ((c === 0 ? fx : c === 1 ? fy : fz)[i] + (A[k] - P[k]) * kSpring) * a
       let v = (V[k] + f) * damping
       v = cap(v)
       V[k] = v
       P[k] += v
     }
   }
+  // Cool the layout for the next step (geometric decay toward 0).
+  state.alpha = a * (1 - ALPHA_DECAY)
 }
 
 /** Run `iterations` steps at a fixed spread (convenience for tests / warm-up). */

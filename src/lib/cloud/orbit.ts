@@ -24,9 +24,21 @@ export interface Orbit {
 
 /** How close to the poles the polar angle may get (avoids a degenerate up vector). */
 export const POLAR_EPSILON = 0.0001
-/** Distance clamp so zoom can't invert or fly away. */
+/** Distance clamp so zoom can't invert or fly away. These are the FALLBACK rails for a
+ *  ±100-scaled embedding; the live view derives tighter, geometry-matched bounds from
+ *  the actual cloud extent (see {@link cloudMetrics} / {@link distanceClamp}) and passes
+ *  them in, so the clamp adapts when the embedding's scale changes. */
 export const MIN_DISTANCE = 20
 export const MAX_DISTANCE = 1200
+
+/** A min/max distance window for the zoom/framing clamp. */
+export interface DistanceBounds {
+  min: number
+  max: number
+}
+
+/** The fixed fallback bounds (used when no geometry-derived window is supplied). */
+export const DEFAULT_BOUNDS: DistanceBounds = { min: MIN_DISTANCE, max: MAX_DISTANCE }
 
 /** A sensible default framing for the 100-unit-scaled embedding. */
 export function defaultOrbit(): Orbit {
@@ -43,9 +55,9 @@ export function clampPolar(polar: number): number {
   return Math.min(Math.PI - POLAR_EPSILON, Math.max(POLAR_EPSILON, polar))
 }
 
-/** Clamp a distance into [MIN_DISTANCE, MAX_DISTANCE]. */
-export function clampDistance(distance: number): number {
-  return Math.min(MAX_DISTANCE, Math.max(MIN_DISTANCE, distance))
+/** Clamp a distance into `bounds` (defaults to the fixed fallback rails). */
+export function clampDistance(distance: number, bounds: DistanceBounds = DEFAULT_BOUNDS): number {
+  return Math.min(bounds.max, Math.max(bounds.min, distance))
 }
 
 /** Camera world position for an orbit (spherical → cartesian, offset by target).
@@ -94,9 +106,9 @@ export function orbitRotate(orbit: Orbit, dAzimuth: number, dPolar: number): Orb
   }
 }
 
-/** Zoom by a multiplicative factor (wheel): distance *= factor, clamped. */
-export function orbitZoom(orbit: Orbit, factor: number): Orbit {
-  return { ...orbit, distance: clampDistance(orbit.distance * factor) }
+/** Zoom by a multiplicative factor (wheel): distance *= factor, clamped to `bounds`. */
+export function orbitZoom(orbit: Orbit, factor: number, bounds: DistanceBounds = DEFAULT_BOUNDS): Orbit {
+  return { ...orbit, distance: clampDistance(orbit.distance * factor, bounds) }
 }
 
 /**
@@ -116,8 +128,9 @@ export function orbitZoomToCursor(
   ndcY: number,
   fovDeg: number,
   aspect: number,
+  bounds: DistanceBounds = DEFAULT_BOUNDS,
 ): Orbit {
-  const newDistance = clampDistance(orbit.distance * factor)
+  const newDistance = clampDistance(orbit.distance * factor, bounds)
   const eff = orbit.distance > 0 ? newDistance / orbit.distance : 1
   // Cursor offset from the target on the focal plane (world units), in the camera basis.
   const halfH = orbit.distance * Math.tan(((fovDeg * Math.PI) / 180) / 2)
@@ -212,28 +225,75 @@ export function robustCenter(points: ReadonlyArray<XYZ>, pct = 0.95): Vec3 {
 /** Camera distance that frames a sphere of `radius` for a perspective camera of
  *  vertical fov `fovDeg` at `aspect` (w/h). Uses the binding (smaller) of the
  *  vertical/horizontal half-angles so a portrait viewport still fits, plus `margin`
- *  breathing room. Clamped to the legal distance range. */
-export function framingDistance(radius: number, fovDeg: number, aspect: number, margin = 1): number {
+ *  breathing room. Clamped to `bounds` (the fixed fallback rails by default). */
+export function framingDistance(
+  radius: number,
+  fovDeg: number,
+  aspect: number,
+  margin = 1,
+  bounds: DistanceBounds = DEFAULT_BOUNDS,
+): number {
   const vHalf = ((fovDeg * Math.PI) / 180) / 2
   const hHalf = Math.atan(Math.tan(vHalf) * Math.max(aspect, 1e-4))
   const half = Math.max(Math.min(vHalf, hHalf), 1e-4)
-  return clampDistance((radius / Math.sin(half)) * margin)
+  return clampDistance((radius / Math.sin(half)) * margin, bounds)
 }
 
 /** Frame a point set: pivot the target on its centroid and pick a distance that fills
  *  the view with the dense core. Returns the `target` + `distance` only — the caller
- *  keeps the current azimuth/polar (a reframe re-centres without re-orienting). */
+ *  keeps the current azimuth/polar (a reframe re-centres without re-orienting).
+ *  `opts.bounds` clamps the distance (defaults to the fixed fallback rails). */
 export function framePoints(
   points: ReadonlyArray<XYZ>,
   fovDeg: number,
   aspect: number,
-  opts: { pct?: number; margin?: number } = {},
+  opts: { pct?: number; margin?: number; bounds?: DistanceBounds } = {},
 ): { target: Vec3; distance: number } {
   const pct = opts.pct ?? 0.95
   const target = robustCenter(points, pct) // pivot on the core, consistent with the radius
   const radius = robustRadius(points, target, pct)
-  const distance = framingDistance(Math.max(radius, 1), fovDeg, aspect, opts.margin ?? 1.4)
+  const distance = framingDistance(Math.max(radius, 1), fovDeg, aspect, opts.margin ?? 1.4, opts.bounds)
   return { target, distance }
+}
+
+// ── Geometry-derived view scale (adapts every scale-dependent constant to the cloud) ──
+// The point sprite size, the pick radius, the zoom clamps and the camera frustum were
+// all once hardcoded to the ±100 canvas. But the measured core radius differs several-
+// fold between embeddings (the dense main tree vs. the spread-out fallback) and would
+// change again if `cloud.json` were regenerated at a new scale. `cloudMetrics` measures
+// the ACTUAL geometry once per rebuild so the component can derive each constant from it
+// — keeping points a consistent on-screen size and picking honest across any geometry.
+
+/** Characteristic metrics of a rendered cloud, all in world units. */
+export interface CloudMetrics {
+  /** Outlier-resistant centre of mass (the framing pivot). */
+  center: Vec3
+  /** Robust (p`pct`) radius of the dense core — the characteristic on-screen extent. */
+  radius: number
+  /** Full (p100) radius including outliers — sizes the zoom-out + far-plane budget. */
+  extent: number
+}
+
+/** Smallest core radius we report, so a degenerate (single-point / coincident) cloud
+ *  still yields non-zero, finite derived constants instead of zero-size points. */
+export const MIN_CLOUD_RADIUS = 1
+
+/** Measure a render set's centre, core radius and full extent (see {@link CloudMetrics}). */
+export function cloudMetrics(points: ReadonlyArray<XYZ>, pct = 0.95): CloudMetrics {
+  const center = robustCenter(points, pct)
+  const radius = Math.max(robustRadius(points, center, pct), MIN_CLOUD_RADIUS)
+  const extent = Math.max(robustRadius(points, center, 1), radius)
+  return { center, radius, extent }
+}
+
+/** Geometry-matched zoom window: approach to a small fraction of the core radius, pull
+ *  back to several times the full extent — so you can inspect a single point yet never
+ *  lose the cloud, at any embedding scale. */
+export function distanceClamp(metrics: CloudMetrics): DistanceBounds {
+  return {
+    min: Math.max(metrics.radius * 0.05, 0.05),
+    max: metrics.extent * 8,
+  }
 }
 
 /** Ease `current` toward `target` by fraction `alpha` (0..1) each frame — a smooth,

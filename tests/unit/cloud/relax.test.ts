@@ -13,10 +13,15 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  ALPHA_MIN,
   createRelaxState,
+  isSettled,
   maxAnchorOffset,
+  maxSpeed,
   relax,
   relaxParams,
+  reheat,
+  SETTLE_SPEED,
   step,
   type RelaxState,
 } from '../../../src/lib/cloud/relax'
@@ -175,7 +180,72 @@ describe('relax (anchored-repulsion spread)', () => {
     expect(state.n).toBe(2)
     expect(Array.from(state.positions)).toEqual([1, 2, 3, 4, 5, 6])
     expect(Array.from(state.velocities)).toEqual([0, 0, 0, 0, 0, 0])
+    expect(state.alpha).toBe(1) // born fully energized
     step(state, 1.0)
     expect(Array.from(anchors)).toEqual([1, 2, 3, 4, 5, 6]) // anchors never mutated
+  })
+})
+
+// The cooling schedule is THE fix for "dots jiggle all the time after slider changes":
+// the anchored-repulsion field has no exact fixed point, so without an energy that decays
+// to zero the layout orbits its equilibrium forever. These assert it comes — and stays —
+// to rest, and that a spread change re-energizes it.
+describe('relax cooling / settling (anti-jiggle)', () => {
+  test('alpha cools toward 0 with each non-rest step', () => {
+    const { anchors } = makeBlobs()
+    const state = createRelaxState(anchors)
+    expect(state.alpha).toBe(1)
+    step(state, 1.0)
+    const a1 = state.alpha
+    expect(a1).toBeLessThan(1)
+    step(state, 1.0)
+    expect(state.alpha).toBeLessThan(a1) // monotonically decreasing
+  })
+
+  test('a fresh energized layout is NOT yet settled at a non-zero spread', () => {
+    const { anchors } = makeBlobs()
+    const state = createRelaxState(anchors)
+    expect(isSettled(state, 1.0)).toBe(false) // alpha 1 ≫ ALPHA_MIN
+  })
+
+  test('the layout SETTLES and then FREEZES at a fixed non-zero spread (no jiggle)', () => {
+    const { anchors } = makeBlobs()
+    const state = createRelaxState(anchors)
+    // Run well past the cooling horizon (the render loop would stop the instant it settles).
+    for (let i = 0; i < 400; i++) step(state, 1.0)
+    expect(isSettled(state, 1.0)).toBe(true)
+    expect(state.alpha).toBeLessThanOrEqual(ALPHA_MIN)
+    expect(maxSpeed(state)).toBeLessThanOrEqual(SETTLE_SPEED)
+    // The anti-jiggle guarantee: a further step moves nothing perceptibly.
+    const before = Float32Array.from(state.positions)
+    step(state, 1.0)
+    let maxMove = 0
+    for (let k = 0; k < before.length; k++) {
+      maxMove = Math.max(maxMove, Math.abs(state.positions[k] - before[k]))
+    }
+    expect(maxMove).toBeLessThan(SETTLE_SPEED + 1e-3)
+  })
+
+  test('reheat re-energizes a cooled layout so a new spread is honoured', () => {
+    const { anchors } = makeBlobs()
+    const state = createRelaxState(anchors)
+    for (let i = 0; i < 400; i++) step(state, 1.0)
+    expect(isSettled(state, 1.0)).toBe(true)
+    reheat(state)
+    expect(state.alpha).toBe(1)
+    expect(isSettled(state, 1.0)).toBe(false)
+    // and it genuinely moves again
+    for (let i = 0; i < 5; i++) step(state, 1.0)
+    expect(maxSpeed(state)).toBeGreaterThan(0)
+  })
+
+  test('isSettled at/under the rest spread demands sitting EXACTLY on the anchors', () => {
+    const { anchors } = makeBlobs()
+    const state = createRelaxState(anchors)
+    expect(isSettled(state, 0)).toBe(true) // born on the anchors
+    relax(state, 1.0, 40) // disperse
+    expect(isSettled(state, 0)).toBe(false) // off the anchors ⇒ not at rest
+    relax(state, 0.0, 300) // ease back exactly
+    expect(isSettled(state, 0)).toBe(true)
   })
 })

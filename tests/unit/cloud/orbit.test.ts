@@ -9,11 +9,14 @@ import {
   centroidOf,
   clampDistance,
   clampPolar,
+  cloudMetrics,
   dampOrbit,
   defaultOrbit,
+  distanceClamp,
   framePoints,
   framingDistance,
   MAX_DISTANCE,
+  MIN_CLOUD_RADIUS,
   MIN_DISTANCE,
   type Orbit,
   orbitPan,
@@ -281,5 +284,86 @@ describe('dampOrbit (per-frame easing toward the input orbit)', () => {
     expect(cur.azimuth).toBeCloseTo(2, 3)
     expect(cur.distance).toBeCloseTo(400, 3)
     expect(cur.target.x).toBeCloseTo(10, 3)
+  })
+})
+
+// The view's scale-dependent constants (point size, pick radius, zoom clamps, frustum)
+// are derived from the MEASURED geometry so the cloud adapts when its extent changes.
+// `cloudMetrics`/`distanceClamp` are that measurement; the optional `bounds` params let
+// the component swap the fixed ±100 rails for a geometry-matched window.
+describe('cloudMetrics (geometry-derived view scale)', () => {
+  // A dense unit-of-8 ring at the origin plus one far outlier — the realistic shape.
+  const ring = Array.from({ length: 40 }, (_, i) => {
+    const t = (2 * Math.PI * i) / 40
+    return { x: 8 * Math.cos(t), y: 8 * Math.sin(t), z: 0 }
+  })
+  const pts = [...ring, { x: 200, y: 0, z: 0 }]
+
+  test('measures a robust centre, core radius, and full extent', () => {
+    const m = cloudMetrics(pts, 0.95)
+    // Robust ⇒ the centre sits ON the ring (~origin), NOT dragged toward the +200 outlier
+    // (the plain mean would be ~+4.9). Not exactly 0: the p95 cutoff drops a boundary point.
+    expect(Math.abs(m.center.x)).toBeLessThan(1)
+    expect(m.radius).toBeGreaterThan(7) // p95 core radius tracks the ring (~8), not the outlier
+    expect(m.radius).toBeLessThan(9)
+    expect(m.extent).toBeGreaterThan(150) // p100 extent DOES include the far outlier
+  })
+
+  test('floors a degenerate (single / empty) cloud to a finite radius', () => {
+    expect(cloudMetrics([{ x: 5, y: 5, z: 5 }]).radius).toBe(MIN_CLOUD_RADIUS)
+    expect(cloudMetrics([]).radius).toBe(MIN_CLOUD_RADIUS)
+    expect(cloudMetrics([]).extent).toBe(MIN_CLOUD_RADIUS) // extent ≥ radius always
+  })
+
+  test('extent is never below the core radius', () => {
+    // a perfectly uniform cloud (no outlier) — p100 == p95 == the radius
+    const m = cloudMetrics(ring, 0.95)
+    expect(m.extent).toBeGreaterThanOrEqual(m.radius)
+  })
+})
+
+describe('distanceClamp (geometry-matched zoom window)', () => {
+  test('scales the window with the cloud extent', () => {
+    const small = distanceClamp({ center: { x: 0, y: 0, z: 0 }, radius: 8, extent: 20 })
+    const big = distanceClamp({ center: { x: 0, y: 0, z: 0 }, radius: 80, extent: 200 })
+    expect(big.min).toBeGreaterThan(small.min) // a bigger core ⇒ keep further away when closest
+    expect(big.max).toBeGreaterThan(small.max) // …and pull back further
+    expect(small.max).toBeGreaterThan(small.min)
+  })
+  test('lets you approach to a small fraction of the core and pull well back', () => {
+    const b = distanceClamp({ center: { x: 0, y: 0, z: 0 }, radius: 100, extent: 100 })
+    expect(b.min).toBeLessThan(100) // can get inside the core
+    expect(b.max).toBeGreaterThan(100 * 4) // can pull back to several extents
+  })
+})
+
+describe('optional distance bounds thread through the zoom/framing helpers', () => {
+  const bounds = { min: 10, max: 100 }
+  test('clampDistance honours custom bounds', () => {
+    expect(clampDistance(5, bounds)).toBe(10)
+    expect(clampDistance(500, bounds)).toBe(100)
+    expect(clampDistance(50, bounds)).toBe(50)
+  })
+  test('orbitZoom honours custom bounds', () => {
+    expect(orbitZoom(base({ distance: 50 }), 0.001, bounds).distance).toBe(10)
+    expect(orbitZoom(base({ distance: 50 }), 1000, bounds).distance).toBe(100)
+  })
+  test('orbitZoomToCursor honours custom bounds', () => {
+    const out = orbitZoomToCursor(base({ distance: 50, target: { x: 1, y: 2, z: 3 } }), 0.001, 0.5, 0.5, 45, 1.6, bounds)
+    expect(out.distance).toBe(10) // clamped to the custom min
+  })
+  test('framingDistance honours custom bounds', () => {
+    expect(framingDistance(1e6, 45, 1, 1, bounds)).toBe(100)
+    expect(framingDistance(1e-6, 45, 1, 1, bounds)).toBe(10)
+  })
+  test('framePoints honours bounds (a tiny cloud is pushed out to a large min)', () => {
+    const { distance } = framePoints([{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }], 45, 1, {
+      bounds: { min: 500, max: 1000 },
+    })
+    expect(distance).toBe(500)
+  })
+  test('omitting bounds falls back to the fixed ±100 rails (unchanged behaviour)', () => {
+    expect(clampDistance(1)).toBe(MIN_DISTANCE)
+    expect(clampDistance(99999)).toBe(MAX_DISTANCE)
   })
 })

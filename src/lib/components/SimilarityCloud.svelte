@@ -33,15 +33,26 @@
   } from '../cloud/encodings'
   import {
     cameraPosition,
+    cloudMetrics,
     dampOrbit,
+    DEFAULT_BOUNDS,
     defaultOrbit,
+    distanceClamp,
     framePoints,
     orbitPan,
     orbitRotate,
     orbitZoomToCursor,
+    type DistanceBounds,
     type Orbit,
   } from '../cloud/orbit'
-  import { createRelaxState, maxAnchorOffset, meanAnchorOffset, step, type RelaxState } from '../cloud/relax'
+  import {
+    createRelaxState,
+    isSettled,
+    meanAnchorOffset,
+    reheat,
+    step,
+    type RelaxState,
+  } from '../cloud/relax'
   import type { ColorMode, PresetKey, SizeMode, WhichTree } from '../cloud/types'
   import Card from './Card.svelte'
   import InfoTip from './InfoTip.svelte'
@@ -152,6 +163,20 @@
   const MOMENTUM_MAX = 0.12 // rad/frame cap, so even a hard flick glides gently
   let lastOffsetTick = 0
 
+  // ── Geometry-derived view scale ───────────────────────────────────────────────────
+  // Point size, pick radius, zoom clamps and the camera frustum are all derived from the
+  // MEASURED cloud geometry each rebuild (see `cloudMetrics`), so the view adapts when
+  // the embedding's extent changes — a dense tree, the spread-out fallback, or a future
+  // `cloud.json` regenerated at a different scale all render at a consistent on-screen
+  // size, frame correctly, and stay clickable. `uBase` (world-radius per unit point) is
+  // set so a point is a sensible fraction of the core radius; the pick threshold tracks
+  // the visible sprite so you can click what you see.
+  const POINT_WORLD_FRACTION = 0.12 // point base world-radius as a fraction of core radius
+  const PICK_OVER = 1.6 // pick radius relative to the point world-radius (forgiving clicks)
+  // The active geometry-matched zoom window (recomputed per rebuild; the fixed fallback
+  // rails until the first build). Read by `frameView` + the wheel handler.
+  let viewBounds: DistanceBounds = { ...DEFAULT_BOUNDS }
+
   // Re-centre the pivot on the rendered cloud's centre of mass and pick a distance that
   // fills the view with its dense core (a robust radius — a lone far-divergence outlier
   // can't shrink everything to a speck). `instant` snaps the live camera too (first
@@ -159,7 +184,11 @@
   function frameView(pts: CloudRenderPoint[], instant: boolean): void {
     if (!sc) return
     const aspect = sc.camera.aspect || 1
-    const { target, distance } = framePoints(pts, 45, aspect, { pct: 0.95, margin: 1.4 })
+    const { target, distance } = framePoints(pts, 45, aspect, {
+      pct: 0.95,
+      margin: 1.4,
+      bounds: viewBounds,
+    })
     targetOrbit = { ...targetOrbit, target, distance }
     if (instant || reducedMotion) orbit = { ...orbit, target, distance }
     framed = true
@@ -384,6 +413,22 @@
     sc.relax = createRelaxState(anchors)
     sc.count = n
     sc.settled = spread <= 0.001
+
+    // Derive every scale-dependent view constant from the MEASURED geometry of this
+    // point set (true anchors, so Spread never rescales the view): the point base size,
+    // the pick radius, the zoom window and the camera frustum all adapt — keeping points
+    // a consistent on-screen size and clicks honest across any embedding scale.
+    const metrics = cloudMetrics(pts)
+    viewBounds = distanceClamp(metrics)
+    const uBase = metrics.radius * POINT_WORLD_FRACTION
+    sc.pointsMat.uniforms.uBase.value = uBase
+    sc.raycaster.params.Points = { threshold: uBase * PICK_OVER }
+    // Frustum sized to the geometry: near comfortably inside the closest legal approach,
+    // far past the fullest zoom-out, so nothing clips at any scale.
+    sc.camera.near = Math.max(viewBounds.min * 0.5, 0.05)
+    sc.camera.far = (viewBounds.max + metrics.extent) * 2
+    sc.camera.updateProjectionMatrix()
+
     // Frame the new point set: snap on the first build (no swoop from the default
     // framing), ease on later tree/granularity switches. Uses the TRUE (anchor)
     // coordinates, so dialing Spread never yanks the camera.
@@ -441,10 +486,13 @@
     if (sc) restyle()
   })
 
-  // Spread changes wake the relax loop (so easing back to 0 actually runs).
+  // A spread change re-energizes the layout (so it relaxes to the NEW equilibrium, or
+  // eases back to the anchors at 0) and wakes the loop; it then cools and settles.
   $effect(() => {
     void spread
-    if (sc) sc.settled = false
+    if (!sc) return
+    if (sc.relax) reheat(sc.relax)
+    sc.settled = false
   })
 
   function hexToRgb01(hex: string): { r: number; g: number; b: number } {
@@ -469,13 +517,19 @@
       const posAttr = s.pointsGeom.getAttribute('position')
       posAttr.needsUpdate = true
       updateEdgePositions()
-      if (spread <= 0.001 && maxAnchorOffset(s.relax) === 0) s.settled = true
-      // throttle the honesty readout (~5/s)
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-      if (now - lastOffsetTick > 180) {
-        lastOffsetTick = now
-        const mo = meanAnchorOffset(s.relax)
-        if (Math.abs(mo - meanOffset) > 0.05) meanOffset = mo
+      // Stop stepping once the cooled layout reaches rest — at non-zero spread the force
+      // field has no exact fixed point, so without this the dots jiggle forever.
+      if (isSettled(s.relax, spread)) {
+        s.settled = true
+        meanOffset = meanAnchorOffset(s.relax) // final, exact honesty readout
+      } else {
+        // throttle the honesty readout (~5/s) while still relaxing
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+        if (now - lastOffsetTick > 180) {
+          lastOffsetTick = now
+          const mo = meanAnchorOffset(s.relax)
+          if (Math.abs(mo - meanOffset) > 0.05) meanOffset = mo
+        }
       }
     }
     // Post-release momentum glide (rotate only) decays each frame; cancelled on grab.
@@ -622,7 +676,7 @@
           ndcY = 0
         }
         const aspect = sc?.camera.aspect || 1
-        targetOrbit = orbitZoomToCursor(targetOrbit, ev.deltaY > 0 ? 1.1 : 0.9, ndcX, ndcY, 45, aspect)
+        targetOrbit = orbitZoomToCursor(targetOrbit, ev.deltaY > 0 ? 1.1 : 0.9, ndcX, ndcY, 45, aspect, viewBounds)
       },
       { passive: false },
     )
