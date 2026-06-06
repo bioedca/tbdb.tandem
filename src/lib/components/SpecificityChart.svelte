@@ -224,7 +224,7 @@
 
 <Card
   title="Specificity overview"
-  subtitle="Each T-box element senses one amino acid via a specifier codon in its Stem I — the “specifier” shown here is that amino acid (3-letter code). The bar counts loci by specifier; the matrix counts two-element loci by the specifiers of their two elements. Click a bar or cell to cross-filter."
+  subtitle="Each T-box element senses one amino acid via a specifier codon in its Stem I: the “specifier” shown here is that amino acid (3-letter code). The bar counts loci by specifier; the matrix counts two-element loci by the specifiers of their two elements. Click a bar or cell to cross-filter."
 >
   <!-- grid-cols-1 makes the mobile track minmax(0,1fr) (not an `auto` track sized to
        the Plotly plot's max-content), and min-w-0 lets each panel shrink below the
@@ -270,9 +270,9 @@
         loci, <span class="font-mono">?</span> = an element whose specifier is unresolved.
         <span class="font-medium text-body">Diagonal</span> cells = same-specifier loci (both elements sense
         the same amino acid); <span class="font-medium text-body">off-diagonal</span> = mixed. Cell color is
-        count only — read the amino acids from the row and column labels. The largest off-diagonal
+        count only. Read the amino acids from the row and column labels. The largest off-diagonal
         cell, <span class="font-mono">ILE×LEU</span> (10 loci), pairs an isoleucine-sensing element with a
-        leucine-sensing one — both branched-chain amino acids.
+        leucine-sensing one, both branched-chain amino acids.
       </p>
     </div>
   </div>
@@ -284,7 +284,7 @@
         Triple-core loci <span class="font-normal text-muted">({triples.length})</span>
       </h3>
       <p class="mb-2 text-caption text-muted">
-        These {triples.length} loci hold three T-box elements — too many for the 2-D matrix above, so they
+        These {triples.length} loci hold three T-box elements, too many for the 2-D matrix above, so they
         are listed here. Each dot is one element's specifier amino acid in 5′→3′ order; grey
         <span class="font-mono">?</span> = unresolved.
       </p>
@@ -294,7 +294,7 @@
             <button
               type="button"
               class="flex items-center gap-2 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-small transition-colors duration-150 ease-standard hover:bg-surface-subtle"
-              title="{t.organism ?? t.tandem_id} — open locus detail"
+              title="{t.organism ?? t.tandem_id}: open locus detail"
               onclick={() => push(`/locus/${t.tandem_id}`)}
             >
               <span class="font-mono font-medium text-brand">{t.tandem_id}</span>

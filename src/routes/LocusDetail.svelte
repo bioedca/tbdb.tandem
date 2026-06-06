@@ -36,7 +36,7 @@
   const pairs = $derived(store.identityByLocus?.get(id) ?? [])
 
   function fmt(value: number | null | undefined, suffix = ''): string {
-    return value === null || value === undefined ? '—' : value + suffix
+    return value === null || value === undefined ? '–' : value + suffix
   }
 </script>
 
@@ -51,7 +51,7 @@
   {#if !locus}
     <Card>
       <p class="text-body text-muted">
-        No locus <span class="font-mono text-ink">{id || '—'}</span> found.
+        No locus <span class="font-mono text-ink">{id || '–'}</span> found.
         <a use:link href="/browse" class="text-brand hover:text-brand-strong">Browse all 470 loci.</a>
       </p>
     </Card>
@@ -92,7 +92,7 @@
         </span>
       </div>
       <p class="mt-2.5 text-lead text-body">
-        <em class="font-medium text-ink">{locus.organism ?? '—'}</em>
+        <em class="font-medium text-ink">{locus.organism ?? '–'}</em>
         {#if locus.phylum}<span class="text-muted"> · {locus.phylum}</span>{/if}
       </p>
     </PageHeader>
@@ -116,13 +116,13 @@
         </div>
         <div>
           <dt class="text-caption uppercase tracking-wide text-muted">Downstream gene</dt>
-          <dd class="text-small text-ink">{locus.downstream_gene ?? '—'}</dd>
+          <dd class="text-small text-ink">{locus.downstream_gene ?? '–'}</dd>
         </div>
         <div>
           <dt class="inline-flex items-center gap-1 text-caption uppercase tracking-wide text-muted">
             Mean %id <InfoTip term="mean_identity" />
           </dt>
-          <dd class="font-mono text-small text-ink">{locus.mean_pairwise_identity === null ? '—' : locus.mean_pairwise_identity.toFixed(1)}</dd>
+          <dd class="font-mono text-small text-ink">{locus.mean_pairwise_identity === null ? '–' : locus.mean_pairwise_identity.toFixed(1)}</dd>
         </div>
         <div>
           <dt class="text-caption uppercase tracking-wide text-muted">Complete elements</dt>
@@ -149,7 +149,7 @@
       <!-- ① Tandem architecture (PLAN §9①, the signature view) -->
       <Card
         title="Tandem architecture"
-        subtitle="Drawn to scale in 5′ → 3′ transcription order — each element colored by its specifier amino acid"
+        subtitle="Drawn to scale in 5′ → 3′ transcription order, each element colored by its specifier amino acid"
       >
         <ArchitectureDiagram
           {members}
@@ -170,7 +170,7 @@
       </Card>
 
       <!-- ③ Feature-highlighted member sequences (PLAN §9 detail flow) -->
-      <Card title="Member sequences" subtitle="Per-element leader (gap-free) — feature spans highlighted">
+      <Card title="Member sequences" subtitle="Per-element leader (gap-free), feature spans highlighted">
         <MemberSequence {members} />
       </Card>
 

@@ -20,7 +20,7 @@ describe('NoPolarityBanner', () => {
     // Drift guard: if PLAN §6 ever changes, this string (and the component) must be
     // updated deliberately. No "ancestral/redeployed/abandoned/gained/lost" language.
     expect(NO_POLARITY_BANNER_TEXT).toBe(
-      'Exploratory similarity map — unrooted; branch positions reflect sequence similarity, not ancestry.',
+      'Exploratory similarity map, unrooted; branch positions reflect sequence similarity, not ancestry.',
     )
   })
 

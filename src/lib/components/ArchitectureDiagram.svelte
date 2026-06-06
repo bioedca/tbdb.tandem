@@ -301,7 +301,7 @@
               <title
                 >Translational element: the sequestrator hairpin occludes the Shine–Dalgarno
                 ribosome-binding site (SD/RBS) when the cognate tRNA is charged, blocking translation
-                initiation. Drawn schematically — no SD coordinate is stored.</title
+                initiation. Drawn schematically: no SD coordinate is stored.</title
               >
               <path
                 d="M {tcx - 7} {Y_BODY_T - 4} q 0 -8 7 -8 q 7 0 7 8"

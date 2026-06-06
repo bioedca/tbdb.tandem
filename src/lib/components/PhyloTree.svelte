@@ -357,7 +357,7 @@
         <span class="text-small text-muted">View</span>
         <InfoTip
           label="View"
-          tip="Each tandem locus holds two or more T-box elements. Locus shows one dot per locus; Element shows every element separately — so when a locus's elements sit far apart in Element view, their Stem I sequences are markedly different."
+          tip="Each tandem locus holds two or more T-box elements. Locus shows one dot per locus; Element shows every element separately, so when a locus's elements sit far apart in Element view, their Stem I sequences are markedly different."
         />
         <div class="inline-flex overflow-hidden rounded-md border border-hairline">
           <button
@@ -380,7 +380,7 @@
         <span class="text-small text-muted">Tree</span>
         <InfoTip
           label="Tree"
-          tip="Main · Stem I builds the map from each element's Stem I — the region carrying the specifier codon that base-pairs the cognate tRNA's anticodon. Fallback maps the shorter, length-gated elements by their antiterminator region instead; positions are not comparable across the two trees."
+          tip="Main · Stem I builds the map from each element's Stem I, the region carrying the specifier codon that base-pairs the cognate tRNA's anticodon. Fallback maps the shorter, length-gated elements by their antiterminator region instead; positions are not comparable across the two trees."
         />
         <div class="inline-flex overflow-hidden rounded-md border border-hairline">
           <button
@@ -471,7 +471,7 @@
       </span>
     </div>
     <p class="mt-2 max-w-measure text-caption text-muted">
-      An exploratory sequence-similarity map, displayed unrooted — branch positions reflect sequence
+      An exploratory sequence-similarity map, displayed unrooted: branch positions reflect sequence
       similarity, not ancestry. A long branch is a sequence markedly different from the rest (often a
       non-Firmicutes locus); the dense centre holds many similar ones. Scroll or drag to zoom and pan;
       hover a tip for its locus;

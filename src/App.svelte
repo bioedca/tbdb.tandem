@@ -28,7 +28,7 @@
     <div
       class="mx-auto flex max-w-content flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2.5 sm:gap-x-6 sm:px-6 sm:py-3"
     >
-      <a href="/" use:link class="group flex shrink-0 items-center gap-2.5" aria-label="tbdb.tandem — home">
+      <a href="/" use:link class="group flex shrink-0 items-center gap-2.5" aria-label="tbdb.tandem, home">
         <svg viewBox="0 0 24 24" class="size-6 shrink-0" aria-hidden="true">
           <rect x="3" y="6" width="18" height="4.5" rx="2.25" fill="var(--color-chrome-fg)" />
           <rect x="3" y="13.5" width="18" height="4.5" rx="2.25" fill="var(--color-brand-on-dark)" />
@@ -89,7 +89,7 @@
     <div
       class="mx-auto flex max-w-content flex-wrap items-center justify-between gap-2 px-4 py-3 text-caption sm:px-6"
     >
-      <span>tbdb.tandem — a companion to <span class="font-mono">tbdb.io</span></span>
+      <span>tbdb.tandem, a companion to <span class="font-mono">tbdb.io</span></span>
       <span>
         Data:
         <a

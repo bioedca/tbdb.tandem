@@ -3,7 +3,7 @@
   // standard and a ship gate (§13) — exported so the S3.2 label review and tests
   // assert against one source of truth. Do NOT add ancestry/direction language.
   export const NO_POLARITY_BANNER_TEXT =
-    'Exploratory similarity map — unrooted; branch positions reflect sequence similarity, not ancestry.'
+    'Exploratory similarity map, unrooted; branch positions reflect sequence similarity, not ancestry.'
 </script>
 
 <script lang="ts">

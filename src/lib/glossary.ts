@@ -28,11 +28,11 @@ export const GLOSSARY = {
   },
   locus: {
     term: 'Locus',
-    def: 'One genomic window holding two or more T-box elements (its members) — the unit this explorer is built around (470 in all).',
+    def: 'One genomic window holding two or more T-box elements (its members), the unit this explorer is built around (470 in all).',
   },
   element: {
     term: 'Element (also member)',
-    def: 'One complete T-box unit — a Stem I that senses the tRNA plus the downstream antiterminator/terminator (or RBS-sequestering) switch — within a locus. Also called a member; 949 in all (461 two-element loci + 9 three-element loci).',
+    def: 'One complete T-box unit: a Stem I that senses the tRNA plus the downstream antiterminator/terminator (or RBS-sequestering) switch, within a locus. Also called a member; 949 in all (461 two-element loci + 9 three-element loci).',
   },
   specifier: {
     term: 'Specifier',
@@ -48,11 +48,11 @@ export const GLOSSARY = {
   },
   antiterminator: {
     term: 'Antiterminator',
-    def: 'A structure that, when the sensed tRNA is uncharged, is stabilized by that tRNA’s free 3′ acceptor end and blocks the terminator — so transcription reads through and the gene turns on.',
+    def: 'A structure that, when the sensed tRNA is uncharged, is stabilized by that tRNA’s free 3′ acceptor end and blocks the terminator, so transcription reads through and the gene turns on.',
   },
   terminator: {
     term: 'Terminator',
-    def: 'A hairpin that, when it forms, stops transcription — the gene-OFF state of a transcriptional T-box.',
+    def: 'A hairpin that, when it forms, stops transcription: the gene-OFF state of a transcriptional T-box.',
   },
   discriminator: {
     term: 'Discriminator base',
@@ -88,7 +88,7 @@ export const GLOSSARY = {
   },
   similarity_map: {
     term: 'Similarity map',
-    def: 'An unrooted map that groups T-box elements by how alike their Stem I sequences are. It has no time axis and no outgroup, so it is not a phylogeny — clusters mean “these sequences resemble each other,” not a lineage or order of appearance.',
+    def: 'An unrooted map that groups T-box elements by how alike their Stem I sequences are. It has no time axis and no outgroup, so it is not a phylogeny: clusters mean “these sequences resemble each other,” not a lineage or order of appearance.',
   },
   ddg: {
     term: 'ΔΔG',
@@ -104,11 +104,11 @@ export const GLOSSARY = {
   },
   non_firmicutes: {
     term: 'Non-Firmicutes',
-    def: 'The 16 of 470 loci that fall outside Firmicutes — in other bacterial phyla such as Actinobacteria. (T-box riboswitches are predominantly a Firmicutes feature, so the remaining 454 loci are Firmicutes.)',
+    def: 'The 16 of 470 loci that fall outside Firmicutes, in other bacterial phyla such as Actinobacteria. (T-box riboswitches are predominantly a Firmicutes feature, so the remaining 454 loci are Firmicutes.)',
   },
   varna: {
     term: 'VARNA',
-    def: 'The secondary-structure drawing tbdb.io uses — the reference structure view for each element.',
+    def: 'The secondary-structure drawing tbdb.io uses, the reference structure view for each element.',
   },
 } as const satisfies Record<string, GlossaryEntry>
 

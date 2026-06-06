@@ -242,7 +242,7 @@
   onpointerleave={onPointerUp}
   onkeydown={onKeyDown}
   role="application"
-  aria-label="Interactive RNA structure — scroll or +/− to zoom, drag or arrow keys to pan, 0 to reset"
+  aria-label="Interactive RNA structure: scroll or +/− to zoom, drag or arrow keys to pan, 0 to reset"
   tabindex={canZoom ? 0 : -1}
   class="relative h-full w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
   class:cursor-grab={canZoom && zoom <= 1}
