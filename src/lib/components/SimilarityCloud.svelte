@@ -20,6 +20,8 @@
   import { push } from 'svelte-spa-router'
 
   import { store } from '../stores/filters.svelte'
+  import { fontFamily } from '../design/tokens'
+  import { graphPrimitiveScale, scalePx } from '../text/graphScale'
   import {
     aggregatePoints,
     pointAction,
@@ -134,6 +136,7 @@
     linesObj: any
     linesGeom: any
     linesMat: any
+    pointBase: number
     positions: Float32Array
     relax: RelaxState | null
     count: number
@@ -226,11 +229,12 @@
     varying float vAlpha;
     uniform float uScale;
     uniform float uBase;
+    uniform float uScreen;
     void main() {
       vColor = acolor;
       vAlpha = aalpha;
       vec4 mv = modelViewMatrix * vec4(position, 1.0);
-      gl_PointSize = max(2.0, asize * uBase * (uScale / -mv.z));
+      gl_PointSize = max(2.0 * uScreen, asize * uBase * uScreen * (uScale / -mv.z));
       gl_Position = projectionMatrix * mv;
     }`
   const FRAG = `
@@ -307,7 +311,7 @@
     // DRAWING-BUFFER height (device px), so gl_PointSize comes out in real pixels with
     // depth attenuation. Both are (re)set in resize().
     const pointsMat = new THREE.ShaderMaterial({
-      uniforms: { uScale: { value: 600 }, uBase: { value: 4.5 } },
+      uniforms: { uScale: { value: 600 }, uBase: { value: 4.5 }, uScreen: { value: 1 } },
       vertexShader: VERT,
       fragmentShader: FRAG,
       transparent: true,
@@ -326,6 +330,7 @@
       linesObj: null,
       linesGeom: null,
       linesMat,
+      pointBase: 0,
       positions: new Float32Array(0),
       relax: null,
       count: 0,
@@ -421,8 +426,9 @@
     const metrics = cloudMetrics(pts)
     viewBounds = distanceClamp(metrics)
     const uBase = metrics.radius * POINT_WORLD_FRACTION
+    sc.pointBase = uBase
     sc.pointsMat.uniforms.uBase.value = uBase
-    sc.raycaster.params.Points = { threshold: uBase * PICK_OVER }
+    sc.raycaster.params.Points = { threshold: uBase * PICK_OVER * (sc.pointsMat.uniforms.uScreen.value || 1) }
     // Frustum sized to the geometry: near comfortably inside the closest legal approach,
     // far past the fullest zoom-out, so nothing clips at any scale.
     sc.camera.near = Math.max(viewBounds.min * 0.5, 0.05)
@@ -583,6 +589,17 @@
     // ~DPR× too small (near-invisible on a HiDPI display).
     const dpr = typeof sc.renderer.getPixelRatio === 'function' ? sc.renderer.getPixelRatio() : 1
     sc.pointsMat.uniforms.uScale.value = (h * dpr) / 2
+    const primitiveScale = graphPrimitiveScale(w, h, `400 12px ${fontFamily.sans}`, {
+      targetChars: 130,
+      referenceWidth: 960,
+      referenceHeight: 640,
+      maxScale: 1.75,
+    })
+    sc.pointsMat.uniforms.uScreen.value = primitiveScale
+    if (sc.pointBase > 0) sc.raycaster.params.Points = { threshold: sc.pointBase * PICK_OVER * primitiveScale }
+    sc.linesMat.opacity = scalePx(0.18, primitiveScale, { min: 0.16, max: 0.3 })
+    sc.linesMat.linewidth = scalePx(1, primitiveScale, { min: 1, max: 2 })
+    sc.linesMat.needsUpdate = true
   }
 
   // ── Pointer interaction (orbit / pan / zoom / hover / click) ─────────────────────

@@ -26,6 +26,8 @@
   import { FUNC_CLASS_SHADE } from '../color'
   import { fontFamily, neutral } from '../design/tokens'
   import { fitOnResize, widthTier } from '../plotly'
+  import { observeElementSize } from '../responsive'
+  import { graphPrimitiveScale, scalePx } from '../text/graphScale'
   import { naturalWidthPx, truncateToWidth } from '../text/measure'
   import {
     buildOperonBars,
@@ -85,9 +87,10 @@
   let barEl: HTMLDivElement
   let sankeyEl: HTMLDivElement
   let barBound = false
-  // Live bar-panel width (debounced) so the left margin + func_class tick labels adapt
+  // Live graph sizes (debounced) so margins, fonts, gaps and Sankey primitives adapt
   // to the available space (responsive).
-  let containerW = $state(0)
+  let barSize = $state({ w: 0, h: 0 })
+  let sankeySize = $state({ w: 0, h: 0 })
   // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
   // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
   const CONFIG = { displayModeBar: false }
@@ -117,15 +120,30 @@
     // Adapt the left margin + tick font to the container width; truncate long
     // func_class names (e.g. "oxidoreductase") with pretext on phones, keeping the
     // full value on the y data so the click cross-filter still resolves it.
-    void containerW
-    const tier = widthTier(containerW || barEl.clientWidth || 600)
-    const tickPx = tier === 'sm' ? 10 : 11
+    void barSize.w
+    void barSize.h
+    const w = barSize.w || barEl.clientWidth || 600
+    const h = barSize.h || barEl.clientHeight || 280
+    const tier = widthTier(w)
+    const scale = graphPrimitiveScale(w, h, `400 11px ${fontFamily.mono}`, {
+      targetChars: 78,
+      referenceWidth: 600,
+      referenceHeight: 280,
+      maxScale: 1.5,
+    })
+    const tickPx = scalePx(tier === 'sm' ? 10 : 11, scale, { min: tier === 'sm' ? 10 : 11, max: 16 })
+    const fontPx = scalePx(12, scale, { min: 11, max: 17 })
+    const titlePx = scalePx(11, scale, { min: 10, max: 15 })
     const labelFont = `${tickPx}px ${fontFamily.mono}`
-    const capL = tier === 'sm' ? 72 : tier === 'md' ? 96 : 104
+    const capLBase = tier === 'sm' ? 72 : tier === 'md' ? 96 : 104
+    const capL = scalePx(capLBase, scale, { min: capLBase, max: 156 })
     let labelMax = 0
     for (const fc of b.funcClasses) labelMax = Math.max(labelMax, naturalWidthPx(fc, labelFont))
     // Desktop keeps the original fixed margin; only phone/tablet tighten it.
-    const marginL = tier === 'lg' ? 104 : Math.round(Math.min(labelMax + 10, capL))
+    const marginL =
+      tier === 'lg'
+        ? scalePx(104, scale, { min: 104, max: 156 })
+        : Math.round(Math.min(labelMax + scalePx(10, scale, { min: 10, max: 16 }), capL))
     const yTickVals = b.funcClasses.map((_, i) => i)
     const yTickText = b.funcClasses.map((fc) => truncateToWidth(fc, labelFont, capL - 12))
     const colors = b.funcClasses.map((fc) => FUNC_CLASS_SHADE[fc])
@@ -137,12 +155,12 @@
       x: b.counts[tier.key],
       marker: {
         color: colors,
-        line: { color: neutral.surface, width: 1 },
+        line: { color: neutral.surface, width: scalePx(1, scale, { min: 0.8, max: 1.6 }) },
         // fgcolor is intentionally the surface tone: Plotly drives the per-point bar
         // pattern color from `marker.color`, so this only ever styled the (now custom)
         // legend; the bars carry the func_class hue with hatch/dot gaps showing through.
         pattern: tier.shape
-          ? { shape: tier.shape, fgcolor: neutral.surface, size: 7, solidity: 0.32 }
+          ? { shape: tier.shape, fgcolor: neutral.surface, size: scalePx(7, scale, { min: 6, max: 11 }), solidity: 0.32 }
           : { shape: '' },
       },
       hovertemplate: `%{y} · ${tier.name}: %{x} loci<extra></extra>`,
@@ -150,8 +168,13 @@
     const layout = {
       autosize: true,
       barmode: 'stack',
-      margin: { l: marginL, r: 14, t: 6, b: 30 },
-      font: { family: fontFamily.sans, size: 12, color: neutral.text },
+      margin: {
+        l: marginL,
+        r: scalePx(14, scale, { min: 12, max: 24 }),
+        t: scalePx(6, scale, { min: 6, max: 12 }),
+        b: scalePx(30, scale, { min: 28, max: 48 }),
+      },
+      font: { family: fontFamily.sans, size: fontPx, color: neutral.text },
       paper_bgcolor: neutral.surface,
       plot_bgcolor: neutral.surface,
       bargap: 0.34,
@@ -163,7 +186,7 @@
       // §8.4 "feels live" cue is carried by the table's list fade/reflow + the
       // synchronized instant narrowing of every panel.
       xaxis: {
-        title: { text: 'loci', font: { size: 11, color: neutral.muted } },
+        title: { text: 'loci', font: { size: titlePx, color: neutral.muted } },
         zeroline: false,
         gridcolor: neutral.hairline,
         fixedrange: true,
@@ -193,7 +216,15 @@
   // ── Sankey render effect (responder only — narrows live with the dashboard) ─────
   $effect(() => {
     if (!plotly || !sankeyEl || !sankey) return
+    void sankeySize.w
+    void sankeySize.h
     const s = sankey
+    const scale = graphPrimitiveScale(
+      sankeySize.w || sankeyEl.clientWidth || 760,
+      sankeySize.h || sankeyEl.clientHeight || 440,
+      `400 11px ${fontFamily.sans}`,
+      { targetChars: 86, referenceWidth: 760, referenceHeight: 440, maxScale: 1.55 },
+    )
     const data: Partial<PlotData>[] = [
       {
         type: 'sankey',
@@ -202,9 +233,9 @@
         node: {
           label: s.nodes.map((n) => n.label),
           color: s.nodes.map((n) => n.color),
-          pad: 11,
-          thickness: 13,
-          line: { color: neutral.hairline, width: 0.5 },
+          pad: scalePx(11, scale, { min: 10, max: 20 }),
+          thickness: scalePx(13, scale, { min: 12, max: 24 }),
+          line: { color: neutral.hairline, width: scalePx(0.5, scale, { min: 0.5, max: 1 }) },
           hovertemplate: '%{label}: %{value} loci<extra></extra>',
         },
         link: {
@@ -218,8 +249,13 @@
     ]
     const layout = {
       autosize: true,
-      margin: { l: 6, r: 6, t: 6, b: 6 },
-      font: { family: fontFamily.sans, size: 11, color: neutral.text },
+      margin: {
+        l: scalePx(6, scale, { min: 6, max: 14 }),
+        r: scalePx(6, scale, { min: 6, max: 14 }),
+        t: scalePx(6, scale, { min: 6, max: 14 }),
+        b: scalePx(6, scale, { min: 6, max: 14 }),
+      },
+      font: { family: fontFamily.sans, size: scalePx(11, scale, { min: 10, max: 17 }), color: neutral.text },
       paper_bgcolor: neutral.surface,
       plot_bgcolor: neutral.surface,
     }
@@ -229,30 +265,17 @@
   onMount(() => {
     let disposed = false
     let teardown: (() => void) | null = null
+    const unobserveBar = observeElementSize(barEl, (s) => (barSize = s), { fontsReady: true })
+    const unobserveSankey = observeElementSize(sankeyEl, (s) => (sankeySize = s), { fontsReady: true })
     void import('plotly.js-dist-min').then((mod) => {
       if (disposed) return
       plotly = mod.default ?? (mod as unknown as PlotlyStatic)
       teardown = fitOnResize(plotly, [barEl, sankeyEl])
     })
-    // Re-issue the bar layout (adapted margin/labels) when the bar panel crosses a
-    // width tier; fitOnResize handles the smooth width refit in between (debounced).
-    containerW = barEl?.clientWidth ?? 0
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined
-    let ro: ResizeObserver | null = null
-    if (typeof ResizeObserver !== 'undefined' && barEl) {
-      ro = new ResizeObserver((entries) => {
-        const w = entries[0]?.contentRect.width ?? barEl.clientWidth
-        clearTimeout(resizeTimer)
-        resizeTimer = setTimeout(() => {
-          containerW = w
-        }, 150)
-      })
-      ro.observe(barEl)
-    }
     return () => {
       disposed = true
-      clearTimeout(resizeTimer)
-      ro?.disconnect()
+      unobserveBar()
+      unobserveSankey()
       teardown?.()
     }
   })

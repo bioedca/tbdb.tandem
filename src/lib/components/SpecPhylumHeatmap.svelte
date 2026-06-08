@@ -19,6 +19,8 @@
   import { PHYLUM_COUNT_RAMP } from '../color'
   import { brand, fontFamily, neutral } from '../design/tokens'
   import { fitOnResize, widthTier } from '../plotly'
+  import { observeElementSize } from '../responsive'
+  import { graphPrimitiveScale, scalePx } from '../text/graphScale'
   import { naturalWidthPx, truncateToWidth } from '../text/measure'
   import {
     buildSpecPhylumHeatmap,
@@ -33,6 +35,9 @@
   const grid = $derived<SpecPhylumGrid | null>(
     store.status === 'ready' ? buildSpecPhylumHeatmap(store.loci, store.selected) : null,
   )
+  // Live container size (debounced) so the render effect can adapt margins, font,
+  // cell gaps, and phylum-label truncation to the available space (responsive).
+  let containerSize = $state({ w: 0, h: 0 })
 
   // Floor cell size (px) so cells stay legible/tappable on a phone (§4.3). Below the
   // resulting min-width the plot scrolls horizontally instead of squeezing ~25 specifier
@@ -45,11 +50,22 @@
   const heatmapMinW = $derived.by<number>(() => {
     const g = grid
     if (!g) return 0
-    const labelFont = `10px ${fontFamily.mono}`
+    const scale = graphPrimitiveScale(
+      containerSize.w || 600,
+      containerSize.h || 320,
+      `400 10px ${fontFamily.mono}`,
+      { targetChars: 78, referenceWidth: 720, referenceHeight: 340, maxScale: 1.5 },
+    )
+    const minCellPx = scalePx(MIN_CELL_PX, scale, { min: MIN_CELL_PX, max: 24, precision: 0 })
+    const labelPx = scalePx(10, scale, { min: 10, max: 15 })
+    const labelFont = `${labelPx}px ${fontFamily.mono}`
     let labelMax = 0
     for (const p of g.phyla) labelMax = Math.max(labelMax, naturalWidthPx(p, labelFont))
-    const marginL = Math.min(labelMax + 10, 128)
-    return Math.round(marginL + g.specifiers.length * MIN_CELL_PX + 16)
+    const marginL = Math.min(
+      labelMax + scalePx(10, scale, { min: 10, max: 16 }),
+      scalePx(128, scale, { min: 128, max: 190 }),
+    )
+    return Math.round(marginL + g.specifiers.length * minCellPx + scalePx(16, scale, { min: 16, max: 28 }))
   })
 
   // ── Plotly (dynamically imported; §7.1) ─────────────────────────────────────────
@@ -57,9 +73,6 @@
   let el: HTMLDivElement
   let scrollWrap: HTMLDivElement
   let bound = false
-  // Live container width (debounced) so the render effect can adapt the left margin,
-  // tick font, and phylum-label truncation to the available space (responsive).
-  let containerW = $state(0)
   // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
   // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
   const CONFIG = { displayModeBar: false }
@@ -92,7 +105,7 @@
   /** Brand-accent outline on cells matching BOTH active facets — the heatmap's own
    *  2D selection. (When only one facet is active the narrowed z already makes the
    *  selection visually obvious, so no outline is drawn.) */
-  function selectionShapes(g: SpecPhylumGrid): Record<string, unknown>[] {
+  function selectionShapes(g: SpecPhylumGrid, lineWidth = 2): Record<string, unknown>[] {
     const fs = store.filter.specifier
     const fp = store.filter.phylum
     if (fs.size === 0 || fp.size === 0) return []
@@ -110,7 +123,7 @@
           x1: j + 0.5,
           y0: i - 0.5,
           y1: i + 0.5,
-          line: { color: brand.accent, width: 2 },
+          line: { color: brand.accent, width: lineWidth },
           fillcolor: 'rgba(0,0,0,0)',
           layer: 'above',
         })
@@ -127,22 +140,37 @@
     // (responsive). On phones the long phylum names are truncated with pretext (no
     // mid-word cut) and the freed margin gives the cells more room; the full names
     // stay on the y data, so hover + cross-filter still read the real phylum.
-    void containerW // re-run on width change
-    const tier = widthTier(containerW || el.clientWidth || 600)
-    const tickPx = tier === 'sm' ? 9 : 10
-    const cellPx = tier === 'sm' ? 8 : 9
+    void containerSize.w
+    void containerSize.h
+    const w = containerSize.w || el.clientWidth || 600
+    const h = containerSize.h || el.clientHeight || 320
+    const tier = widthTier(w)
+    const scale = graphPrimitiveScale(w, h, `400 10px ${fontFamily.mono}`, {
+      targetChars: 78,
+      referenceWidth: 720,
+      referenceHeight: 340,
+      maxScale: 1.5,
+    })
+    const tickPx = scalePx(tier === 'sm' ? 9 : 10, scale, { min: tier === 'sm' ? 9 : 10, max: 15 })
+    const cellPx = scalePx(tier === 'sm' ? 8 : 9, scale, { min: tier === 'sm' ? 8 : 9, max: 14 })
+    const gapPx = scalePx(1.5, scale, { min: 1.2, max: 2.8 })
+    const outlinePx = scalePx(2, scale, { min: 1.5, max: 3.2 })
     const labelFont = `${tickPx}px ${fontFamily.mono}`
-    const capL = tier === 'sm' ? 70 : tier === 'md' ? 104 : 128
+    const capLBase = tier === 'sm' ? 70 : tier === 'md' ? 104 : 128
+    const capL = scalePx(capLBase, scale, { min: capLBase, max: 190 })
     let labelMax = 0
     for (const p of g.phyla) labelMax = Math.max(labelMax, naturalWidthPx(p, labelFont))
     // Desktop keeps the original fixed margin (deliberate design); only phone/tablet
     // tighten it to the measured label width to reclaim cell space.
-    const marginL = tier === 'lg' ? 128 : Math.round(Math.min(labelMax + 10, capL))
+    const marginL =
+      tier === 'lg'
+        ? scalePx(128, scale, { min: 128, max: 190 })
+        : Math.round(Math.min(labelMax + scalePx(10, scale, { min: 10, max: 16 }), capL))
     // The x labels are rotated -90, so the bottom margin (not the width) bounds their
     // length; keep it full so composite specifiers (e.g. ARG;VAL) aren't clipped. At
     // phone widths the ~25 specifier columns are inherently dense — the cells, in-cell
     // counts, and hover carry the data there; the y-axis truncation below is the win.
-    const marginB = 56
+    const marginB = scalePx(56, scale, { min: 52, max: 86 })
     const yTickVals = g.phyla.map((_, i) => i)
     const yTickText = g.phyla.map((p) => truncateToWidth(p, labelFont, capL - 12))
     const data: Partial<PlotData>[] = [
@@ -154,8 +182,8 @@
         text: g.text,
         texttemplate: '%{text}',
         textfont: { family: fontFamily.mono, size: cellPx, color: neutral.ink },
-        xgap: 1.5,
-        ygap: 1.5,
+        xgap: gapPx,
+        ygap: gapPx,
         colorscale: PHYLUM_COUNT_RAMP,
         zmin: 0,
         zmax: Math.min(g.max, 12),
@@ -167,7 +195,12 @@
     const layout = {
       autosize: true,
       // Responsive margin/font (this branch) + solid white chart backgrounds (#27).
-      margin: { l: marginL, r: 8, t: 6, b: marginB },
+      margin: {
+        l: marginL,
+        r: scalePx(8, scale, { min: 8, max: 16 }),
+        t: scalePx(6, scale, { min: 6, max: 12 }),
+        b: marginB,
+      },
       font: { family: fontFamily.mono, size: tickPx, color: neutral.text },
       paper_bgcolor: neutral.surface,
       plot_bgcolor: neutral.surface,
@@ -192,7 +225,7 @@
         fixedrange: true,
         constrain: 'domain',
       },
-      shapes: selectionShapes(g),
+      shapes: selectionShapes(g, outlinePx),
     }
     void plotly.react(el, data, layout, CONFIG).then(() => {
       if (!bound) {
@@ -210,29 +243,13 @@
       plotly = mod.default ?? (mod as unknown as PlotlyStatic)
       teardown = fitOnResize(plotly, [el])
     })
-    // Track the container width (debounced) so a width-tier crossing re-issues the
-    // layout with adapted margins/labels. fitOnResize handles the smooth width refit
-    // in between; this only fires when the discrete tier inputs actually change.
-    // Track the WRAPPER width (the viewport-bound scroll box), not `el` — `el` is pinned to
+    // Track the WRAPPER size (the viewport-bound scroll box), not `el` — `el` is pinned to
     // `heatmapMinW` when it overflows on a phone, so observing it would peg containerW to that
     // min-width and the phone ('sm') width tier (tighter margins/fonts) could never apply.
-    containerW = scrollWrap?.clientWidth ?? el?.clientWidth ?? 0
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined
-    let ro: ResizeObserver | null = null
-    if (typeof ResizeObserver !== 'undefined' && scrollWrap) {
-      ro = new ResizeObserver((entries) => {
-        const w = entries[0]?.contentRect.width ?? scrollWrap.clientWidth
-        clearTimeout(resizeTimer)
-        resizeTimer = setTimeout(() => {
-          containerW = w
-        }, 150)
-      })
-      ro.observe(scrollWrap)
-    }
+    const unobserve = observeElementSize(scrollWrap, (s) => (containerSize = s), { fontsReady: true })
     return () => {
       disposed = true
-      clearTimeout(resizeTimer)
-      ro?.disconnect()
+      unobserve()
       teardown?.()
     }
   })
