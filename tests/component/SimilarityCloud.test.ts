@@ -138,13 +138,17 @@ const FIXTURE: CloudData = {
   main: {
     var: [0.2, 0.15, 0.1, 0.08, 0.05, 0.04],
     points: [
+      { id: 'OUT1', tandem_id: 'T0281', member_id: 'T0281.m2', ord: 2, spec: 'ILE', phylum: 'Firmicutes', func: 'aaRS', type: 'Translational', conf: 'low', mixed: true, ddg: null, ident: 40, ncores: 2, x: 1000, y: 1000, z: 0 },
       { id: 'A', tandem_id: 'T1', member_id: 'T1.m1', ord: 1, spec: 'TRP', phylum: 'Firmicutes', func: 'aaRS', type: 'Transcriptional', conf: 'high', mixed: false, ddg: -12, ident: 80, ncores: 2, x: 0, y: 0, z: 0 },
       { id: 'B', tandem_id: 'T2', member_id: 'T2.m1', ord: 1, spec: 'LEU', phylum: 'Actinobacteria', func: 'transporter', type: 'Translational', conf: 'low', mixed: false, ddg: -5, ident: 60, ncores: 2, x: 10, y: 2, z: -3 },
       { id: 'C', tandem_id: 'T3', member_id: 'T3.m1', ord: 1, spec: null, phylum: null, func: 'unknown', type: 'Transcriptional', conf: 'high', mixed: true, ddg: null, ident: null, ncores: 3, x: -8, y: 5, z: 1 },
+      { id: 'OUT2', tandem_id: 'T0445', member_id: 'T0445.m1', ord: 1, spec: 'GLY', phylum: 'Firmicutes', func: 'unknown', type: 'Transcriptional', conf: 'low', mixed: true, ddg: null, ident: 40, ncores: 2, x: 2000, y: 2000, z: 0 },
     ],
     edges: [
       [0, 1],
       [1, 2],
+      [2, 3],
+      [3, 4],
     ],
   },
   fallback: {
@@ -201,6 +205,7 @@ describe('SimilarityCloud', () => {
     // honest variance readout (3 axes capture 45% here: 0.2+0.15+0.1)
     expect(getByText(/PCoA axes capture/)).toBeInTheDocument()
     expect(getByText(/45%/)).toBeInTheDocument()
+    expect(getByText(/T0281 and T0445 remain in the database/i)).toBeInTheDocument()
   })
 
   test('toggling controls updates state without throwing', async () => {
@@ -220,7 +225,7 @@ describe('SimilarityCloud', () => {
     const canvas = container.querySelector('canvas')!
     await fireEvent.pointerDown(canvas, { clientX: 20, clientY: 20 })
     await fireEvent.pointerUp(canvas, { clientX: 20, clientY: 20 })
-    expect(push).toHaveBeenCalledWith('/locus/T1') // raycast → index 0 → T1
+    expect(push).toHaveBeenCalledWith('/locus/T1') // excluded T0281 is filtered; raycast index 0 → T1
   })
 
   test('selectable mode: clicking a point toggles the specifier facet', async () => {
@@ -229,7 +234,7 @@ describe('SimilarityCloud', () => {
     await fireEvent.pointerDown(canvas, { clientX: 20, clientY: 20 })
     await fireEvent.pointerUp(canvas, { clientX: 20, clientY: 20 })
     expect(push).not.toHaveBeenCalled()
-    expect(store.filter.specifier.has('TRP')).toBe(true) // index 0 → spec TRP
+    expect(store.filter.specifier.has('TRP')).toBe(true) // excluded T0281 is filtered; index 0 → spec TRP
   })
 
   // ── Camera wiring: the new drag-rotate (de-inverted vertical), damping + framing ──
@@ -288,7 +293,8 @@ describe('SimilarityCloud', () => {
       ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON() {} }) as DOMRect
     // The framed pivot is the robust centre of the rendered (locus) points; idle
     // rotation never changes the distance from it, so a growth isolates the zoom.
-    const t = robustCenter(FIXTURE.main.points, 0.95)
+    const visibleMainPoints = FIXTURE.main.points.filter((p) => !['T0281', 'T0445'].includes(p.tandem_id))
+    const t = robustCenter(visibleMainPoints, 0.95)
     const distFromPivot = () => Math.hypot(cam.position.x - t.x, cam.position.y - t.y, cam.position.z - t.z)
     await waitFor(() => expect(distFromPivot()).toBeGreaterThan(0))
     const d0 = distFromPivot()
