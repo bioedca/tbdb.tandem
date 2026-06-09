@@ -9,7 +9,7 @@
 // `buildStemColorMap` (the same palette fornac uses), so colors stay in one place.
 
 import { dataUrl } from './data/load'
-import type { R2dtDiagram, R2dtManifest } from './data/types'
+import type { MemberStem, R2dtDiagram, R2dtManifest } from './data/types'
 
 export type { R2dtDiagram, R2dtManifest }
 
@@ -105,4 +105,84 @@ export function nucleotideSpacing(d: R2dtDiagram): number {
   steps.sort((a, b) => a - b)
   const mid = steps[Math.floor(steps.length / 2)]
   return mid > 0 ? mid : 12
+}
+
+function unitVector(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  fallback: [number, number] = [1, 0],
+): [number, number] {
+  const dx = x1 - x0
+  const dy = y1 - y0
+  const len = Math.hypot(dx, dy)
+  if (len > 1e-6) return [dx / len, dy / len]
+  return fallback
+}
+
+function stemCentroid(d: R2dtDiagram, start: number, end: number): [number, number] {
+  const lo = Math.max(1, Math.min(start, d.x.length))
+  const hi = Math.max(lo, Math.min(end, d.x.length))
+  let sx = 0
+  let sy = 0
+  let n = 0
+  for (let r = lo; r <= hi; r++) {
+    sx += d.x[r - 1]
+    sy += d.y[r - 1]
+    n += 1
+  }
+  return n > 0 ? [sx / n, sy / n] : [0, 0]
+}
+
+/**
+ * Add a display-only spacer after Stem I, before Stem II, using the same idea as
+ * tbdb.io's R2DT/VARNA spacer: the biological sequence frame stays unchanged, but
+ * the downstream coordinates are shifted outward when the Stem-I→Stem-II connector
+ * is too short to keep Stem-I loops visually clear of neighbouring structure.
+ *
+ * This returns the original object when a member lacks Stem I/II, when the existing
+ * connector is already spacious, or when the coordinates are malformed. It never
+ * edits `seq` or `pairs`, so residue-indexed color and feature overlays remain in
+ * the committed member frame.
+ */
+export function withStemIToIISpacer(d: R2dtDiagram, stems: MemberStem[]): R2dtDiagram {
+  const stemI = stems.find((s) => s.key === 'i')
+  const stemII = stems.find((s) => s.key === 'ii')
+  const n = d.seq.length
+  if (!stemI || !stemII || n < 2 || d.x.length !== n || d.y.length !== n) return d
+  if (stemI.end < 1 || stemI.end >= n || stemII.start <= stemI.end) return d
+
+  const split = Math.min(n, stemI.end + 1)
+  const anchor = Math.max(1, stemI.end)
+  const spacing = nucleotideSpacing(d)
+  if (!Number.isFinite(spacing) || spacing <= 0) return d
+
+  const connector = Math.hypot(d.x[split - 1] - d.x[anchor - 1], d.y[split - 1] - d.y[anchor - 1])
+  const linkerNt = Math.max(0, stemII.start - stemI.end - 1)
+  // Short natural linkers get the largest virtual spacer; longer linkers still get
+  // a modest floor because R2DT can pack them tightly around the template junction.
+  const targetSteps = Math.max(5, 7 - Math.min(linkerNt, 4) * 0.5)
+  const target = targetSteps * spacing
+  const extra = target - connector
+  if (extra < 0.25 * spacing) return d
+
+  const stemIC = stemCentroid(d, stemI.start, stemI.end)
+  const downstreamC = stemCentroid(d, split, Math.min(n, Math.max(stemII.end, split)))
+  const fallback = unitVector(stemIC[0], stemIC[1], downstreamC[0], downstreamC[1])
+  const [ux, uy] = unitVector(
+    d.x[anchor - 1],
+    d.y[anchor - 1],
+    d.x[split - 1],
+    d.y[split - 1],
+    fallback,
+  )
+
+  const x = d.x.slice()
+  const y = d.y.slice()
+  for (let i = split - 1; i < n; i++) {
+    x[i] += ux * extra
+    y[i] += uy * extra
+  }
+  return { ...d, x, y }
 }

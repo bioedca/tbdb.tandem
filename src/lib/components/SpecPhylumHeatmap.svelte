@@ -30,6 +30,20 @@
   import Card from './Card.svelte'
   import Spinner from './Spinner.svelte'
 
+  const DEFAULT_SUBTITLE =
+    'Loci by specifier amino acid (the amino acid each T-box senses) and phylum. The dataset is strongly Firmicutes-dominated (454/470 Firmicutes), so cells use a neutral grey ramp and the 16 non-Firmicutes loci stand out. Click a cell to cross-filter.'
+
+  let {
+    embedded = false,
+    title = 'Specifier × phylum',
+    subtitle = DEFAULT_SUBTITLE,
+  }: {
+    /** Render as an unframed section inside a parent panel instead of as its own Card. */
+    embedded?: boolean
+    title?: string
+    subtitle?: string
+  } = $props()
+
   // Axes from the FULL locus set (stable layout); z counts from the cross-filtered
   // selection (narrows live). Boots with loci.json — needs no members.json.
   const grid = $derived<SpecPhylumGrid | null>(
@@ -255,10 +269,7 @@
   })
 </script>
 
-<Card
-  title="Specifier × phylum"
-  subtitle="Loci by specifier amino acid (the amino acid each T-box senses) and phylum. The dataset is strongly Firmicutes-dominated (454/470 Firmicutes), so cells use a neutral grey ramp and the 16 non-Firmicutes loci stand out. Click a cell to cross-filter."
->
+{#snippet heatmapBody()}
   <!-- overflow-x-auto + a measured min-width: on a phone the cells keep a tappable size
        and the plot scrolls horizontally; on desktop the min never binds, so it fills. -->
   <div bind:this={scrollWrap} class="relative h-[clamp(17rem,44vh,24rem)] w-full overflow-x-auto">
@@ -283,4 +294,18 @@
     amino acids. The <span class="font-mono">unassigned</span> row holds the 3 loci whose phylum could
     not be assigned (counted among the 16 non-Firmicutes).
   </p>
-</Card>
+{/snippet}
+
+{#if embedded}
+  <section class="border-t border-hairline pt-5">
+    <div class="mb-2">
+      <h3 class="text-small font-medium text-ink">{title}</h3>
+      <p class="mt-1 max-w-measure text-caption text-muted">{subtitle}</p>
+    </div>
+    {@render heatmapBody()}
+  </section>
+{:else}
+  <Card {title} {subtitle}>
+    {@render heatmapBody()}
+  </Card>
+{/if}

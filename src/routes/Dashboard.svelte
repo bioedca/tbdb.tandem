@@ -10,7 +10,6 @@
   import { link } from 'svelte-spa-router'
   import KpiStrip from '../lib/components/KpiStrip.svelte'
   import SpecificityChart from '../lib/components/SpecificityChart.svelte'
-  import SpecPhylumHeatmap from '../lib/components/SpecPhylumHeatmap.svelte'
   import OperonBreakdown from '../lib/components/OperonBreakdown.svelte'
   import PhyloTree from '../lib/components/PhyloTree.svelte'
   import FacetTable from '../lib/components/FacetTable.svelte'
@@ -47,8 +46,6 @@
   <KpiStrip />
 
   <SpecificityChart />
-
-  <SpecPhylumHeatmap />
 
   <OperonBreakdown />
 

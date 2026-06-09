@@ -44,7 +44,7 @@ test.describe('Dashboard', () => {
 
     // The matrix needs members.json; the triple-core list appears once it's ready,
     // and the matrix Plotly graph is rendered by then.
-    await expect(page.getByText('Triple-core loci')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Triple-core loci' })).toBeVisible()
     await expect(
       page.locator('div.lg\\:col-span-3:has(h3:has-text("Element-pair matrix")) .js-plotly-plot'),
     ).toBeVisible()

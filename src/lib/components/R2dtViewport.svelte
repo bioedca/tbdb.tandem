@@ -15,7 +15,7 @@
   import type { MemberStem } from '../data/types'
   import type { OverlayFeature } from '../color'
   import type { R2dtDiagram as R2dtDiagramData } from '../r2dt'
-  import { diagramViewBox, nucleotideSpacing } from '../r2dt'
+  import { diagramViewBox, nucleotideSpacing, withStemIToIISpacer } from '../r2dt'
   import R2dtDiagram from './R2dtDiagram.svelte'
 
   let {
@@ -51,12 +51,13 @@
   let lastX = 0
   let lastY = 0
 
-  const box = $derived(diagramViewBox(diagram)) // [minX, minY, w, h]
-  const spacing = $derived(nucleotideSpacing(diagram))
+  const displayDiagram = $derived(withStemIToIISpacer(diagram, stems))
+  const box = $derived(diagramViewBox(displayDiagram)) // [minX, minY, w, h]
+  const spacing = $derived(nucleotideSpacing(displayDiagram))
 
   // Reset the view whenever the molecule changes (new element / conformation).
   $effect(() => {
-    void diagram
+    void displayDiagram
     zoom = 1
     cxv = box[0] + box[2] / 2
     cyv = box[1] + box[3] / 2
@@ -251,7 +252,7 @@
   style:touch-action={canZoom ? 'none' : 'auto'}
 >
   <R2dtDiagram
-    {diagram}
+    diagram={displayDiagram}
     {stems}
     {features}
     {variant}
