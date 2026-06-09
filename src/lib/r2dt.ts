@@ -307,7 +307,7 @@ export function withReadableStemLoops(d: R2dtDiagram, spans: { start: number; en
       const k = e - s + 1
       const left = s - 1
       const right = e + 1
-      if (k >= 2 && left >= lo && right <= hi && paired.has(left) && paired.has(right)) {
+      if (k >= 1 && left >= lo && right <= hi && paired.has(left) && paired.has(right)) {
         const obs: [number, number][] = []
         for (let r = 1; r <= n; r++) {
           if (r < s || r > e) obs.push([x[r - 1], y[r - 1]])

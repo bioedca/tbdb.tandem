@@ -206,6 +206,31 @@ function minBoundedLoopStepRatio(d: R2dtDiagram, stems: { start: number; end: nu
   return best
 }
 
+function minSingleResidueLoopArcRatio(d: R2dtDiagram, stems: { start: number; end: number }[]): number {
+  const paired = pairedResidues(d)
+  let best = Number.POSITIVE_INFINITY
+  for (const span of stems) {
+    const lo = Math.max(1, Math.min(span.start, span.end, d.seq.length))
+    const hi = Math.max(lo, Math.min(Math.max(span.start, span.end), d.seq.length))
+    let i = lo
+    while (i <= hi) {
+      if (paired.has(i)) {
+        i += 1
+        continue
+      }
+      let j = i
+      while (j <= hi && !paired.has(j)) j += 1
+      const s = i
+      const e = j - 1
+      if (s === e && s - 1 >= lo && e + 1 <= hi && paired.has(s - 1) && paired.has(e + 1)) {
+        best = Math.min(best, maxDeviationFromChord(d, s, e))
+      }
+      i = j
+    }
+  }
+  return best
+}
+
 function readDiagram(path: string): R2dtDiagram {
   return JSON.parse(readFileSync(path, 'utf8')) as R2dtDiagram
 }
@@ -236,6 +261,28 @@ describe('withReadableStemLoops', () => {
     }
     expect(maxDeviationFromChord(out, 4, 7)).toBeGreaterThan(maxDeviationFromChord(d, 4, 7) + 0.7)
     expect(minBoundedLoopStepRatio(out, [{ start: 1, end: 10 }])).toBeGreaterThan(TEST_MIN_LOOP_CLEARANCE_RATIO)
+  })
+
+  test('opens a collapsed one-residue internal stem loop', () => {
+    const d: R2dtDiagram = {
+      seq: 'A'.repeat(9),
+      x: [0, 10, 20, 30, 40, 50, 60, 70, 80],
+      y: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      pairs: [[1, 9], [2, 8], [3, 7], [4, 6]],
+      template: 'T-box',
+      source: 'Rfam',
+    }
+
+    const out = withReadableStemLoops(d, [{ start: 1, end: 9 }])
+
+    expect(out).not.toBe(d)
+    expect(out.seq).toBe(d.seq)
+    expect(out.pairs).toEqual(d.pairs)
+    for (const r of [1, 2, 3, 4, 6, 7, 8, 9]) {
+      expect(out.x[r - 1]).toBe(d.x[r - 1])
+      expect(out.y[r - 1]).toBe(d.y[r - 1])
+    }
+    expect(maxDeviationFromChord(out, 5, 5)).toBeGreaterThan(maxDeviationFromChord(d, 5, 5) + 0.6)
   })
 
   test('opens the real T0185 Stem-I guardrail loop in both conformations', () => {
@@ -294,6 +341,8 @@ describe('withReadableStemLoops', () => {
         expect([...out.x, ...out.y].every(Number.isFinite), memberId).toBe(true)
         const minLoop = minBoundedLoopStepRatio(out, spans)
         if (Number.isFinite(minLoop)) expect(minLoop, memberId).toBeGreaterThan(TEST_MIN_LOOP_CLEARANCE_RATIO)
+        const minSingleLoop = minSingleResidueLoopArcRatio(out, spans)
+        if (Number.isFinite(minSingleLoop)) expect(minSingleLoop, memberId).toBeGreaterThan(0.28)
         checked += 1
       }
     }
