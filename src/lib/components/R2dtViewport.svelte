@@ -15,7 +15,7 @@
   import type { MemberStem } from '../data/types'
   import type { OverlayFeature } from '../color'
   import type { R2dtDiagram as R2dtDiagramData } from '../r2dt'
-  import { diagramViewBox, nucleotideSpacing, withStemIToIISpacer } from '../r2dt'
+  import { diagramViewBox, nucleotideSpacing, withReadableR2dtLayout } from '../r2dt'
   import R2dtDiagram from './R2dtDiagram.svelte'
 
   let {
@@ -51,7 +51,7 @@
   let lastX = 0
   let lastY = 0
 
-  const displayDiagram = $derived(withStemIToIISpacer(diagram, stems))
+  const displayDiagram = $derived(withReadableR2dtLayout(diagram, stems, variant, terminatorPairs))
   const box = $derived(diagramViewBox(displayDiagram)) // [minX, minY, w, h]
   const spacing = $derived(nucleotideSpacing(displayDiagram))
 
