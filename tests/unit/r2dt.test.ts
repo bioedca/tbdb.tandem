@@ -8,6 +8,7 @@ import { buildStemColorMap, STEM_COLORS, STEM_LINKER_COLOR } from '../../src/lib
 import {
   diagramViewBox,
   nucleotideSpacing,
+  R2DT_LOOP_STRAND_SEP_RATIO,
   R2DT_MIN_LOOP_CLEARANCE_RATIO,
   withReadableR2dtLayout,
   withReadableStemLoops,
@@ -235,6 +236,39 @@ function readDiagram(path: string): R2dtDiagram {
   return JSON.parse(readFileSync(path, 'utf8')) as R2dtDiagram
 }
 
+/** Min centre-to-centre distance (in median steps) between two residue ranges. */
+function minSeparation(d: R2dtDiagram, a: [number, number], b: [number, number]): number {
+  const spacing = nucleotideSpacing(d)
+  let best = Number.POSITIVE_INFINITY
+  for (let i = a[0]; i <= a[1]; i++) {
+    for (let j = b[0]; j <= b[1]; j++) {
+      best = Math.min(best, Math.hypot(d.x[i - 1] - d.x[j - 1], d.y[i - 1] - d.y[j - 1]))
+    }
+  }
+  return best / spacing
+}
+
+/** Largest pairwise centre overlap (in median steps) among unpaired residues of `stems`, where
+ *  two glyphs (radius 0.44 spacing) overlap when their centres are closer than 0.88 spacing.
+ *  0 ⇒ no two non-adjacent, non-paired residues visibly merge. */
+function maxGlyphOverlap(d: R2dtDiagram, stems: { start: number; end: number }[]): number {
+  const spacing = nucleotideSpacing(d)
+  const pairKey = new Set(d.pairs.map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`))
+  let worst = 0
+  for (const span of stems) {
+    const lo = Math.max(1, Math.min(span.start, span.end, d.seq.length))
+    const hi = Math.max(lo, Math.min(Math.max(span.start, span.end), d.seq.length))
+    for (let i = lo; i <= hi; i++) {
+      for (let j = i + 2; j <= hi; j++) {
+        if (pairKey.has(`${i}-${j}`)) continue
+        const dist = Math.hypot(d.x[i - 1] - d.x[j - 1], d.y[i - 1] - d.y[j - 1]) / spacing
+        worst = Math.max(worst, 0.88 - dist)
+      }
+    }
+  }
+  return worst
+}
+
 describe('withReadableStemLoops', () => {
   test('keeps the production loop clearance floor at least as strict as the test guard', () => {
     expect(R2DT_MIN_LOOP_CLEARANCE_RATIO).toBeGreaterThanOrEqual(TEST_MIN_LOOP_CLEARANCE_RATIO)
@@ -283,6 +317,40 @@ describe('withReadableStemLoops', () => {
       expect(out.y[r - 1]).toBe(d.y[r - 1])
     }
     expect(maxDeviationFromChord(out, 5, 5)).toBeGreaterThan(maxDeviationFromChord(d, 5, 5) + 0.6)
+  })
+
+  test('opens an internal loop by bowing its two strands to opposite sides', () => {
+    // A symmetric helix whose internal loop (5′ run 3-4, 3′ run 9-10) is drawn with both
+    // strands crammed onto the middle axis, ~0.6 steps apart — they "run together". The
+    // coordinated pass must push the two strands apart so they read as two distinct strands.
+    const d: R2dtDiagram = {
+      seq: 'A'.repeat(12),
+      //        1      2     3      4      5      6       7      8      9     10     11      12
+      x: [0, 0, 3, 7, 10, 13, 13, 10, 7, 3, 0, 0],
+      y: [-10, 0, 1, 1, 0, -1, 1, 4, 3, 3, 4, 14],
+      pairs: [[1, 12], [2, 11], [5, 8]],
+      template: 'T-box',
+      source: 'Rfam',
+    }
+    const before = minSeparation(d, [3, 4], [9, 10])
+    const out = withReadableStemLoops(d, [{ start: 1, end: 12 }])
+
+    expect(out).not.toBe(d)
+    expect(out.seq).toBe(d.seq)
+    expect(out.pairs).toEqual(d.pairs)
+    // Paired residues (the fixed closing pairs + helix) never move.
+    for (const r of [1, 2, 5, 8, 11, 12]) {
+      expect(out.x[r - 1]).toBe(d.x[r - 1])
+      expect(out.y[r - 1]).toBe(d.y[r - 1])
+    }
+    // The two strands end up cleanly separated (the coordinated-open contract).
+    const after = minSeparation(out, [3, 4], [9, 10])
+    expect(after).toBeGreaterThan(before)
+    expect(after).toBeGreaterThanOrEqual(R2DT_LOOP_STRAND_SEP_RATIO)
+    // …on opposite sides of the closing-pair axis (y≈0..4): one strand above, one below.
+    const meanY = (lo: number, hi: number) =>
+      (out.y.slice(lo - 1, hi).reduce((s, v) => s + v, 0)) / (hi - lo + 1)
+    expect((meanY(3, 4) - 2) * (meanY(9, 10) - 2)).toBeLessThan(0)
   })
 
   test('opens the real T0185 Stem-I guardrail loop in both conformations', () => {
@@ -343,6 +411,13 @@ describe('withReadableStemLoops', () => {
         if (Number.isFinite(minLoop)) expect(minLoop, memberId).toBeGreaterThan(TEST_MIN_LOOP_CLEARANCE_RATIO)
         const minSingleLoop = minSingleResidueLoopArcRatio(out, spans)
         if (Number.isFinite(minSingleLoop)) expect(minSingleLoop, memberId).toBeGreaterThan(0.28)
+        // Do no harm: the loop opener (incl. coordinated internal-loop separation) never buries
+        // two glyphs in each other. Every opened residue is held ≥ the loop-clearance floor from
+        // its neighbours, so it can graze a neighbour to at most ~0.68 steps (overlap depth 0.2)
+        // and never deeper than the spaced input already packed it — any close packing the spacer
+        // or the committed paired geometry introduced upstream is left exactly as-is.
+        const spacedOverlap = maxGlyphOverlap(withStemIToIISpacer(d, member.stems), spans)
+        expect(maxGlyphOverlap(out, spans), memberId).toBeLessThanOrEqual(Math.max(spacedOverlap, 0.2) + 1e-6)
         checked += 1
       }
     }
