@@ -66,6 +66,8 @@ const diagram = (x: number[], y: number[]): R2dtDiagram => ({
   source: 'Rfam',
 })
 
+const TEST_MIN_LOOP_CLEARANCE_RATIO = 0.72
+
 describe('diagramViewBox', () => {
   test('wraps the coordinate extents with uniform padding', () => {
     expect(diagramViewBox(diagram([10, 30], [20, 40]), 14)).toEqual([-4, 6, 48, 48])
@@ -209,6 +211,10 @@ function readDiagram(path: string): R2dtDiagram {
 }
 
 describe('withReadableStemLoops', () => {
+  test('keeps the production loop clearance floor at least as strict as the test guard', () => {
+    expect(R2DT_MIN_LOOP_CLEARANCE_RATIO).toBeGreaterThanOrEqual(TEST_MIN_LOOP_CLEARANCE_RATIO)
+  })
+
   test('opens a collapsed internal stem loop without moving paired residues or changing indices', () => {
     const d: R2dtDiagram = {
       seq: 'A'.repeat(10),
@@ -229,7 +235,7 @@ describe('withReadableStemLoops', () => {
       expect(out.y[r - 1]).toBe(d.y[r - 1])
     }
     expect(maxDeviationFromChord(out, 4, 7)).toBeGreaterThan(maxDeviationFromChord(d, 4, 7) + 0.7)
-    expect(minBoundedLoopStepRatio(out, [{ start: 1, end: 10 }])).toBeGreaterThan(R2DT_MIN_LOOP_CLEARANCE_RATIO)
+    expect(minBoundedLoopStepRatio(out, [{ start: 1, end: 10 }])).toBeGreaterThan(TEST_MIN_LOOP_CLEARANCE_RATIO)
   })
 
   test('opens the real T0185 Stem-I guardrail loop in both conformations', () => {
@@ -245,9 +251,9 @@ describe('withReadableStemLoops', () => {
     // opens it into a readable arc in both diagrams.
     expect(maxDeviationFromChord(atOut, 68, 69)).toBeGreaterThan(maxDeviationFromChord(at, 68, 69) + 0.25)
     expect(maxDeviationFromChord(termOut, 68, 69)).toBeGreaterThan(maxDeviationFromChord(term, 68, 69) + 0.25)
-    expect(minBoundedLoopStepRatio(atOut, stemSpans)).toBeGreaterThan(R2DT_MIN_LOOP_CLEARANCE_RATIO)
+    expect(minBoundedLoopStepRatio(atOut, stemSpans)).toBeGreaterThan(TEST_MIN_LOOP_CLEARANCE_RATIO)
     expect(minBoundedLoopStepRatio(termOut, stemSpans.filter((_, i) => member.stems[i].key !== 'at'))).toBeGreaterThan(
-      R2DT_MIN_LOOP_CLEARANCE_RATIO,
+      TEST_MIN_LOOP_CLEARANCE_RATIO,
     )
   })
 
@@ -287,7 +293,7 @@ describe('withReadableStemLoops', () => {
         expect(out.y.length, memberId).toBe(d.seq.length)
         expect([...out.x, ...out.y].every(Number.isFinite), memberId).toBe(true)
         const minLoop = minBoundedLoopStepRatio(out, spans)
-        if (Number.isFinite(minLoop)) expect(minLoop, memberId).toBeGreaterThan(R2DT_MIN_LOOP_CLEARANCE_RATIO)
+        if (Number.isFinite(minLoop)) expect(minLoop, memberId).toBeGreaterThan(TEST_MIN_LOOP_CLEARANCE_RATIO)
         checked += 1
       }
     }
