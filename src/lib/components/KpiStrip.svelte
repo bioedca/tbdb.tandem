@@ -11,7 +11,11 @@
 </script>
 
 {#if s}
-  <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+  <!-- The KPI strip reads as ONE instrument panel, not six floating cards: the cells sit on
+       the raised surface and are split only by the grid's 1px hairline gaps (`gap-px` over a
+       `bg-hairline` track). The `lg:grid-cols-6` grid is the visual-regression anchor. -->
+  <div class="overflow-hidden rounded-panel border border-hairline shadow-md">
+  <div class="grid grid-cols-2 gap-px bg-hairline sm:grid-cols-3 lg:grid-cols-6">
     <Kpi label="Loci" value={s.counts.loci} hint="tandem T-box loci" term="locus" />
     <Kpi label="Members" value={s.counts.members} hint="individual T-box elements" term="element" />
     <Kpi
@@ -39,5 +43,6 @@
       hint="loci outside Firmicutes"
       term="non_firmicutes"
     />
+  </div>
   </div>
 {/if}

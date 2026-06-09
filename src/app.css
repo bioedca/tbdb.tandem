@@ -45,24 +45,32 @@
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
 
-  /* Brand / UI accent (§8.2): ONE blue hue (~197°), chosen OUTSIDE the 20-AA
+  /* Brand / UI accent (§8.2): ONE deep-teal hue (~192°), chosen OUTSIDE the 20-AA
      specifier hue range — interactive affordances only (links, focus, primary,
-     active facet). A darkened relative of the #6096B4 palette blue: AA-safe as
-     text on white (5.7:1) and on the cream page (4.7:1), and white-on-brand. */
-  --color-brand: #2d6e87; /* deep palette blue — accent (AA text + fill safe) */
-  --color-brand-strong: #21566b; /* darker — hover / pressed */
-  --color-brand-subtle: #e9f1f5; /* soft blue tint */
-  --color-brand-on-dark: #93bfcf; /* light palette blue — brand mark/accents on the chrome bar */
+     active facet). An anodized teal: AA-safe as text on white (6.4:1), the cool page
+     (5.9:1), the inset surface (5.7:1), AND white-on-brand (6.4:1). Hue gap to the
+     nearest specifier (HIS ~221°) = 28.5°, well clear of the 20° floor. MIRRORS
+     tokens.ts `brand`; the chrome⟂data proof in color.ts gates it. */
+  --color-brand: #15677d; /* deep anodized teal — accent (AA text + fill safe) */
+  --color-brand-strong: #0e5364; /* darker teal — hover / pressed / visited */
+  --color-brand-subtle: #e4f1f4; /* soft teal tint — active-facet / info wells */
+  --color-brand-on-dark: #5ec2d6; /* light teal — brand mark/accents on the chrome bar */
 
-  /* Neutral base (§8.2): text, surfaces, hairlines (blue/cream palette family) */
-  --color-ink: #0f172a; /* slate-900 — strongest text */
-  --color-body: #334155; /* slate-700 — body text */
-  --color-muted: #556373; /* blue-slate — secondary text (AA on cream + white) */
-  --color-hairline: #c7d4dc; /* soft blue-grey */
-  --color-surface: #ffffff; /* cards / panels */
-  --color-surface-subtle: #eee9da; /* warm cream — page background */
-  --color-chrome: #234b5e; /* deep palette-blue header/footer bar */
-  --color-chrome-fg: #e7eff2; /* light text on the chrome bar */
+  /* Neutral base (§8.2): cool "instrument paper" greys (MIRRORS tokens.ts `neutral`).
+     Every value sits far below the 0.642 minimum specifier saturation, so the
+     chrome⟂data proof holds by saturation. The warm cream is retired for a cool,
+     premium near-white that lets the white cards read as lifted, calibrated panels. */
+  --color-ink: #0d1726; /* cool near-black — strongest text / headings / KPI numbers */
+  --color-body: #3a4656; /* cool slate — body text */
+  --color-muted: #5d6b7d; /* cool blue-slate — secondary text (AA ≥4.8:1 on every surface) */
+  --color-hairline: #dce2ea; /* cool blue-grey — 1px rules */
+  --color-hairline-strong: #cdd5e0; /* one step darker — structural / cell dividers */
+  --color-surface: #ffffff; /* cards / panels (the brightest layer) */
+  --color-surface-raised: #fafbfd; /* near-white raised tier — KPI metric row / inner wells */
+  --color-surface-subtle: #eef1f5; /* cool inset — zebra/header, hover, code wells */
+  --color-page: #f3f5f8; /* cool instrument paper — the page background */
+  --color-chrome: #11313d; /* deep anodized-teal header/footer bar */
+  --color-chrome-fg: #dbe7ec; /* light text on the chrome bar (10.9:1) */
 
   /* ── Type ramp (§8.3) — ONE monotonic hierarchy, mirrored in tokens.ts `type`.
      "body" is the base default (1rem/1.5rem, set in @layer base); there is
@@ -88,18 +96,21 @@
      ≈30px on a phone → 42px on a wide desktop: confident but calm, never shouty. */
   --text-hero: clamp(1.875rem, 1.3rem + 2.2vw, 2.625rem); /* ≈30px → 42px */
   --text-hero--line-height: 1.05;
-  --text-hero--font-weight: 700;
+  --text-hero--font-weight: 600; /* 600 (not 700) + tight tracking reads more refined at size */
+  --text-hero--letter-spacing: -0.011em;
   /* Data display — the big mono KPI / stat numbers. ≈26px → 34px; sits just below the
      hero so a headline figure reads as prominent data, never out-shouting the title. */
   --text-display: clamp(1.625rem, 1.35rem + 1.4vw, 2.125rem); /* ≈26px → 34px */
   --text-display--line-height: 1.05;
-  --text-display--font-weight: 700;
+  --text-display--font-weight: 600; /* the mono readout: 600 + tabular for a calibrated-meter feel */
+  --text-display--letter-spacing: -0.01em;
   /* Section / card title — the SINGLE heading tier for every panel & card header.
      Gently fluid ≈19px → 23px so it scales with the page yet stays clearly above the
      lead (≤19px) at all widths. Replaces the old fixed-20 `h2` + fluid-30 `card-title`. */
   --text-h2: clamp(1.1875rem, 1rem + 0.8vw, 1.4375rem); /* ≈19px → 23px */
   --text-h2--line-height: 1.25;
   --text-h2--font-weight: 600;
+  --text-h2--letter-spacing: -0.006em;
   /* Lead / standfirst — the intro paragraph under a page title. Gently fluid ≈17px → 19px;
      held to `max-w-measure` so the line length stays readable instead of running the band. */
   --text-lead: clamp(1.0625rem, 0.95rem + 0.5vw, 1.1875rem); /* ≈17px → 19px */
@@ -112,7 +123,17 @@
   /* Surfaces + radius scale (§8.4) — mirrored in tokens.ts `radius`. */
   --radius-sm: 0.375rem; /* chips, badges */
   --radius-md: 0.5rem; /* buttons, inputs */
-  --radius-panel: 0.75rem; /* cards / panels */
+  --radius-panel: 0.625rem; /* 10px — cards / panels (tightened from 12px: crisper, engineered) */
+
+  /* Elevation (§8.4) — cool-tinted, layered shadows (shadow color = ink rgba(13,23,38,…))
+     so a card reads as a calibrated panel lifted off the paper, not a flat blog card. A
+     tight contact shadow under a soft ambient one is what gives the "expensive" depth.
+     These OVERRIDE Tailwind's defaults, so `shadow-sm/md/lg` carry the instrument language. */
+  --shadow-sm: 0 1px 1px rgba(13, 23, 38, 0.04), 0 1px 2px rgba(13, 23, 38, 0.06);
+  --shadow-md:
+    0 1px 2px -1px rgba(13, 23, 38, 0.08), 0 4px 12px -2px rgba(13, 23, 38, 0.1),
+    inset 0 0 0 1px rgba(13, 23, 38, 0.03);
+  --shadow-lg: 0 2px 4px -2px rgba(13, 23, 38, 0.1), 0 12px 28px -6px rgba(13, 23, 38, 0.16);
 
   /* Motion (§8.4): one shared easing token. Durations apply via Tailwind's
      `duration-150` / `duration-200` utilities (= tokens.ts motion.fast / .base);
@@ -144,13 +165,23 @@
 /* ── Base layer (§8.4): page surface, default font, sensible focus ── */
 @layer base {
   html {
-    background-color: var(--color-surface-subtle);
+    background-color: var(--color-page);
     color: var(--color-body);
     font-family: var(--font-sans);
     font-size: 1rem; /* body ramp: 1rem / 1.5rem (mirrors tokens.ts type.body) */
     line-height: 1.5rem;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    font-optical-sizing: auto; /* let Inter pick its display cut at the hero/display tiers */
+  }
+
+  /* DATA register: every monospace context (KPI numbers, coords, bp gaps, AA codes,
+     sequences, axis ticks) gets tabular figures + the slashed zero, so digits column-
+     align like a real instrument readout. `.font-mono` is a utility (font-family only),
+     so adding these properties in @layer base never conflicts with it. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "zero" 1;
   }
 
   /* Visible, accessible focus on keyboard navigation (§8.5) — brand accent */
@@ -168,6 +199,42 @@
   h3 {
     text-wrap: balance;
   }
+}
+
+/* ── Page atmosphere (§8 "depth, not flat fills") — the app root is the cool
+   instrument paper, dressed with a near-invisible engineering dot-grid on a 22px
+   lattice plus ONE soft brand-teal top-light, so cards read as lifted panels and
+   the page reads as graph-paper, never noise. Cards/KPI tiles are opaque white and
+   mask the grid, so the texture lives only in the margins and gutters. Everything
+   here is STATIC (no animation), so prefers-reduced-motion is honored automatically;
+   it also drops out for print. ── */
+.tv-app {
+  background-color: var(--color-page);
+  background-image:
+    radial-gradient(rgba(13, 23, 38, 0.035) 1px, transparent 1px),
+    radial-gradient(120% 70% at 50% -10%, rgba(21, 103, 125, 0.06) 0%, transparent 60%);
+  background-size: 22px 22px, 100% 100%;
+  background-position: 0 0, 0 0;
+  background-attachment: fixed, fixed;
+}
+@media print {
+  .tv-app {
+    background-image: none;
+  }
+}
+/* Opt-out for dense panels that supply their own gridlines. */
+.tv-flat-bg {
+  background-image: none;
+}
+
+/* The chrome bar reads as machined anodized metal: a 1px brand inner sheen at the top
+   edge and a dark inner shadow at the bottom, over a subtle vertical gradient. Layered
+   on top of the `bg-chrome` token (the fallback solid). ── */
+.tv-chrome {
+  background: linear-gradient(180deg, #143a47 0%, var(--color-chrome) 100%);
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(94, 194, 214, 0.16);
 }
 
 /* ── Horizontal scroll regions (mobile nav, etc.) — keep them scrollable and

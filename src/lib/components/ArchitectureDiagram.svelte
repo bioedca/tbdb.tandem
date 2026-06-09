@@ -47,6 +47,7 @@
   const ORF_GAP = 26
   const TRACK_L = PAD_L
   const TRACK_R = W - PAD_R - ORF_ZONE
+  const BREAK_X = TRACK_R + ORF_GAP * 0.42 // schematic-break (//) glyph x, before the ORF zone
 
   // Vertical bands.
   const Y_AA = 18 // specifier-codon AA label baseline
@@ -128,7 +129,7 @@
 
   // Strand chevrons along the baseline — they point in the transcription direction,
   // which on this axis is always rightward (the axis IS biological 5′→3′).
-  const CHEVRONS = 6
+  const CHEVRONS = 3
   function chevronX(i: number): number {
     return TRACK_L + ((TRACK_R - TRACK_L) * (i + 0.5)) / CHEVRONS
   }
@@ -157,14 +158,14 @@
     role="img"
     aria-label="Tandem architecture: {model.elements.length} T-box elements, biological 5′ to 3′, {strand} strand; downstream {funcClass} gene or operon."
   >
-    <!-- Backbone -->
+    <!-- Transcript backbone: a single faint hairline baseline (the data axis) -->
     <line
       x1={TRACK_L}
       y1={Y_BODY_MID}
       x2={orf.x0 - 4}
       y2={Y_BODY_MID}
       stroke={neutral.hairline}
-      stroke-width="2"
+      stroke-width="1"
     />
 
     <!-- 5′ / 3′ end caps -->
@@ -212,10 +213,13 @@
           x2={x(sp.end)}
           y2={Y_BODY_MID}
           stroke={neutral.muted}
-          stroke-width="1.4"
+          stroke-width="1"
           stroke-dasharray="3 3"
           class="tv-arch-spacer"
         />
+        <!-- caliper end-ticks at each body edge -->
+        <line x1={x(sp.start)} y1={Y_BODY_MID - 3} x2={x(sp.start)} y2={Y_BODY_MID + 3} stroke={neutral.muted} stroke-width="1" />
+        <line x1={x(sp.end)} y1={Y_BODY_MID - 3} x2={x(sp.end)} y2={Y_BODY_MID + 3} stroke={neutral.muted} stroke-width="1" />
         <text x={(x(sp.start) + x(sp.end)) / 2} y={Y_GAP_LABEL} class="tv-arch-gap" text-anchor="middle">
           {sp.gap} bp
         </text>
@@ -239,6 +243,14 @@
         dims={glyphDims}
       />
     {/each}
+
+    <!-- Schematic break (//) — honestly flags that the downstream ORF is NOT to scale -->
+    <path
+      d="M {BREAK_X - 2} {Y_BODY_MID + 4} L {BREAK_X + 2} {Y_BODY_MID - 4} M {BREAK_X + 3} {Y_BODY_MID + 4} L {BREAK_X + 7} {Y_BODY_MID - 4}"
+      stroke={neutral.muted}
+      stroke-width="1.1"
+      stroke-linecap="round"
+    />
 
     <!-- Downstream-ORF block arrow (function-class tagged; schematic — no coords) -->
     <g class="tv-arch-orf" data-func={funcClass}>
@@ -267,7 +279,7 @@
   </svg>
   </div>
 
-  <figcaption class="mt-2 border-t border-hairline pt-2.5">
+  <figcaption class="mt-3 rounded-md border border-hairline bg-surface-subtle px-3 py-2.5">
     <ArchitectureLegend />
   </figcaption>
 </figure>

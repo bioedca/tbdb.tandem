@@ -20,21 +20,27 @@
  * `assertChromeDataDisjoint()`.
  */
 export const brand = {
-  accent: '#2d6e87', // deep palette blue — links / active facet / primary (AA: 5.7:1 white, 4.7:1 cream)
-  accentStrong: '#21566b', // darker — hover / pressed
-  accentSubtle: '#e9f1f5', // soft blue tint — backgrounds
-  onDark: '#93bfcf', // light palette blue — the brand mark/accents ON the deep-blue chrome bar
+  accent: '#15677d', // deep anodized teal (hue 192.7°, S 0.71) — links / active facet / primary.
+  //                    AA as text on white 6.4:1, page 5.9:1, inset 5.7:1; white-on-fill 6.4:1.
+  //                    Hue gap to the nearest specifier (HIS ~221°) = 28.5° — well clear of the 20° floor.
+  accentStrong: '#0e5364', // darker teal — hover / pressed / visited (7.4:1 on white)
+  accentSubtle: '#e4f1f4', // soft teal tint — active-facet / info-well backgrounds (hue ~191°)
+  onDark: '#5ec2d6', // light teal — the brand mark/accents ON the deep-teal chrome bar (6.6:1 on chrome)
 } as const
 
-/** Neutral base — text, surfaces, hairlines (blue/cream palette family). */
+/** Neutral base — cool "instrument paper" greys (PLAN §8.2). Every value is far below
+ *  the 0.642 minimum specifier saturation, so the chrome⟂data proof holds by saturation. */
 export const neutral = {
-  ink: '#0f172a', // slate-900 — strongest text
-  text: '#334155', // slate-700 — body text
-  muted: '#556373', // blue-slate — secondary / caption text (AA on cream + white)
-  hairline: '#c7d4dc', // soft blue-grey — 1px borders
-  surface: '#ffffff', //           — cards / panels
-  surfaceSubtle: '#eee9da', // warm cream — page background
-  chromeFg: '#e7eff2', // light — text on the deep-blue chrome bar
+  ink: '#0d1726', // cool near-black — strongest text / headings / KPI numbers (17.98:1 on white)
+  text: '#3a4656', // cool slate — body prose (9.6:1 on white)
+  muted: '#5d6b7d', // cool blue-slate — secondary / caption / axis text (AA on every surface: ≥4.8:1)
+  hairline: '#dce2ea', // cool blue-grey — 1px rules
+  hairlineStrong: '#cdd5e0', // one step darker — structural panel / cell dividers
+  surface: '#ffffff', //         — cards / panels (the brightest layer)
+  surfaceRaised: '#fafbfd', // near-white raised tier — KPI metric row / inner wells
+  surfaceSubtle: '#eef1f5', // cool inset — table zebra/header, hover, code wells (one step under the page)
+  page: '#f3f5f8', // cool instrument paper — the page background (replaces the warm cream)
+  chromeFg: '#dbe7ec', // light — text on the deep-teal chrome bar (10.9:1)
 } as const
 
 /**
@@ -70,7 +76,7 @@ export const fontFamily = {
 export const radius = {
   sm: '0.375rem', // 6px  — chips, badges
   md: '0.5rem', // 8px  — buttons, inputs
-  lg: '0.75rem', // 12px — cards / panels
+  lg: '0.625rem', // 10px — cards / panels (tightened from 12px — crisper, more engineered)
 } as const
 
 /**

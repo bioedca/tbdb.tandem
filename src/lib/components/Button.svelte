@@ -24,10 +24,11 @@
 
   const base =
     'inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-small font-medium ' +
-    'transition-colors duration-200 ease-standard disabled:cursor-not-allowed disabled:opacity-50'
+    'transition duration-200 ease-standard disabled:cursor-not-allowed disabled:opacity-50'
   const variants = {
-    primary: 'bg-brand text-white hover:bg-brand-strong',
-    ghost: 'border border-hairline bg-surface text-body hover:bg-surface-subtle',
+    primary: 'bg-brand text-white shadow-sm hover:bg-brand-strong hover:shadow-md',
+    ghost:
+      'border border-hairline bg-surface text-body hover:border-brand/40 hover:bg-brand-subtle hover:text-brand-strong',
   } as const
 </script>
 

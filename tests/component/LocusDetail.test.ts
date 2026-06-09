@@ -3,7 +3,7 @@
 // tbdb.io link only when a `unique_name`/`tbdb_url` is present. On real data all
 // 949 members have a `unique_name`, so the null branch is covered HERE, not live
 // (PROGRESS S1.5).
-import { fireEvent, render, screen } from '@testing-library/svelte'
+import { render, screen } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import LocusDetail from '../../src/routes/LocusDetail.svelte'
 import { store } from '../../src/lib/stores/filters.svelte'
@@ -81,21 +81,14 @@ describe('LocusDetail', () => {
     expect(deepLinks).toHaveLength(3)
   })
 
-  test('architecture view defaults to Accurate and can switch to Illustrated', async () => {
+  test('renders the single to-scale architecture figure (no view toggle)', () => {
     const { container } = render(LocusDetail, { props: { params: { id: 'TX' } } })
-    const accurate = screen.getByRole('tab', { name: 'Accurate' })
-    const illustrated = screen.getByRole('tab', { name: 'Illustrated' })
-
-    expect(accurate).toHaveAttribute('aria-selected', 'true')
-    expect(illustrated).toHaveAttribute('aria-selected', 'false')
+    // The architecture is one deterministic, to-scale figure — the illustrated/Layer
+    // Cake alternate and its Accurate/Illustrated tab switch were retired.
     expect(container.querySelector('figure.tv-arch')).toBeTruthy()
     expect(container.querySelector('figure.tv-arch-poster')).toBeNull()
-
-    await fireEvent.click(illustrated)
-    expect(accurate).toHaveAttribute('aria-selected', 'false')
-    expect(illustrated).toHaveAttribute('aria-selected', 'true')
-    expect(container.querySelector('figure.tv-arch')).toBeNull()
-    expect(container.querySelector('figure.tv-arch-poster')).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'Illustrated' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Accurate' })).toBeNull()
   })
 
   test('an unknown id renders the not-found state', () => {

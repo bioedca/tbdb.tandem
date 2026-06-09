@@ -24,27 +24,27 @@
   } = $props()
 </script>
 
-<!-- On a QHD band each of the six tiles is ~370px wide, so a 3-digit value + label would
-     float in the left third (§4.5). At `2xl` the content becomes a centered flex column so
-     value + label sit as a balanced block instead of a lonely figure. Below 2xl it is a
-     plain block (left-aligned, fitText shrink-to-fit intact) — so ≤1440 is unchanged. -->
+<!-- One cell of the unified KPI metric ROW: a borderless, LEFT-ALIGNED readout on the raised
+     surface, split from its neighbours by the parent grid's 1px hairline gaps (KpiStrip). The
+     channel-rule + label + value all hug the left edge at every width so the brand tick always
+     reads as a deliberate start-of-readout marker (never a stray floating pipe); the hairline
+     dividers — not centering — now carry the column structure. fitText shrink-to-fit intact. -->
 <div
-  class="rounded-panel border border-hairline bg-surface px-5 py-4 shadow-sm 2xl:flex 2xl:flex-col 2xl:items-center 2xl:px-6"
+  class="flex flex-col bg-surface-raised px-5 py-4 2xl:px-6"
 >
-  <div class="flex items-center gap-1 text-caption font-medium uppercase tracking-wide text-muted">
+  <div class="flex items-center gap-1.5 text-caption font-medium uppercase tracking-wide text-muted">
+    <span class="h-3 w-px shrink-0 bg-brand/60" aria-hidden="true"></span>
     <span>{label}</span>
     {#if term || tip}<InfoTip {term} {tip} {label} />{/if}
   </div>
   <!-- The value sits in the fluid `text-display` ramp; `fitText` then shrinks it
        reflow-free (pretext) only when a wide value would overflow its tile, so e.g.
-       "23,500" or "5 / 12" never clip in a narrow 2-column mobile tile. -->
-  <!-- `2xl:self-stretch 2xl:text-center`: in the 2xl centered flex column the value box
-       must still span the full tile width (self-stretch) so fitText measures the tile, not
-       the text — otherwise an unexpectedly wide value would skip the shrink-to-fit guard;
-       text-center keeps it visually centered. -->
+       "23,500" or "5 / 12" never clip in a narrow 2-column mobile tile. The flex column's
+       default `align-items: stretch` already gives this box the full cell width, so fitText
+       measures the cell (not the text) — no `self-stretch` needed once the cell is left-aligned. -->
   <div
     use:fitText={{ minPx: 16 }}
-    class="mt-1 overflow-hidden font-mono text-display leading-none whitespace-nowrap text-ink tabular-nums 2xl:self-stretch 2xl:text-center"
+    class="mt-1 overflow-hidden font-mono text-display leading-none whitespace-nowrap text-ink tabular-nums"
   >{value}</div>
   {#if hint}<div class="mt-1 text-small text-muted">{hint}</div>{/if}
 </div>

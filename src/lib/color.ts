@@ -421,6 +421,48 @@ export function featureShade(hex: string): string {
   return hslToHex(h, Math.min(1, s * 1.28 + 0.06), Math.max(0, l * 0.62))
 }
 
+// ── WCAG luminance / contrast (pure) — keeps DATA labels legible on their surface ──
+function channelLuminance(c8: number): number {
+  const c = c8 / 255
+  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+}
+
+/** WCAG relative luminance of a hex color (0 = black … 1 = white). */
+export function relativeLuminance(hex: string): number {
+  const { r, g, b } = hexToRgb(hex)
+  return 0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b)
+}
+
+/** WCAG contrast ratio between two hex colors (1 … 21). */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a)
+  const lb = relativeLuminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+/**
+ * The specifier color darkened just enough that the amino-acid CODE drawn in it clears
+ * WCAG AA (≥ 4.5:1) on a WHITE chip while keeping its hue, so the code still reads as
+ * its specifier (the architecture figure, PLAN §9①). Pure + deterministic: it starts
+ * from the {@link featureShade} (deeper, more-saturated, same hue) and steps lightness
+ * down in fixed increments until the contrast target is met (checked on the rounded
+ * 8-bit hex, so the rendered color is guaranteed). Several pale specifiers (GLY 2.70,
+ * VAL 2.82, ALA 4.09, MET 4.46 as a plain featureShade) fail 4.5:1, so this is the color
+ * used ONLY for the AA text + the Stem-I loop outline — NEVER for the body fill (which
+ * stays the raw specifier `aaColor`, the data-colour oracle the tests read).
+ */
+export function aaCodeColor(hex: string): string {
+  const { h, s, l } = hexToHsl(hex)
+  const sat = Math.min(1, s * 1.28 + 0.06) // match featureShade's saturation bump
+  let lit = Math.max(0, l * 0.62) // featureShade's lightness; darken further as needed
+  for (let i = 0; i < 60; i++) {
+    const cand = hslToHex(h, sat, lit)
+    if (contrastRatio(cand, '#ffffff') >= 4.6 || lit <= 0) return cand
+    lit = Math.max(0, lit - 0.015)
+  }
+  return hslToHex(h, sat, 0)
+}
+
 /** Smallest angular distance between two hues, in degrees [0,180]. */
 export function hueDistance(a: number, b: number): number {
   const d = Math.abs((a % 360) - (b % 360))
@@ -481,7 +523,7 @@ export const DDG_DOMAIN: readonly [number, number] = [-25, -5]
 /** ΔΔG diverging-ramp stops: blue (strong/very-negative) → neutral → red (weak/positive). */
 export const DDG_STOPS = {
   strong: '#2c6fb0', // blue — strongest switch (ΔΔG ≤ −25)
-  neutral: '#e6e3da', // warm light grey — mid (harmonizes with the cream surface)
+  neutral: '#e7ebf1', // cool light grey — mid (harmonizes with the cool instrument paper)
   weak: '#c0563b', // red — weakest / positive switch (ΔΔG ≥ −5)
 } as const
 
@@ -531,8 +573,11 @@ const CHROME_NEUTRALS: string[] = [
   neutral.text,
   neutral.muted,
   neutral.hairline,
+  neutral.hairlineStrong,
   neutral.surface,
+  neutral.surfaceRaised,
   neutral.surfaceSubtle,
+  neutral.page,
   // The muted func_class palette (S2.5) is chrome too — prove it disjoint from data
   // alongside the brand/neutral chrome, so a future edit can't drift a func_class
   // color up into specifier saturation without tripping the dev-time assertion.
