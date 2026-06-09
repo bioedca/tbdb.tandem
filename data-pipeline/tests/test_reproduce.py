@@ -15,8 +15,10 @@ REPRODUCIBILITY CAVEAT. The byte-for-byte guarantee is BioPython-version-
 sensitive: ``PairwiseAligner.align(a, b)[0]`` returns the FIRST of possibly
 several co-optimal global alignments, and gap placement shifts the identity
 denominator -- so a different BioPython can change ``identity.json`` /
-``summary.json`` bytes. The golden baseline was built with the versions pinned in
-``tests/requirements.txt`` (``biopython==1.85``, ``pandas==3.0.0``).
+``summary.json`` bytes. The golden baseline is validated under the versions
+pinned in ``tests/requirements.txt`` (``biopython==1.87``, ``pandas==3.0.3``);
+when those pins move, run this suite and regenerate ``tests/golden/`` only if
+the byte-for-byte check changes.
 ``test_determinism`` re-documents this.
 """
 from __future__ import annotations
