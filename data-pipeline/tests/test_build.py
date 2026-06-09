@@ -413,40 +413,31 @@ def test_members_carry_labelled_stems(built):
             assert 1 <= s["start"] <= s["end"] <= length
 
 
+def _downstream_member(id_, cls, source, ec=None, protein=None, desc=None):
+    return {"downstream": {
+        "id": id_,
+        "ec": ec,
+        "protein": protein,
+        "desc": desc,
+        "func_class": cls,
+        "func_source": source,
+    }}
+
+
 def test_locus_func_class_keeps_ec_tier_when_single_member_matches():
     # PLAN section 5.3: a single matched downstream_protein_id inherits the
     # member's class, preserving EC-backed provenance at locus level.
-    def down(id_, cls, source, ec=None, protein=None, desc=None):
-        return {"downstream": {
-            "id": id_,
-            "ec": ec,
-            "protein": protein,
-            "desc": desc,
-            "func_class": cls,
-            "func_source": source,
-        }}
-
     member_objs = [
-        down("prot|X", "aaRS", "EC", ec="6.1.1.3", protein="threonyl-tRNA synthetase"),
-        down("prot|Y", "unknown", "none"),
+        _downstream_member("prot|X", "aaRS", "EC", ec="6.1.1.3", protein="threonyl-tRNA synthetase"),
+        _downstream_member("prot|Y", "unknown", "none"),
     ]
     matched = pd.Series({"downstream_id": "prot|X", "downstream_gene": "isoleucine--tRNA ligase"})
     assert bj._locus_func_class(matched, member_objs) == ("aaRS", "EC")
 
 
 def test_locus_func_class_aggregates_multigene_operon_evidence():
-    def down(id_, cls, source, ec=None, protein=None, desc=None):
-        return {"downstream": {
-            "id": id_,
-            "ec": ec,
-            "protein": protein,
-            "desc": desc,
-            "func_class": cls,
-            "func_source": source,
-        }}
-
     member_objs = [
-        down(
+        _downstream_member(
             "prot|X",
             "biosynthesis",
             "EC",
@@ -454,7 +445,7 @@ def test_locus_func_class_aggregates_multigene_operon_evidence():
             protein="hypothetical protein",
             desc="Anthranilate synthase component 1 (EC 4.1.3.27)",
         ),
-        down("prot|Y", "unknown", "text", protein="hypothetical protein", desc="Uncharacterized protein"),
+        _downstream_member("prot|Y", "unknown", "text", protein="hypothetical protein", desc="Uncharacterized protein"),
     ]
     multi = pd.Series({"downstream_id": "prot|X;prot|Y", "downstream_gene": "hypothetical protein"})
     assert bj._locus_func_class(multi, member_objs) == ("biosynthesis", "EC")
@@ -512,12 +503,21 @@ def test_classify_func(ec, protein, desc, expected):
     assert bj.classify_func(ec, protein, desc) == expected
 
 
-def test_joined_ec_numbers_deduplicates_column_and_description():
+def test_joined_ec_numbers_extracts_and_deduplicates_fields():
     assert bj.joined_ec_numbers(
         "2.3.3.13",
         "2-isopropylmalate synthase",
         "2-isopropylmalate synthase (EC 2.3.3.13)",
     ) == "2.3.3.13"
+    assert bj.joined_ec_numbers(
+        "6.1.1.3",
+        "synthase (EC 2.3.3.13)",
+        "lyase family enzyme 4.2.1.20",
+    ) == "6.1.1.3;2.3.3.13;4.2.1.20"
+    assert bj.joined_ec_numbers(None, "kinase (EC 2.7.2.11)", None) == "2.7.2.11"
+    assert bj.joined_ec_numbers(None, None, None) is None
+    assert bj.joined_ec_numbers("", "", "") is None
+    assert bj.joined_ec_numbers(None, "enzymes 2.6.1.42 and 2.6.1.57", None) == "2.6.1.42;2.6.1.57"
 
 
 def test_classify_func_aars_precedes_transporter(built):

@@ -808,6 +808,8 @@ def _locus_func_class(tandem_row: pd.Series, member_objs: list[dict]) -> tuple[s
         down = matched[0]
         return down["func_class"], down["func_source"]
 
+    # If target_ids exist but matched is empty, evidence intentionally stays
+    # empty: trust downstream_gene text instead of unrelated member_objs downstream data.
     evidence = matched if matched or target_ids else [obj["downstream"] for obj in member_objs]
     ec_text = ";".join(dict.fromkeys(d["ec"] for d in evidence if d["ec"])) or None
     text = " | ".join(
