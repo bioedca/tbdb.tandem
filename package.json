@@ -21,7 +21,6 @@
     "@chenglou/pretext": "0.0.7",
     "d3": "^7.9.0",
     "fornac": "^1.1.0",
-    "layercake": "^10.0.2",
     "phylotree": "^2.0.0",
     "plotly.js-dist-min": "^3.0.0",
     "svelte-spa-router": "^5.0.0",

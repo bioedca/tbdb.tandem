@@ -12,8 +12,10 @@ import {
   STEM_LINKER_COLOR,
   TERMINATOR_COLOR,
   UNKNOWN_SPECIFIER_COLOR,
+  aaCodeColor,
   aaColor,
   assertChromeDataDisjoint,
+  contrastRatio,
   buildFullTerminatorColorMap,
   buildStemColorMap,
   featurePositions,
@@ -312,6 +314,25 @@ describe('buildStemColorMap feature overlay + featurePositionSet (PLAN §9)', ()
     expect([...set].sort((x, y) => x - y)).toEqual([4, 5, 6, 22, 23, 24, 25])
     expect(set.has(3)).toBe(false) // just outside the first loop
     expect(set.has(28)).toBe(false) // s1_loop residue on the 'at' stem → not ringed as Stem-I
+  })
+})
+
+describe('aaCodeColor (architecture figure AA-code legibility, PLAN §9①)', () => {
+  test('every specifier code — and the `?` grey — clears WCAG AA (4.5:1) on the white chip', () => {
+    for (const hex of [...Object.values(SPECIFIER_COLORS), UNKNOWN_SPECIFIER_COLOR]) {
+      expect(contrastRatio(aaCodeColor(hex), '#ffffff')).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  test('keeps the specifier hue family (only darkens, never re-hues)', () => {
+    for (const hex of Object.values(SPECIFIER_COLORS)) {
+      expect(hueDistance(hexToHsl(aaCodeColor(hex)).h, hexToHsl(hex).h)).toBeLessThan(5)
+    }
+  })
+
+  test('contrastRatio matches known WCAG values', () => {
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 0)
+    expect(contrastRatio('#ffffff', '#ffffff')).toBeCloseTo(1, 5)
   })
 })
 

@@ -4,48 +4,48 @@
 <ul class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-muted">
   <li class="inline-flex items-center gap-1.5">
     <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
-      <rect x="1.5" y="3" width="21" height="10" rx="2.5" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.4" />
-      <path d="M4 8 H20" stroke="currentColor" stroke-width="1" stroke-opacity="0.55" stroke-linecap="round" />
+      <rect x="1.5" y="3.5" width="21" height="9" rx="2" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.3" />
     </svg>
     <span>T-box element <span class="text-muted/80">(tinted by specifier amino acid)</span></span>
   </li>
   <li class="inline-flex items-center gap-1.5">
     <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
-      <rect x="4" y="5" width="14" height="6" rx="3" fill="currentColor" fill-opacity="0.3" stroke="currentColor" stroke-width="1" />
-      <path d="M6 6.5 L16 9.5" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" />
-      <path d="M9 6.6 L13 9.4" stroke="currentColor" stroke-width="0.75" stroke-linecap="round" />
+      <path d="M4 6 H20 M4 10 H20" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" />
+      <path d="M8 6 V10 M12 6 V10 M16 6 V10" stroke="currentColor" stroke-width="0.8" stroke-opacity="0.7" />
     </svg>
     <span>Stem I helix</span>
   </li>
   <li class="inline-flex items-center gap-1.5">
     <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
-      <line x1="9" y1="10" x2="9" y2="6" stroke="currentColor" stroke-width="1.3" />
-      <path d="M5 6 C5 1.5 13 1.5 15 6 C15.6 7.4 14.4 9.2 12.8 9.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+      <line x1="12" y1="13" x2="12" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+      <circle cx="12" cy="5" r="3" stroke="currentColor" stroke-width="1.4" />
     </svg>
     <span>Stem I loop</span>
   </li>
   <li class="inline-flex items-center gap-1.5">
     <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-ink" aria-hidden="true">
-      <line x1="12" y1="2" x2="12" y2="14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
+      <line x1="12" y1="2.5" x2="12" y2="13.5" stroke="currentColor" stroke-width="1.6" />
+      <line x1="9.5" y1="2.5" x2="14.5" y2="2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      <line x1="9.5" y1="13.5" x2="14.5" y2="13.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
     </svg>
     <span>specifier codon</span>
   </li>
   <li class="inline-flex items-center gap-1.5">
     <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="8" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2.5 2" />
+      <path d="M3 6 C7 12 17 12 21 6" stroke="currentColor" stroke-width="1.1" stroke-dasharray="2.2 1.8" stroke-linecap="round" />
     </svg>
     <span>antiterminator</span>
   </li>
   <li class="inline-flex items-center gap-1.5">
     <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-ink" fill="none" aria-hidden="true">
-      <path d="M7 15 C7 8 7.5 2 12 2 C16.5 2 17 8 17 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
-      <path d="M8 10 H16 M8.5 7 H15.5 M10 4.5 H14" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" />
+      <path d="M9 15 V6 A3 3 0 0 1 15 6 V15" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
+      <path d="M9 12 H15 M9 9.5 H15" stroke="currentColor" stroke-width="0.7" stroke-opacity="0.7" />
     </svg>
     <span>terminator</span>
   </li>
   <li class="inline-flex items-center gap-1.5">
-    <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
-      <path d="M12 5 l4 4 l-4 4 l-4 -4 z" fill="currentColor" />
+    <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
+      <circle cx="12" cy="8" r="2.5" stroke="currentColor" stroke-width="1" />
     </svg>
     <span>discriminator</span>
   </li>
@@ -63,7 +63,7 @@
   </li>
   <li class="inline-flex items-center gap-1.5">
     <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
-      <line x1="2" y1="8" x2="22" y2="8" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" />
+      <line x1="2" y1="8" x2="22" y2="8" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" />
     </svg>
     <span>spacer (bp gap)</span>
   </li>

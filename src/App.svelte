@@ -22,12 +22,12 @@
   })
 </script>
 
-<div class="tv-app flex min-h-screen flex-col bg-surface-subtle text-body">
-  <!-- Deep-blue chrome header (PLAN §8.2). The mark = two tandem T-box elements as two
-       OFFSET bars boxed into an ink tile (§8.1). The offset + the bounding tile are
-       deliberate: two equal centred bars read as a ≡ hamburger menu, so the mark is
-       staggered and lockup-bounded so it reads as a logo, not a menu control. -->
-  <header class="bg-chrome text-chrome-fg">
+<div class="tv-app flex min-h-screen flex-col text-body">
+  <!-- Deep-teal chrome header (PLAN §8.2), dressed as machined anodized metal via `.tv-chrome`.
+       The mark = two tandem T-box elements as two OFFSET bars boxed into an ink tile (§8.1).
+       The offset + the bounding tile are deliberate: two equal centred bars read as a ≡
+       hamburger menu, so the mark is staggered and lockup-bounded so it reads as a logo. -->
+  <header class="tv-chrome bg-chrome text-chrome-fg">
     <div
       class="mx-auto flex max-w-content flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2.5 sm:gap-x-6 sm:px-6 sm:py-3"
     >

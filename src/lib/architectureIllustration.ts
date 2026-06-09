@@ -1,20 +1,27 @@
-// Small SVG helper layer for the locus architecture illustration. D3-shape gives
-// the RNA glyphs smooth, reproducible curves while the Svelte components keep the
-// biology-specific pieces explicit and testable.
-import { curveBasis, line } from 'd3'
+// Deterministic SVG glyph geometry for the tandem-architecture figure (PLAN §9①).
+// Every value here is a pure function of width / x / fixed dims — NO randomness — so
+// the figure is byte-stable for the visual-regression baselines. The biology-specific
+// shapes (the Stem-I ladder, the terminator hairpin, the antiterminator alt-fold bulge)
+// are kept explicit and small so the figure reads as a clean engraved methods-paper
+// plate rather than a busy sketch.
 
 export interface Band {
   x: number
   w: number
 }
 
+/** Vertical band geometry shared by the diagram and its element glyphs (SVG units). */
 export interface ArchitectureGlyphDims {
+  /** AA-codon pill baseline. */
   yAa: number
+  /** Stem-I terminal-loop centre (above the body). */
   yLoop: number
+  /** Body (tbox rect) top / height / bottom / vertical mid. */
   yBodyT: number
   bodyH: number
   yBodyB: number
   yBodyMid: number
+  /** Stem-I loop radius. */
   loopR: number
 }
 
@@ -25,76 +32,69 @@ export interface Rung {
   y2: number
 }
 
-type Point = [number, number]
-
-const smoothLine = line<Point>()
-  .x((d) => d[0])
-  .y((d) => d[1])
-  .curve(curveBasis)
-
-export function smoothPath(points: Point[]): string {
-  return smoothLine(points) ?? ''
-}
-
-export function stemLoopPath(cx: number, cy: number, r: number): string {
-  const points: Point[] = []
-  // Leave a small lower-right notch so the loop reads as the annotated Stem I loop,
-  // not a generic circle.
-  const start = Math.PI
-  const end = Math.PI * 2.45
-  for (let i = 0; i <= 12; i++) {
-    const t = start + ((end - start) * i) / 12
-    points.push([cx + Math.cos(t) * r, cy + Math.sin(t) * r])
-  }
-  return smoothPath(points)
-}
-
-export function terminatorHairpinPath(cx: number, yBase: number): string {
-  const w = 10
-  return smoothPath([
-    [cx - w, yBase],
-    [cx - w, yBase - 11],
-    [cx - w * 0.95, yBase - 21],
-    [cx - w * 0.48, yBase - 29],
-    [cx, yBase - 31],
-    [cx + w * 0.48, yBase - 29],
-    [cx + w * 0.95, yBase - 21],
-    [cx + w, yBase - 11],
-    [cx + w, yBase],
-  ])
-}
-
-export function sequestratorPath(cx: number, yBase: number): string {
-  const w = 10
-  return smoothPath([
-    [cx - w, yBase],
-    [cx - w * 0.95, yBase - 8],
-    [cx - w * 0.45, yBase - 14],
-    [cx, yBase - 15],
-    [cx + w * 0.45, yBase - 14],
-    [cx + w * 0.95, yBase - 8],
-    [cx + w, yBase],
-  ])
-}
-
-export function stemRungs(band: Band, y1: number, y2: number): Rung[] {
-  if (band.w < 14) return []
-  const n = Math.min(6, Math.max(2, Math.floor(band.w / 18)))
-  const pad = Math.min(5, band.w / 5)
+/**
+ * Evenly-spaced base-pair rungs for a two-rail stem ladder spanning `band` between
+ * `yTop` and `yBot`. The rung COUNT is a deterministic function of width
+ * (`round(w / step)`, clamped) so the ladder reads as a duplex at every zoom without
+ * any randomness. Returns `[]` for a band too narrow to carry legible rungs.
+ */
+export function ladderRungs(band: Band, yTop: number, yBot: number, step = 8): Rung[] {
+  if (band.w < 11) return []
+  const pad = Math.min(4, band.w / 6)
+  const span = band.w - pad * 2
+  const n = Math.min(8, Math.max(2, Math.round(span / step)))
   return Array.from({ length: n }, (_, i) => {
-    const x = band.x + pad + ((band.w - pad * 2) * (i + 0.5)) / n
-    return { x1: x - 2.2, y1, x2: x + 2.2, y2 }
+    const x = band.x + pad + (span * (i + 0.5)) / n
+    return { x1: x, y1: yTop, x2: x, y2: yBot }
   })
 }
 
-export function hairpinRungs(cx: number, yBase: number): Rung[] {
-  return [0, 1, 2].map((i) => {
-    const y = yBase - 7 - i * 5.2
-    const half = 6.8 - i * 1.25
-    return { x1: cx - half, y1: y, x2: cx + half, y2: y }
-  })
+/** The two horizontal rails of a stem ladder (inset by `pad` from the band ends). */
+export function ladderRails(band: Band): { x0: number; x1: number } {
+  const pad = Math.min(4, band.w / 6)
+  return { x0: band.x + pad, x1: band.x + band.w - pad }
 }
 
-export function safeSvgId(raw: string, prefix: string): string {
-  return `${prefix}-${raw.replace(/[^A-Za-z0-9_-]/g, '-')}`
+/**
+ * A clean RNA stem-loop hairpin centred on `cx`, rising `height` units from `yBase`
+ * to a rounded loop of radius `halfWidth`. Returns the two antiparallel strand paths,
+ * the semicircular loop-cap path, and `nRungs` evenly-spaced base-pair rungs up the
+ * stem. Used for the Transcriptional terminator (tall, solid) and — shorter + dashed —
+ * the Translational anti-SD sequestrator, so the two conformations rhyme visually.
+ */
+export interface Hairpin {
+  strands: string
+  loop: string
+  rungs: Rung[]
+  apexY: number
+}
+
+export function hairpin(cx: number, yBase: number, height = 30, halfWidth = 6, nRungs = 3): Hairpin {
+  const apexY = yBase - height
+  const strandTopY = apexY + halfWidth // strands stop where the loop cap begins
+  const left = `M ${cx - halfWidth} ${yBase} L ${cx - halfWidth} ${strandTopY}`
+  const right = `M ${cx + halfWidth} ${yBase} L ${cx + halfWidth} ${strandTopY}`
+  // Loop cap: a half-ellipse arc joining the two strand tops over the apex.
+  const loop = `M ${cx - halfWidth} ${strandTopY} A ${halfWidth} ${halfWidth} 0 0 1 ${cx + halfWidth} ${strandTopY}`
+  const stemLen = strandTopY - (yBase - 3)
+  const rungs: Rung[] = Array.from({ length: nRungs }, (_, i) => {
+    const y = yBase - 3 + (stemLen * (i + 1)) / (nRungs + 1)
+    return { x1: cx - halfWidth + 1.3, y1: y, x2: cx + halfWidth - 1.3, y2: y }
+  })
+  return { strands: `${left} ${right}`, loop, rungs, apexY }
+}
+
+/**
+ * The antiterminator alternative fold, drawn as a low two-strand bulge hanging just
+ * below the body baseline across `band` (the "other conformation"). Two nested smooth
+ * arcs suggest the open helix without competing with the tinted body capsule above.
+ */
+export function bulge(band: Band, yBase: number, depth = 9): { outer: string; inner: string } {
+  const x0 = band.x + 2
+  const x1 = band.x + band.w - 2
+  const cx = (x0 + x1) / 2
+  const k = 0.45
+  const arc = (d: number) =>
+    `M ${x0} ${yBase} C ${x0 + (cx - x0) * k} ${yBase + d}, ${x1 - (x1 - cx) * k} ${yBase + d}, ${x1} ${yBase}`
+  return { outer: arc(depth), inner: arc(depth - 3) }
 }

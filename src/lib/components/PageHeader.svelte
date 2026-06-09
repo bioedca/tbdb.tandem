@@ -43,7 +43,9 @@
 
 <header>
   {#if kicker}
-    <p class="mb-1.5 text-caption font-semibold uppercase tracking-[0.14em] text-brand">
+    <!-- The page-category eyebrow: a quiet muted uppercase label (brand is reserved strictly
+         for interactive affordances, so a non-interactive kicker no longer borrows it). -->
+    <p class="mb-1.5 text-caption font-semibold uppercase tracking-[0.08em] text-muted">
       {kicker}
     </p>
   {/if}

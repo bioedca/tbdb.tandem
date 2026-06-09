@@ -24,10 +24,10 @@
 </script>
 
 <section
-  class="rounded-panel border border-hairline bg-surface shadow-sm {klass}"
+  class="rounded-panel border border-hairline bg-surface shadow-md {klass}"
 >
   {#if title || subtitle || actions}
-    <header class="flex items-start justify-between gap-4 border-b border-hairline px-4 py-3 sm:px-5">
+    <header class="flex items-start justify-between gap-4 border-b border-hairline px-5 py-3.5 sm:px-6">
       <div class="min-w-0">
         {#if title}<h2 class="{titleClass} text-ink">{title}</h2>{/if}
         <!-- Cap the subtitle at the shared reading measure so long explanatory lines
@@ -37,7 +37,7 @@
       {#if actions}<div class="shrink-0">{@render actions()}</div>{/if}
     </header>
   {/if}
-  <div class="px-4 py-4 sm:px-5">
+  <div class="px-5 py-5 sm:px-6">
     {@render children?.()}
   </div>
 </section>

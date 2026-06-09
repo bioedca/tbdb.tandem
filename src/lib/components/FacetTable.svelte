@@ -348,12 +348,12 @@
     border: none;
     background: var(--color-surface);
   }
-  /* Column-label row: a soft palette-blue highlight (brand-subtle) — NOT the cream
-     page background — so the header reads as part of the blue UI chrome and stands
-     clear of the white data rows. Ink text on brand-subtle stays AA-legible. */
+  /* Column-label row: the cool inset surface with a firmer divider below — a neutral
+     instrument-grid header that stands clear of the white data rows. (Header font-size
+     stays the table base 0.875rem so the `fitColumnHeaders` 14px measurement holds.) */
   :global(.tv-table .tabulator .tabulator-header) {
-    background: var(--color-brand-subtle);
-    border-bottom: 1px solid var(--color-hairline);
+    background: var(--color-surface-subtle);
+    border-bottom: 1px solid var(--color-hairline-strong);
     color: var(--color-ink);
     font-weight: 600;
   }
@@ -386,7 +386,7 @@
     }
   }
   :global(.tv-table .tabulator-row:hover) {
-    background: var(--color-surface-subtle);
+    background: var(--color-brand-subtle);
   }
   :global(.tv-table .tabulator-cell) {
     border-right: none;

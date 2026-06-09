@@ -24,14 +24,16 @@
   } = $props()
 </script>
 
-<!-- On a QHD band each of the six tiles is ~370px wide, so a 3-digit value + label would
-     float in the left third (§4.5). At `2xl` the content becomes a centered flex column so
-     value + label sit as a balanced block instead of a lonely figure. Below 2xl it is a
-     plain block (left-aligned, fitText shrink-to-fit intact) — so ≤1440 is unchanged. -->
+<!-- One cell of the unified KPI metric ROW: a borderless readout on the raised surface,
+     split from its neighbours by the parent grid's 1px hairline gaps (KpiStrip). On a QHD
+     band each cell is wide, so at `2xl` the content centers into a balanced block instead
+     of a lonely figure floating left (§4.5); below 2xl it is a left-aligned block with the
+     fitText shrink-to-fit intact — so ≤1440 is unchanged. -->
 <div
-  class="rounded-panel border border-hairline bg-surface px-5 py-4 shadow-sm 2xl:flex 2xl:flex-col 2xl:items-center 2xl:px-6"
+  class="flex flex-col bg-surface-raised px-5 py-4 2xl:items-center 2xl:px-6"
 >
-  <div class="flex items-center gap-1 text-caption font-medium uppercase tracking-wide text-muted">
+  <div class="flex items-center gap-1.5 text-caption font-medium uppercase tracking-wide text-muted">
+    <span class="h-3 w-px shrink-0 bg-brand/60" aria-hidden="true"></span>
     <span>{label}</span>
     {#if term || tip}<InfoTip {term} {tip} {label} />{/if}
   </div>
