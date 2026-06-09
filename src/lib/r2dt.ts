@@ -20,6 +20,13 @@ const termDiagramCache = new Map<string, Promise<R2dtDiagram | null>>()
 
 export const R2DT_MIN_LOOP_CLEARANCE_RATIO = 0.72
 
+// An internal loop's two unpaired strands must end up at least this many median steps apart
+// (centre-to-centre) for the display pass to open them as a coordinated pair; below it the
+// open wouldn't read as two separate strands, so the loop falls back to one-sided bulging.
+// Comfortably above the glyph touch distance (2 × the 0.44-spacing circle radius = 0.88), so
+// the opened strands never visually merge into one arch.
+export const R2DT_LOOP_STRAND_SEP_RATIO = 1.15
+
 /** Fetch the R2DT availability manifest once (cached). Resolves null if absent
  *  (e.g. diagrams not yet generated) so the UI degrades to fornac-only. Only a
  *  SUCCESSFUL result is cached — a null/error result clears the cache slot so a
@@ -207,6 +214,16 @@ function pairResidues(d: R2dtDiagram): Set<number> {
   return out
 }
 
+/** residue → its base-pair partner (both directions), for walking a helix's two strands. */
+function partnerMap(d: R2dtDiagram): Map<number, number> {
+  const out = new Map<number, number>()
+  for (const [a, b] of d.pairs) {
+    out.set(a, b)
+    out.set(b, a)
+  }
+  return out
+}
+
 function terminatorSpan(terminatorPairs: [number, number][]): { start: number; end: number } | null {
   if (!terminatorPairs.length) return null
   let start = Number.POSITIVE_INFINITY
@@ -273,10 +290,20 @@ export function withStemIToIISpacer(d: R2dtDiagram, stems: MemberStem[]): R2dtDi
 /**
  * Open enclosed unpaired runs inside the visible R2DT stems so loops and bulges
  * read as loops, not as tightly staggered clash-avoidance tracks. The committed
- * R2DT coordinates already avoid hard overlap, but some Stem-I template guardrails
- * are still visually cramped after the inter-stem spacer gives us room. This is a
- * display-only coordinate pass: paired residues, `seq`, and `pairs` stay untouched,
- * so all residue-indexed color/feature overlays remain aligned.
+ * R2DT coordinates already avoid hard overlap, but the template can pack an internal
+ * loop's two strands so close together that — at the fit-zoom, where the glyphs are
+ * drawn at full size — they blur into a single arch, reading as one continuous loop
+ * even though the residues across it are not base-paired.
+ *
+ * So an INTERNAL loop (an unpaired run on the 5′ strand with a matching unpaired run on
+ * the 3′ strand of the same helix) is opened as a COORDINATED pair: the two strands bow
+ * to opposite sides of the helix axis, separated by at least {@link R2DT_LOOP_STRAND_SEP_RATIO}
+ * median steps, so the opening reads as two distinct strands. Bulges, hairpin loops, and
+ * single-residue loops (one-sided) keep the original per-run outward bow, and an internal
+ * loop whose closing pairs are too cramped to separate falls back to that same bow.
+ *
+ * This is a display-only coordinate pass: paired residues, `seq`, and `pairs` stay
+ * untouched, so all residue-indexed color/feature overlays remain aligned.
  */
 export function withReadableStemLoops(d: R2dtDiagram, spans: { start: number; end: number }[]): R2dtDiagram {
   const n = d.seq.length
@@ -285,12 +312,17 @@ export function withReadableStemLoops(d: R2dtDiagram, spans: { start: number; en
   if (!Number.isFinite(spacing) || spacing <= 0) return d
 
   const paired = pairResidues(d)
+  const partner = partnerMap(d)
   const x = d.x.slice()
   const y = d.y.slice()
   const cx = x.reduce((sum, v) => sum + v, 0) / n
   const cy = y.reduce((sum, v) => sum + v, 0) / n
   let changed = false
 
+  // Every enclosed unpaired run (flanked by a paired residue on both sides), in 5′→3′ order,
+  // so an internal loop's 5′ strand is always reached before its 3′ strand.
+  type Run = { s: number; e: number; lo: number; hi: number }
+  const runs: Run[] = []
   for (const span of spans) {
     const lo = Math.max(1, Math.min(span.start, span.end, n))
     const hi = Math.max(lo, Math.min(Math.max(span.start, span.end), n))
@@ -304,40 +336,108 @@ export function withReadableStemLoops(d: R2dtDiagram, spans: { start: number; en
       while (j <= hi && !paired.has(j)) j += 1
       const s = i
       const e = j - 1
-      const k = e - s + 1
-      const left = s - 1
-      const right = e + 1
-      if (k >= 1 && left >= lo && right <= hi && paired.has(left) && paired.has(right)) {
-        const obs: [number, number][] = []
-        for (let r = 1; r <= n; r++) {
-          if (r < s || r > e) obs.push([x[r - 1], y[r - 1]])
-        }
-        const candidates = ([1, -1] as const)
-          .map((side) => {
-            const pts = arcPoints(x[left - 1], y[left - 1], x[right - 1], y[right - 1], k, spacing, side)
-            if (!pts) return null
-            const bx = pts.reduce((sum, p) => sum + p[0], 0) / k
-            const by = pts.reduce((sum, p) => sum + p[1], 0) / k
-            return {
-              pts,
-              clearance: minClearance(pts, obs),
-              outward: Math.hypot(bx - cx, by - cy),
-            }
-          })
-          .filter((c): c is { pts: [number, number][]; clearance: number; outward: number } => !!c)
-          .sort((a, b) => b.clearance - a.clearance || b.outward - a.outward)
-        const best = candidates[0]
-        if (best && best.clearance >= R2DT_MIN_LOOP_CLEARANCE_RATIO * spacing) {
-          for (let r = s; r <= e; r++) {
-            const [nx, ny] = best.pts[r - s]
-            if (Math.abs(x[r - 1] - nx) > 1e-6 || Math.abs(y[r - 1] - ny) > 1e-6) changed = true
-            x[r - 1] = nx
-            y[r - 1] = ny
-          }
-        }
+      if (s - 1 >= lo && e + 1 <= hi && paired.has(s - 1) && paired.has(e + 1)) {
+        runs.push({ s, e, lo, hi })
       }
       i = j
     }
+  }
+
+  // The matching 3′ strand of an internal loop: the unpaired stretch between the partners of
+  // the run's two closing pairs. Empty (a bulge), interrupted by a pair (a multibranch /
+  // pseudoknotted junction), or not strictly downstream → null, and the run opens one-sided.
+  const matchingThree = (s: number, e: number): { ts: number; te: number } | null => {
+    const pLeft = partner.get(s - 1)
+    const pRight = partner.get(e + 1)
+    if (pLeft === undefined || pRight === undefined || pRight >= pLeft) return null
+    const ts = pRight + 1
+    const te = pLeft - 1
+    if (ts <= e + 1 || te < ts) return null
+    for (let r = ts; r <= te; r++) if (paired.has(r)) return null
+    return { ts, te }
+  }
+
+  // Obstacle field for a clearance test: every residue NOT in `members`, as [x, y] pairs.
+  const obstaclesExcluding = (members: Set<number>): [number, number][] => {
+    const obs: [number, number][] = []
+    for (let r = 1; r <= n; r++) if (!members.has(r)) obs.push([x[r - 1], y[r - 1]])
+    return obs
+  }
+
+  // Write an arc's points onto residues [s, e].
+  const place = (s: number, e: number, pts: [number, number][]): void => {
+    for (let r = s; r <= e; r++) {
+      const [nx, ny] = pts[r - s]
+      if (Math.abs(x[r - 1] - nx) > 1e-6 || Math.abs(y[r - 1] - ny) > 1e-6) changed = true
+      x[r - 1] = nx
+      y[r - 1] = ny
+    }
+  }
+
+  // One-sided bow (the original behaviour): pick the side with the most clearance, then the
+  // most outward bow, and apply only if it clears the loop-clearance floor. Used for bulges,
+  // hairpin/terminal loops, single-residue loops, and the internal-loop fallback.
+  const openOneSided = (run: Run): void => {
+    const { s, e } = run
+    const k = e - s + 1
+    const members = new Set<number>()
+    for (let r = s; r <= e; r++) members.add(r)
+    const obs = obstaclesExcluding(members)
+    let best: { pts: [number, number][]; clearance: number; outward: number } | null = null
+    for (const side of [1, -1] as const) {
+      const pts = arcPoints(x[s - 2], y[s - 2], x[e], y[e], k, spacing, side)
+      if (!pts) continue
+      const bx = pts.reduce((sum, p) => sum + p[0], 0) / k
+      const by = pts.reduce((sum, p) => sum + p[1], 0) / k
+      const cand = { pts, clearance: minClearance(pts, obs), outward: Math.hypot(bx - cx, by - cy) }
+      if (!best || cand.clearance > best.clearance || (cand.clearance === best.clearance && cand.outward > best.outward)) {
+        best = cand
+      }
+    }
+    if (best && best.clearance >= R2DT_MIN_LOOP_CLEARANCE_RATIO * spacing) place(s, e, best.pts)
+  }
+
+  const handled = new Set<number>() // run start indices already opened as an internal-loop strand
+  for (const run of runs) {
+    if (handled.has(run.s)) continue
+    const three = matchingThree(run.s, run.e)
+    if (three) {
+      const { ts, te } = three
+      const members = new Set<number>()
+      for (let r = run.s; r <= run.e; r++) members.add(r)
+      for (let r = ts; r <= te; r++) members.add(r)
+      const obs = obstaclesExcluding(members)
+      // Try both side assignments; keep the one that best separates the strands while staying
+      // clear of the rest of the structure.
+      let best: { pts5: [number, number][]; pts3: [number, number][]; clearance: number; separation: number } | null = null
+      for (const side5 of [1, -1] as const) {
+        const pts5 = arcPoints(x[run.s - 2], y[run.s - 2], x[run.e], y[run.e], run.e - run.s + 1, spacing, side5)
+        if (!pts5) continue
+        for (const side3 of [1, -1] as const) {
+          const pts3 = arcPoints(x[ts - 2], y[ts - 2], x[te], y[te], te - ts + 1, spacing, side3)
+          if (!pts3) continue
+          const separation = minClearance(pts5, pts3)
+          const clearance = Math.min(minClearance(pts5, obs), minClearance(pts3, obs))
+          const key = Math.min(clearance, separation)
+          if (!best || key > Math.min(best.clearance, best.separation) ||
+              (key === Math.min(best.clearance, best.separation) && separation > best.separation)) {
+            best = { pts5, pts3, clearance, separation }
+          }
+        }
+      }
+      if (
+        best &&
+        best.clearance >= R2DT_MIN_LOOP_CLEARANCE_RATIO * spacing &&
+        best.separation >= R2DT_LOOP_STRAND_SEP_RATIO * spacing
+      ) {
+        place(run.s, run.e, best.pts5)
+        place(ts, te, best.pts3)
+        handled.add(run.s)
+        handled.add(ts)
+        continue
+      }
+    }
+    openOneSided(run)
   }
 
   return changed ? { ...d, x, y } : d
