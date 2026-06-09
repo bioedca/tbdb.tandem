@@ -9,6 +9,7 @@
   // facts, §3.1); the live selection count lives in the table toolbar.
   import { link } from 'svelte-spa-router'
   import KpiStrip from '../lib/components/KpiStrip.svelte'
+  import TripleLociPanel from '../lib/components/TripleLociPanel.svelte'
   import SpecificityChart from '../lib/components/SpecificityChart.svelte'
   import OperonBreakdown from '../lib/components/OperonBreakdown.svelte'
   import PhyloTree from '../lib/components/PhyloTree.svelte'
@@ -44,6 +45,8 @@
   </PageHeader>
 
   <KpiStrip />
+
+  <TripleLociPanel />
 
   <SpecificityChart />
 

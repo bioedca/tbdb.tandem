@@ -365,7 +365,7 @@ python3 reproduce_tandem_tbox_db.py \
           Each leader is structurally aligned to the RF00230 T-box covariance model (Infernal {@render code(
             'cmalign',
           )}), and the tree is built from the Stem&nbsp;I consensus columns only. Stem&nbsp;I is the
-          conserved, alignable core the model captures, and it carries the specifier that pairs the cognate
+          conserved, alignable region the model captures, and it carries the specifier that pairs the cognate
           tRNA, so it is the standard region for comparing T-boxes across the family.
         </li>
         <li>
@@ -381,7 +381,7 @@ python3 reproduce_tandem_tbox_db.py \
         </li>
         <li>
           Elements that pass a Stem I length-gate form the main tree; degenerate fragments and the few
-          elements lacking a Stem I route to a separate antiterminator-core fallback tree.
+          elements lacking a Stem I route to a separate antiterminator fallback tree.
         </li>
       </ul>
       <p class="text-small text-muted">

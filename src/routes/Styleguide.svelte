@@ -236,7 +236,7 @@
               <span class="size-3 rounded-sm ring-1 ring-ink/10" style:background={swatchBackground(l.specifier_aa)} aria-hidden="true"></span>
               <span class="font-mono text-ink">{l.specifier_aa ?? '?'}</span>
             </span>
-            <span class="text-muted">· {l.same_specifier ? 'same' : 'mixed'} · {l.strand} strand · {l.n_cores} cores · {l.type}</span>
+            <span class="text-muted">· {l.same_specifier ? 'same' : 'mixed'} · {l.strand} strand · {l.n_cores} elements · {l.type}</span>
           </div>
           <ArchitectureDiagram
             members={c.members}

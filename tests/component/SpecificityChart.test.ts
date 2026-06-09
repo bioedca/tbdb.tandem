@@ -1,8 +1,8 @@
 // Component: SpecificityChart (PLAN §10.3, §9②). jsdom has no SVG layout, so the
 // dynamically-imported Plotly is mocked (per PROGRESS S1.5): the fake records the
 // `react` calls and captures the `plotly_click` handlers the component attaches,
-// so we can assert it mounts, renders the triple-core list, and that a bar / cell
-// click cross-filters the shared store.
+// so we can assert it mounts every Plotly view and that a bar / cell click
+// cross-filters the shared store.
 import { render, screen, waitFor } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -56,16 +56,12 @@ beforeEach(() => {
 afterEach(resetStore)
 
 describe('SpecificityChart', () => {
-  test('mounts all specificity Plotly views and renders the triple-core section', async () => {
+  test('mounts all specificity Plotly views', async () => {
     render(SpecificityChart)
     await waitFor(() => expect(mock.reactCalls.length).toBeGreaterThanOrEqual(3))
     expect(mock.reactCalls.some((c) => c.trace === 'bar')).toBe(true)
     expect(mock.reactCalls.some((c) => c.trace === 'matrix')).toBe(true)
     expect(mock.reactCalls.some((c) => c.trace === 'phylum')).toBe(true)
-    // the single fixture triple (T0005) is surfaced as a button, not a 2D cell.
-    expect(screen.getByText('T0005')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Triple-core loci' })).toBeInTheDocument()
-    expect(screen.getByText(/3 elements each/)).toBeInTheDocument()
     expect(screen.getByText(/Specifier × phylum/)).toBeInTheDocument()
   })
 

@@ -8,16 +8,19 @@
   // labelled with its bp gap; and a function-class-tagged downstream-ORF block arrow.
   // Mixed loci read two-tone because each body is tinted by ITS OWN specifier (§9①).
   //
-  // Per §7.1 this is "D3 + hand-rolled SVG": D3 supplies ONLY the linear position
-  // scale; every glyph is plain SVG in this template. A fixed viewBox keeps the
-  // render deterministic for the S3.4 visual-regression baselines. The geometry is
-  // the pure, unit-tested model in `architecture.ts`.
+  // D3 supplies the linear position scale and smooth path interpolation; the
+  // biology-specific shapes live in small Svelte SVG components so the figure reads
+  // more like a scientific illustration without moving any data geometry. A fixed
+  // viewBox keeps the render deterministic for the visual-regression baselines.
   import { scaleLinear } from 'd3'
   import type { FuncClass, FuncSource, Member, Strand } from '../data/types'
   import { aaColor, FUNC_CLASS_SHADE } from '../color'
   import { fontFamily, neutral } from '../design/tokens'
   import { truncateToWidth } from '../text/measure'
   import { buildArchitecture, type ElementLayout, type FeatureBox } from '../architecture'
+  import type { ArchitectureGlyphDims, Band } from '../architectureIllustration'
+  import ArchitectureElementGlyph from './architecture/ArchitectureElementGlyph.svelte'
+  import ArchitectureLegend from './architecture/ArchitectureLegend.svelte'
 
   let {
     members,
@@ -67,8 +70,18 @@
       .clamp(true),
   )
 
+  const glyphDims: ArchitectureGlyphDims = {
+    yAa: Y_AA,
+    yLoop: Y_LOOP,
+    yBodyT: Y_BODY_T,
+    bodyH: BODY_H,
+    yBodyB: Y_BODY_B,
+    yBodyMid: Y_BODY_MID,
+    loopR: LOOP_R,
+  }
+
   /** Pixel `{x, w}` of a feature box (min width so tiny features stay visible). */
-  function band(box: FeatureBox, min = MIN_W): { x: number; w: number } {
+  function band(box: FeatureBox, min = MIN_W): Band {
     const a = x(box.start)
     const b = x(box.end)
     return { x: a, w: Math.max(b - a, min) }
@@ -83,13 +96,6 @@
     const a = x(el.bodyStart)
     const b = x(el.bodyEnd)
     return { x: a, w: Math.max(b - a, 4) }
-  }
-
-  /** A terminator hairpin (∩) path centred at `cx`, apex above the body. */
-  function hairpinPath(cx: number): string {
-    const w = 7
-    const apex = Y_BODY_T - 22
-    return `M ${cx - w} ${Y_BODY_T} L ${cx - w} ${apex + w} A ${w} ${w} 0 0 1 ${cx + w} ${apex + w} L ${cx + w} ${Y_BODY_T}`
   }
 
   /** A small downstream-ORF block arrow (rightward = 5′→3′) in the schematic zone. */
@@ -137,12 +143,6 @@
   })
   const scaleW = $derived(x(scaleBp) - x(0))
 
-  // Per-element position tag: a plain element number (1…n in 5′→3′ order). The
-  // global 5′/3′ end-caps mark the leader ends, so the under-body tags are numbers
-  // only — no 5′/3′ overload (the legend states the numbering).
-  function ordinalTag(ordinal: number): string {
-    return String(ordinal)
-  }
 </script>
 
 <figure class="tv-arch w-full">
@@ -226,130 +226,18 @@
     {#each model.elements as el (el.member.member_id)}
       {@const tint = aaColor(el.aa)}
       {@const body = bodyRect(el)}
-      <g class="tv-arch-element" data-ordinal={el.ordinal} data-aa={el.aa ?? '?'}>
-        <!-- Element body (the T-box), tinted by its OWN specifier -->
-        <rect
-          class="tv-arch-body"
-          x={body.x}
-          y={Y_BODY_T}
-          width={body.w}
-          height={BODY_H}
-          rx="4"
-          fill={tint}
-          fill-opacity="0.16"
-          stroke={tint}
-          stroke-width="1.6"
-        />
-
-        <!-- Stem-I stem band -->
-        {#if el.features.s1}
-          {@const s1 = band(el.features.s1)}
-          <rect
-            class="tv-arch-feature tv-arch-stem1"
-            data-feature="s1"
-            x={s1.x}
-            y={Y_BODY_T + 4}
-            width={s1.w}
-            height="9"
-            rx="3"
-            fill={tint}
-            fill-opacity="0.5"
-            stroke={tint}
-            stroke-width="0.8"
-          />
-        {/if}
-
-        <!-- Stem-I terminal loop (loop notched) — guarded independently of the stem
-             band so a loop-only member (valid s1_loop, s1 absent) still draws it. -->
-        {#if el.features.s1_loop}
-          {@const lx = centre(el.features.s1_loop)}
-          <g class="tv-arch-feature tv-arch-stem1-loop" data-feature="s1_loop">
-            <line x1={lx} y1={Y_BODY_T + 4} x2={lx} y2={Y_LOOP + LOOP_R} stroke={tint} stroke-width="1.2" />
-            <!-- loop with a notch (gap in the arc) -->
-            <path
-              d="M {lx - LOOP_R} {Y_LOOP} A {LOOP_R} {LOOP_R} 0 1 1 {lx + LOOP_R * 0.5} {Y_LOOP + LOOP_R * 0.87}"
-              fill="none"
-              stroke={tint}
-              stroke-width="1.4"
-            />
-          </g>
-        {/if}
-
-        <!-- Antiterminator: outline only -->
-        {#if el.features.antiterm}
-          {@const at = band(el.features.antiterm)}
-          <rect
-            class="tv-arch-feature tv-arch-antiterm"
-            data-feature="antiterm"
-            x={at.x}
-            y={Y_BODY_MID + 2}
-            width={at.w}
-            height={Y_BODY_B - (Y_BODY_MID + 2) - 2}
-            rx="2"
-            fill="none"
-            stroke={neutral.muted}
-            stroke-width="1.2"
-            stroke-dasharray="2 1.6"
-          />
-        {/if}
-
-        <!-- Terminator hairpin (Transcriptional) / anti-SD sequestrator (Translational) -->
-        {#if el.features.term}
-          {@const tcx = centre(el.features.term)}
-          {#if el.member.type === 'Translational'}
-            <g class="tv-arch-feature tv-arch-term tv-arch-term-sd" data-feature="term">
-              <title
-                >Translational element: the sequestrator hairpin occludes the Shine–Dalgarno
-                ribosome-binding site (SD/RBS) when the cognate tRNA is charged, blocking translation
-                initiation. Drawn schematically: no SD coordinate is stored.</title
-              >
-              <path
-                d="M {tcx - 7} {Y_BODY_T - 4} q 0 -8 7 -8 q 7 0 7 8"
-                fill="none"
-                stroke={neutral.ink}
-                stroke-width="1.3"
-                stroke-dasharray="2 1.5"
-              />
-              <text x={tcx} y={Y_BODY_T - 16} class="tv-arch-sd-label" text-anchor="middle">SD/RBS</text>
-            </g>
-          {:else}
-            <path
-              class="tv-arch-feature tv-arch-term tv-arch-term-hairpin"
-              data-feature="term"
-              d={hairpinPath(tcx)}
-              fill="none"
-              stroke={neutral.ink}
-              stroke-width="1.5"
-              stroke-linejoin="round"
-            />
-          {/if}
-        {/if}
-
-        <!-- Discriminator: small diamond at the body baseline -->
-        {#if el.features.discrim}
-          {@const dcx = centre(el.features.discrim)}
-          <path
-            class="tv-arch-feature tv-arch-discrim"
-            data-feature="discrim"
-            d="M {dcx} {Y_BODY_B - 4} l 3 3 l -3 3 l -3 -3 z"
-            fill={neutral.muted}
-          />
-        {/if}
-
-        <!-- Specifier codon: bold tick through the body + AA code above -->
-        {#if el.features.codon}
-          {@const ccx = centre(el.features.codon)}
-          <g class="tv-arch-feature tv-arch-codon" data-feature="codon">
-            <line x1={ccx} y1={Y_BODY_T - 2} x2={ccx} y2={Y_BODY_B + 2} stroke={neutral.ink} stroke-width="2.4" />
-            <text x={ccx} y={Y_AA} class="tv-arch-aa" text-anchor="middle" fill={tint}>{el.aa ?? '?'}</text>
-          </g>
-        {/if}
-
-        <!-- Ordinal tag under the body -->
-        <text x={(body.x + body.x + body.w) / 2} y={Y_BODY_B + 14} class="tv-arch-ord" text-anchor="middle">
-          {ordinalTag(el.ordinal)}
-        </text>
-      </g>
+      <ArchitectureElementGlyph
+        {el}
+        {tint}
+        {body}
+        s1={el.features.s1 ? band(el.features.s1) : null}
+        s1LoopX={el.features.s1_loop ? centre(el.features.s1_loop) : null}
+        antiterm={el.features.antiterm ? band(el.features.antiterm) : null}
+        termX={el.features.term ? centre(el.features.term) : null}
+        discrimX={el.features.discrim ? centre(el.features.discrim) : null}
+        codonX={el.features.codon ? centre(el.features.codon) : null}
+        dims={glyphDims}
+      />
     {/each}
 
     <!-- Downstream-ORF block arrow (function-class tagged; schematic — no coords) -->
@@ -380,85 +268,13 @@
   </div>
 
   <figcaption class="mt-2 border-t border-hairline pt-2.5">
-    <span class="sr-only">
-      Tandem T-box architecture, {strand} strand, drawn biological 5′ to 3′ to scale. Legend follows.
-    </span>
-    <ul class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-muted">
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
-          <rect x="1.5" y="3" width="21" height="10" rx="2.5" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.4" />
-        </svg>
-        <span>T-box element <span class="text-muted/80">(tinted by specifier amino acid)</span></span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
-          <rect x="4" y="6" width="12" height="4" rx="1.5" fill="currentColor" fill-opacity="0.55" />
-        </svg>
-        <span>Stem I</span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
-          <line x1="9" y1="10" x2="9" y2="6" stroke="currentColor" stroke-width="1.3" />
-          <path d="M5 6 A4 4 0 1 1 10.5 9" fill="none" stroke="currentColor" stroke-width="1.4" />
-        </svg>
-        <span>Stem-I loop</span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-ink" aria-hidden="true">
-          <line x1="12" y1="2" x2="12" y2="14" stroke="currentColor" stroke-width="2.4" />
-        </svg>
-        <span>specifier codon</span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
-          <rect x="3" y="4" width="18" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2.5 2" />
-        </svg>
-        <span>antiterminator</span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-ink" fill="none" aria-hidden="true">
-          <path d="M7 15 L7 6 A5 5 0 0 1 17 6 L17 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-        </svg>
-        <span>terminator</span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
-          <path d="M12 5 l4 4 l-4 4 l-4 -4 z" fill="currentColor" />
-        </svg>
-        <span>discriminator</span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
-          <path d="M2 4 H16 L22 8 L16 12 H2 Z" fill="currentColor" fill-opacity="0.6" />
-        </svg>
-        <span>downstream gene / operon</span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" fill="none" aria-hidden="true">
-          <path d="M9 4 L14 8 L9 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span>transcription 5′→3′</span>
-      </li>
-      <li class="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 24 16" class="h-4 w-6 shrink-0 text-muted" aria-hidden="true">
-          <line x1="2" y1="8" x2="22" y2="8" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" />
-        </svg>
-        <span>spacer (bp gap)</span>
-      </li>
-      <li class="text-muted/90">Elements numbered 1…n in 5′→3′ order; 5′ / 3′ mark the leader ends.</li>
-    </ul>
+    <ArchitectureLegend />
   </figcaption>
 </figure>
 
 <style>
   /* Text glyphs read tokens via classes; sizes are SVG-unit absolutes (the viewBox
      is fixed) so they scale with the diagram. Colors come from @theme tokens. */
-  .tv-arch-aa {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 700;
-  }
-  .tv-arch-ord,
   .tv-arch-end {
     font-family: var(--font-mono);
     font-size: 10px;
@@ -469,8 +285,7 @@
     fill: var(--color-body);
   }
   .tv-arch-gap,
-  .tv-arch-scale-label,
-  .tv-arch-sd-label {
+  .tv-arch-scale-label {
     font-family: var(--font-mono);
     font-size: 9px;
     fill: var(--color-muted);

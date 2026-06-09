@@ -7,7 +7,7 @@
   // specifier hue, so the §8.2 chrome⟂data invariant holds; specifier colour stays
   // on the swatch. The 44 collapse-recovered loci share one leader window, so their
   // leader %-identity saturates at 100 (PROGRESS S0.5) — flagged here, not silently
-  // shown as core-vs-core divergence.
+  // shown as element-vs-element divergence.
   import type { IdentityPair, Member } from '../data/types'
   import { aaColor } from '../color'
   import { sharesLeader } from '../architecture'
@@ -160,7 +160,7 @@
             </div>
             <span class="font-mono text-caption text-ink tabular-nums">{r.identity.toFixed(1)}%</span>
             {#if r.sharedLeader && r.identity >= 100}
-              <span class="text-caption text-muted" title="Both cores lie in one leader window (collapse-recovered locus), so the leader sequences are identical; this does not measure core-vs-core divergence.">
+              <span class="text-caption text-muted" title="Both elements lie in one leader window (collapse-recovered locus), so the leader sequences are identical; this does not measure element-vs-element divergence.">
                 ⓘ identical leader window
               </span>
             {/if}

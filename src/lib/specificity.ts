@@ -1,6 +1,6 @@
 // Specificity overview models (PLAN §9②) — pure, framework-agnostic logic behind
 // the SpecificityChart: the locus-level specifier bar, the SYMMETRIC element-pair
-// matrix, the cell→facet cross-filter mapping, and the triple-core side list.
+// matrix, the cell→facet cross-filter mapping, and the three-element locus list.
 //
 // The matrix is built from each pair's per-element specifiers in transcript-5′
 // ORDINAL order (from `members.json`) — NEVER the alphabetized locus
@@ -65,7 +65,7 @@ export function pairSpecs(members: Member[]): [string, string] {
  * Fold the pair loci (n_cores == 2) into a SYMMETRIC element-pair matrix. Cells
  * come from each pair's per-element specifiers (`members.json`, transcript-5′
  * order); both halves are filled so the grid reads symmetric and the diagonal
- * holds same-specifier pair counts. Triple-core loci are excluded — surfaced by
+ * holds same-specifier pair counts. Three-element loci are excluded — surfaced by
  * `tripleEntries` instead (PLAN §9②).
  */
 export function buildSpecMatrix(
@@ -134,17 +134,20 @@ export function cellFacetValue(a: string, b: string): string {
   return [a, b].sort().join(';')
 }
 
-// ── Triple-core side list (PLAN §9②) ─────────────────────────────────────────────
+// ── Three-element locus list (PLAN §9②) ─────────────────────────────────────────
 
 export interface TripleEntry {
   tandem_id: string
   organism: string | null
+  phylum: string | null
+  func_class: string
+  confidence: string | null
   specifier_aa: string | null
   /** Per-element specifiers in transcript-5′ order. */
   specs: string[]
 }
 
-/** The 9 triple-core loci, surfaced as a separate list rather than 2D cells. */
+/** The 9 three-element loci, surfaced as a separate list rather than 2D cells. */
 export function tripleEntries(
   loci: Locus[],
   membersByLocus: Map<string, Member[]>,
@@ -154,6 +157,9 @@ export function tripleEntries(
     .map((l) => ({
       tandem_id: l.tandem_id,
       organism: l.organism,
+      phylum: l.phylum,
+      func_class: l.func_class,
+      confidence: l.confidence,
       specifier_aa: l.specifier_aa,
       specs: (membersByLocus.get(l.tandem_id) ?? []).map(memberSpec),
     }))

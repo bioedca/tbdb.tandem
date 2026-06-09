@@ -120,7 +120,7 @@ describe('buildArchitecture — minus strand reversal', () => {
 })
 
 describe('buildArchitecture — overlapping (shared-leader) elements', () => {
-  // The 44 collapse-recovered loci: both cores share one leader window → the bodies
+  // The 44 collapse-recovered loci: both elements share one leader window → the bodies
   // overlap on the axis → a NEGATIVE-gap spacer rendered as an explicit overlap.
   const m1 = archMember({ id: 'S.m1', ordinal: 1, aa: 'ILE', leader: [100, 279], window: { tbox: [10, 50] } })
   const m2 = archMember({ id: 'S.m2', ordinal: 2, aa: 'LEU', leader: [100, 279], window: { tbox: [30, 70] } })
