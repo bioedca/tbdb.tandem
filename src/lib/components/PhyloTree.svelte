@@ -40,6 +40,11 @@
     type LocusTipMeta,
   } from '../tree'
   import { PHYLUM_COLORS, SPECIFIER_COLORS, UNKNOWN_SPECIFIER_COLOR } from '../color'
+  import {
+    filterTreeTipsForVisualization,
+    pruneExcludedNewick,
+    VISUALIZATION_EXCLUSION_NOTE,
+  } from '../visualizationExclusions'
   import Card from './Card.svelte'
   import InfoTip from './InfoTip.svelte'
   import Spinner from './Spinner.svelte'
@@ -127,19 +132,21 @@
   const renderedNewick = $derived.by<string | null>(() => {
     const nwk = activeNewick
     if (!nwk || !store.treeTips) return null
-    // Default (linear) element view: emit the artifact verbatim (byte-faithful, unchanged).
-    if (mode === 'element' && branchScale === 'true') return nwk
+    const tandemOf = tipTandemMap(store.treeTips, which)
+    const pruned = pruneExcludedNewick(parseNewick(nwk), tandemOf)
+    if (!pruned) return null
     let tree =
       mode === 'element'
-        ? parseNewick(nwk)
-        : collapseToLoci(parseNewick(nwk), tipTandemMap(store.treeTips, which))
+        ? pruned
+        : collapseToLoci(pruned, tandemOf)
     // √-compress the branch extents so the dense core isn't crushed by one long branch.
     if (branchScale === 'sqrt') tree = scaleBranchLengths(tree, Math.sqrt)
     return serializeNewick(tree)
   })
 
-  const elementMeta = $derived(store.treeTips ? buildElementTipMeta(store.treeTips, which) : null)
-  const locusMeta = $derived(store.treeTips ? buildLocusTipMeta(store.treeTips, which) : null)
+  const visibleTreeTips = $derived(store.treeTips ? filterTreeTipsForVisualization(store.treeTips) : null)
+  const elementMeta = $derived(visibleTreeTips ? buildElementTipMeta(visibleTreeTips, which) : null)
+  const locusMeta = $derived(visibleTreeTips ? buildLocusTipMeta(visibleTreeTips, which) : null)
 
   /** Visible tip count of the current render (locus collapse vs element). */
   const tipCount = $derived.by<number>(() => {
@@ -516,6 +523,9 @@
         ? 'click to filter the dashboard by its specifier.'
         : 'click to open its detail page.'}
     </p>
+    {#if !selectable}
+      <p class="mt-1 max-w-measure text-caption text-muted">{VISUALIZATION_EXCLUSION_NOTE}</p>
+    {/if}
   {/snippet}
 </Card>
 

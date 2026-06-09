@@ -57,6 +57,10 @@
     type RelaxState,
   } from '../cloud/relax'
   import type { ColorMode, PresetKey, SizeMode, WhichTree } from '../cloud/types'
+  import {
+    filterCloudTreeForVisualization,
+    VISUALIZATION_EXCLUSION_NOTE,
+  } from '../visualizationExclusions'
   import Card from './Card.svelte'
   import InfoTip from './InfoTip.svelte'
   import Spinner from './Spinner.svelte'
@@ -105,7 +109,7 @@
   // motion) and the layout toggle would be labelled non-metric and never the default.
 
   // ── Derived render inputs (pure) ─────────────────────────────────────────────────
-  const activeTree = $derived(store.cloud ? store.cloud[which] : null)
+  const activeTree = $derived(store.cloud ? filterCloudTreeForVisualization(store.cloud[which]) : null)
   const renderPoints = $derived<CloudRenderPoint[]>(
     activeTree ? aggregatePoints(activeTree.points, granularity) : [],
   )
@@ -944,6 +948,9 @@
           scroll to zoom, shift-drag to pan; hover a point for its locus;
           {selectable ? 'click to filter the dashboard by its specifier.' : 'click to open its detail page.'}
         </p>
+        {#if !selectable}
+          <p class="mt-1 max-w-measure text-caption text-muted">{VISUALIZATION_EXCLUSION_NOTE}</p>
+        {/if}
       </div>
     </div>
   {/snippet}

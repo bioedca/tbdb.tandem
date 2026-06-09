@@ -13,8 +13,9 @@ import { countLeaves, parseNewick } from '../../src/lib/tree'
 import type { TreeTipsMap } from '../../src/lib/data/types'
 
 // Synthetic tree: U1,U2 are sisters of locus T1 (→ collapse to one tip); U3 is T2.
-// Element main = 3 tips, locus main = 2 tips. Fallback = 2 tips (no collapse).
-const MAIN_NWK = '((U1:0.1,U2:0.1)0.9:0.2,U3:0.3)0.8;'
+// U6/U7 are the curated visualization exclusions and should never reach phylotree.
+// Visible element main = 3 tips, visible locus main = 2 tips. Fallback = 2 tips.
+const MAIN_NWK = '(((U1:0.1,U2:0.1)0.9:0.2,U3:0.3)0.8:0.4,(U6:10,U7:20)0.7:0.5)0.6;'
 const FALLBACK_NWK = '(U4:0.1,U5:0.1)0.7;'
 const TIPS: TreeTipsMap = {
   U1: { member_id: 'T1.m1', tandem_id: 'T1', ordinal: 1, specifier: 'TRP', phylum: 'Firmicutes', tree: 'main' },
@@ -22,6 +23,8 @@ const TIPS: TreeTipsMap = {
   U3: { member_id: 'T2.m1', tandem_id: 'T2', ordinal: 1, specifier: 'LEU', phylum: 'Actinobacteria', tree: 'main' },
   U4: { member_id: 'T3.m1', tandem_id: 'T3', ordinal: 1, specifier: 'ILE', phylum: 'Firmicutes', tree: 'fallback' },
   U5: { member_id: 'T4.m1', tandem_id: 'T4', ordinal: 1, specifier: null, phylum: null, tree: 'fallback' },
+  U6: { member_id: 'T0281.m1', tandem_id: 'T0281', ordinal: 1, specifier: 'GLN', phylum: 'Firmicutes', tree: 'main' },
+  U7: { member_id: 'T0445.m1', tandem_id: 'T0445', ordinal: 1, specifier: 'GLY', phylum: 'Firmicutes', tree: 'main' },
 }
 
 const mock = vi.hoisted(() => ({ constructed: [] as string[] }))
@@ -77,13 +80,19 @@ describe('PhyloTree', () => {
     await waitFor(() => expect(mock.constructed.length).toBeGreaterThanOrEqual(1))
     // Locus view: T1's two sisters collapse → 2 tips (T1, T2).
     expect(lastLeaves()).toBe(2)
+    const nwk = mock.constructed[mock.constructed.length - 1]
+    expect(nwk).not.toContain('T0281')
+    expect(nwk).not.toContain('T0445')
   })
 
   test('the element toggle expands to the full element tree', async () => {
     const { getByRole } = render(PhyloTree)
     await waitFor(() => expect(mock.constructed.length).toBeGreaterThanOrEqual(1))
     await fireEvent.click(getByRole('button', { name: 'Element' }))
-    await waitFor(() => expect(lastLeaves()).toBe(3)) // U1, U2, U3
+    await waitFor(() => expect(lastLeaves()).toBe(3)) // U1, U2, U3; U6/U7 excluded
+    const nwk = mock.constructed[mock.constructed.length - 1]
+    expect(nwk).not.toContain('U6')
+    expect(nwk).not.toContain('U7')
   })
 
   test('the fallback toggle switches to the fallback tree', async () => {
@@ -125,6 +134,7 @@ describe('PhyloTree', () => {
     expect(getByRole('button', { name: 'Element' })).toBeInTheDocument()
     expect(getByRole('checkbox')).toBeInTheDocument() // non-Firmicutes filter
     expect(getByText('Specifier')).toBeInTheDocument()
+    expect(getByText(/T0281 and T0445 remain in the database/i)).toBeInTheDocument()
   })
 
   test('shows a spinner until the tree artifacts are ready', () => {
