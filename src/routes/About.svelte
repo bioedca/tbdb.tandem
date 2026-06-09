@@ -170,7 +170,7 @@
           <strong class="font-medium text-ink">Order &amp; derive.</strong> Elements are numbered
           5′→3′; each specifier is read from {@render code('amino_acid_top')} /
           {@render code('refine_codon_top')}, the Stem I WUSS structure is converted to dot-bracket,
-          the downstream function is classified (EC number, then a protein-name regex), and every
+          the downstream function is classified (EC number, then annotation-text evidence), and every
           intra-locus pairwise %-identity is aligned.
         </li>
       </ol>

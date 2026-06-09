@@ -107,28 +107,30 @@ describe('committed loci.json — S2.5 operon totals + couplings', () => {
   const bars = buildOperonBars(loci, loci)
   const sankey = buildSankey(loci)
 
-  test('func_class totals [224,101,68,63,14] (freq-desc)', () => {
-    expect(bars.funcClasses).toEqual(['biosynthesis', 'unknown', 'transporter', 'aaRS', 'oxidoreductase'])
-    expect(bars.totals).toEqual([224, 101, 68, 63, 14])
+  test('func_class totals [232,77,66,59,36] (freq-desc)', () => {
+    expect(bars.funcClasses).toEqual(['biosynthesis', 'transporter', 'aaRS', 'unknown', 'oxidoreductase'])
+    expect(bars.totals).toEqual([232, 77, 66, 59, 36])
   })
 
-  test('the two-tier provenance crosstab sums to 106 EC / 284 text / 80 none', () => {
+  test('the two-tier provenance crosstab sums to 264 EC / 157 text / 49 none', () => {
     const sum = (a: number[]) => a.reduce((x, y) => x + y, 0)
-    expect(sum(bars.counts.EC)).toBe(106)
-    expect(sum(bars.counts.text)).toBe(284)
-    expect(sum(bars.counts.none)).toBe(80)
+    expect(sum(bars.counts.EC)).toBe(264)
+    expect(sum(bars.counts.text)).toBe(157)
+    expect(sum(bars.counts.none)).toBe(49)
   })
 
-  test('Sankey: 32 nodes (27 specifiers + 5 func_class), Σ flows = 470', () => {
+  test('Sankey: 32 nodes (27 specifiers + 5 func_class), 63 observed links, Σ flows = 470', () => {
     expect(sankey.nodes.filter((n) => n.kind === 'specifier')).toHaveLength(27)
     expect(sankey.nodes.filter((n) => n.kind === 'func_class')).toHaveLength(5)
+    expect(sankey.links).toHaveLength(63)
     expect(sankey.links.reduce((a, l) => a + l.value, 0)).toBe(470)
   })
 
-  test('the expected couplings (TRP→biosynthesis 118, THR→aaRS 30, LEU/ILE;LEU→biosynthesis)', () => {
-    expect(linkValue(sankey, 'TRP', 'biosynthesis')).toBe(118)
-    expect(linkValue(sankey, 'THR', 'aaRS')).toBe(30)
-    expect(linkValue(sankey, 'LEU', 'biosynthesis')).toBe(26)
+  test('the expected couplings (TRP→biosynthesis 126, THR→aaRS/oxidoreductase, LEU/ILE;LEU→biosynthesis)', () => {
+    expect(linkValue(sankey, 'TRP', 'biosynthesis')).toBe(126)
+    expect(linkValue(sankey, 'THR', 'aaRS')).toBe(31)
+    expect(linkValue(sankey, 'THR', 'oxidoreductase')).toBe(28)
+    expect(linkValue(sankey, 'LEU', 'biosynthesis')).toBe(29)
     expect(linkValue(sankey, 'ILE;LEU', 'biosynthesis')).toBe(6)
   })
 

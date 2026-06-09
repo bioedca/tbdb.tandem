@@ -101,8 +101,9 @@ THE PIPELINE, STEP BY STEP (the logic behind every number)
                    current source). ``whole_antiterm_structure`` /
                    ``term_structure`` are already dot-bracket and pass through.
    * Coordinates:  each feature offset is projected onto genome coordinates.
-   * func_class:   a two-tier classifier -- EC number first, then an ordered regex
-                   over the downstream protein name (tagged EC / text / none).
+   * func_class:   a two-tier classifier -- EC number first (including EC numbers
+                   embedded in protein descriptions), then an ordered regex over
+                   downstream protein / description text (tagged EC / text / none).
    * Confidence:   a locus is high-confidence when >= 2 of its cores have a
                    called specifier codon (``codon_start`` > 0), else low.
 
@@ -421,34 +422,88 @@ def detect_loci(master: pd.DataFrame) -> list[dict]:
 _EC_AARS = re.compile(r"^6\.1\.1\.")       # aminoacyl-tRNA ligases  -> aaRS
 _EC_BIOSYN = re.compile(r"^(?:2|4)\.")     # transferases / lyases   -> biosynthesis
 _EC_OXRED = re.compile(r"^1\.")            # oxidoreductases         -> oxidoreductase
-_RE_AARS = re.compile(r"tRNA\s+(?:ligase|synthetase)", re.IGNORECASE)
-_RE_TRANS = re.compile(r"transporter|permease|abc|atp-binding", re.IGNORECASE)
-_RE_BIOSYN = re.compile(
-    r"aminotransferase|dehydratase|synthase|anthranilate|chorismate|"
-    r"isopropylmalate|homoserine",
+_RE_EC_CODE = re.compile(r"(?<!\d)(\d+\.\d+\.\d+\.\d+)(?!\d)")
+_RE_AARS = re.compile(
+    r"tRNA\s+(?:ligase|synthetase)|"
+    r"[A-Za-z]+yl-tRNA\s+synthetase|"
+    r"[A-Za-z]+--tRNA(?:\([^)]*\))?\s+ligase|"
+    r"\btRNA[_\s-]*SAD\b|"
+    r"aminoacylation",
     re.IGNORECASE,
 )
-_RE_HYPO = re.compile(r"hypothetical", re.IGNORECASE)
+_RE_TRANS = re.compile(
+    r"transporter|transport\s+(?:system|protein)|permease|abc|"
+    r"atp-binding|substrate-binding protein|antiporter|symporter|"
+    r"major facilitator|\bmfs\b|transport system carrier protein|"
+    r"branched-chain amino acid transport|nitrogen compound transport|"
+    r"amino acid[^|;]*transport",
+    re.IGNORECASE,
+)
+_RE_BIOSYN = re.compile(
+    r"aminotransferase|dehydratase|synthase|anthranilate|chorismate|"
+    r"isopropylmalate|homoserine|biosynth|deoxyheptonate|dahp|"
+    r"aldolase|aspart(?:ate)?\s+kinase|aspartokinase|"
+    r"carbamoyltransferase|phosphoribosyltransferase|prephenate|"
+    r"acetolactate|ketol-acid|dihydroxy-acid|isomeroreductase|"
+    r"branched-chain amino acid aminotransferase|trp[eg]\b",
+    re.IGNORECASE,
+)
+_RE_OXRED = re.compile(
+    r"oxidoreductase|dehydrogenase|reductase|monooxygenase|hydroxylase|oxygenase",
+    re.IGNORECASE,
+)
+_RE_HYPO = re.compile(r"hypothetical|uncharacterized|unknown function", re.IGNORECASE)
 
 
-def classify_func(ec, protein) -> tuple[str, str]:
-    """Return ``(func_class, func_source)``: EC number first, then protein-name regex."""
-    if ec:
-        e = ec.strip()
+def _classifier_text(value) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def extract_ec_numbers(*values) -> list[str]:
+    """Unique EC numbers from explicit EC cells and free-text annotations."""
+    out: list[str] = []
+    for value in values:
+        text = _classifier_text(value)
+        if not text:
+            continue
+        for ec in _RE_EC_CODE.findall(text):
+            if ec not in out:
+                out.append(ec)
+    return out
+
+
+def joined_ec_numbers(*values) -> str | None:
+    ecs = extract_ec_numbers(*values)
+    return ";".join(ecs) if ecs else None
+
+
+def classify_func(ec, protein, desc=None) -> tuple[str, str]:
+    """Return ``(func_class, func_source)``: EC number first, then annotation regex."""
+    ecs = extract_ec_numbers(ec, protein, desc)
+    for e in ecs:
         if _EC_AARS.match(e):
             return ("aaRS", "EC")
+    for e in ecs:
         if _EC_BIOSYN.match(e):
             return ("biosynthesis", "EC")
+    for e in ecs:
         if _EC_OXRED.match(e):
             return ("oxidoreductase", "EC")
-    if protein:
-        if _RE_AARS.search(protein):
+
+    text = " | ".join(v for v in (_classifier_text(protein), _classifier_text(desc)) if v)
+    if text:
+        if _RE_AARS.search(text):
             return ("aaRS", "text")
-        if _RE_TRANS.search(protein):
+        if _RE_TRANS.search(text):
             return ("transporter", "text")
-        if _RE_BIOSYN.search(protein):
+        if _RE_BIOSYN.search(text):
             return ("biosynthesis", "text")
-        if _RE_HYPO.search(protein):
+        if _RE_OXRED.search(text):
+            return ("oxidoreductase", "text")
+        if _RE_HYPO.search(text):
             return ("unknown", "text")
     return ("unknown", "none")
 
@@ -657,8 +712,10 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str,
         window[name] = [_to_int(row[c0]), _to_int(row[c1])]
         genome[name] = [project(row[c0], locus_start, strand), project(row[c1], locus_start, strand)]
 
-    ec, protein = _clean_str(row["downstream_protein_EC"]), _clean_str(row["downstream_protein"])
-    func_class, func_source = classify_func(ec, protein)
+    protein = _clean_str(row["downstream_protein"])
+    desc = _clean_str(row["protein_desc"])
+    ec = joined_ec_numbers(_clean_str(row["downstream_protein_EC"]), protein, desc)
+    func_class, func_source = classify_func(ec, protein, desc)
 
     # Locals the terminator conformation derives from (same assembled values the dict emits).
     _fasta_sequence = _clean_str(row["FASTA_sequence"])
@@ -699,11 +756,16 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str,
             "protein": protein,
             "id": _clean_str(row["downstream_protein_id"]),
             "ec": ec,
-            "desc": _clean_str(row["protein_desc"]),
+            "desc": desc,
             "func_class": func_class,
             "func_source": func_source,
         },
     }
+
+
+def _split_downstream_ids(value) -> list[str]:
+    text = _clean_str(value)
+    return [part.strip() for part in text.split(";") if part.strip()] if text else []
 
 
 def _summarize_locus(loc: dict, member_objs: list[dict], master: pd.DataFrame) -> dict:
@@ -726,14 +788,29 @@ def _summarize_locus(loc: dict, member_objs: list[dict], master: pd.DataFrame) -
     downstream_gene = ";".join(distinct_genes) if distinct_genes else None
 
     # Locus func_class: one shared downstream gene id lets the locus inherit that
-    # member's EC-backed class; multi-gene (or gene-less) loci fall back to
-    # classifying the joined downstream gene text.
-    if len(distinct_ids) == 1:
-        # single regulated gene: inherit that member's EC-backed class
-        matched = next(o for o in member_objs if o["downstream"]["id"] == distinct_ids[0])
-        func_class, func_source = matched["downstream"]["func_class"], matched["downstream"]["func_source"]
+    # member's class. Multi-gene / ambiguous loci classify the combined regulated
+    # operon annotation (gene text + member protein descriptions).
+    target_ids = _split_downstream_ids(downstream_id)
+    matched = []
+    if target_ids:
+        wanted = set(target_ids)
+        matched = [o["downstream"] for o in member_objs if o["downstream"]["id"] in wanted]
+    if len(target_ids) == 1 and len(matched) == 1:
+        down = matched[0]
+        func_class, func_source = down["func_class"], down["func_source"]
     else:
-        func_class, func_source = classify_func(None, downstream_gene)
+        evidence = matched if matched or target_ids else [o["downstream"] for o in member_objs]
+        ec_text = ";".join(dict.fromkeys(d["ec"] for d in evidence if d["ec"])) or None
+        text = " | ".join(
+            part
+            for part in (
+                [downstream_gene]
+                + [d["protein"] for d in evidence]
+                + [d["desc"] for d in evidence]
+            )
+            if part
+        )
+        func_class, func_source = classify_func(ec_text, text or None)
 
     locus_type = "Translational" if any(o["type"] == "Translational" for o in member_objs) else "Transcriptional"
     first = master.loc[loc["core_indices"][0]]
