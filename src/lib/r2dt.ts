@@ -18,6 +18,8 @@ const diagramCache = new Map<string, Promise<R2dtDiagram | null>>()
 let termManifestPromise: Promise<R2dtManifest | null> | null = null
 const termDiagramCache = new Map<string, Promise<R2dtDiagram | null>>()
 
+export const R2DT_MIN_LOOP_CLEARANCE_RATIO = 0.72
+
 /** Fetch the R2DT availability manifest once (cached). Resolves null if absent
  *  (e.g. diagrams not yet generated) so the UI degrades to fornac-only. Only a
  *  SUCCESSFUL result is cached — a null/error result clears the cache slot so a
@@ -325,7 +327,7 @@ export function withReadableStemLoops(d: R2dtDiagram, spans: { start: number; en
           .filter((c): c is { pts: [number, number][]; clearance: number; outward: number } => !!c)
           .sort((a, b) => b.clearance - a.clearance || b.outward - a.outward)
         const best = candidates[0]
-        if (best && best.clearance >= 0.72 * spacing) {
+        if (best && best.clearance >= R2DT_MIN_LOOP_CLEARANCE_RATIO * spacing) {
           for (let r = s; r <= e; r++) {
             const [nx, ny] = best.pts[r - s]
             if (Math.abs(x[r - 1] - nx) > 1e-6 || Math.abs(y[r - 1] - ny) > 1e-6) changed = true

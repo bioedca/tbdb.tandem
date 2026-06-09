@@ -8,6 +8,7 @@ import { buildStemColorMap, STEM_COLORS, STEM_LINKER_COLOR } from '../../src/lib
 import {
   diagramViewBox,
   nucleotideSpacing,
+  R2DT_MIN_LOOP_CLEARANCE_RATIO,
   withReadableR2dtLayout,
   withReadableStemLoops,
   withStemIToIISpacer,
@@ -228,7 +229,7 @@ describe('withReadableStemLoops', () => {
       expect(out.y[r - 1]).toBe(d.y[r - 1])
     }
     expect(maxDeviationFromChord(out, 4, 7)).toBeGreaterThan(maxDeviationFromChord(d, 4, 7) + 0.7)
-    expect(minBoundedLoopStepRatio(out, [{ start: 1, end: 10 }])).toBeGreaterThan(0.72)
+    expect(minBoundedLoopStepRatio(out, [{ start: 1, end: 10 }])).toBeGreaterThan(R2DT_MIN_LOOP_CLEARANCE_RATIO)
   })
 
   test('opens the real T0185 Stem-I guardrail loop in both conformations', () => {
@@ -244,8 +245,10 @@ describe('withReadableStemLoops', () => {
     // opens it into a readable arc in both diagrams.
     expect(maxDeviationFromChord(atOut, 68, 69)).toBeGreaterThan(maxDeviationFromChord(at, 68, 69) + 0.25)
     expect(maxDeviationFromChord(termOut, 68, 69)).toBeGreaterThan(maxDeviationFromChord(term, 68, 69) + 0.25)
-    expect(minBoundedLoopStepRatio(atOut, stemSpans)).toBeGreaterThan(0.72)
-    expect(minBoundedLoopStepRatio(termOut, stemSpans.filter((_, i) => member.stems[i].key !== 'at'))).toBeGreaterThan(0.72)
+    expect(minBoundedLoopStepRatio(atOut, stemSpans)).toBeGreaterThan(R2DT_MIN_LOOP_CLEARANCE_RATIO)
+    expect(minBoundedLoopStepRatio(termOut, stemSpans.filter((_, i) => member.stems[i].key !== 'at'))).toBeGreaterThan(
+      R2DT_MIN_LOOP_CLEARANCE_RATIO,
+    )
   })
 
   test('keeps every committed R2DT stem loop legible after the display pass', () => {
@@ -284,7 +287,7 @@ describe('withReadableStemLoops', () => {
         expect(out.y.length, memberId).toBe(d.seq.length)
         expect([...out.x, ...out.y].every(Number.isFinite), memberId).toBe(true)
         const minLoop = minBoundedLoopStepRatio(out, spans)
-        if (Number.isFinite(minLoop)) expect(minLoop, memberId).toBeGreaterThan(0.72)
+        if (Number.isFinite(minLoop)) expect(minLoop, memberId).toBeGreaterThan(R2DT_MIN_LOOP_CLEARANCE_RATIO)
         checked += 1
       }
     }
