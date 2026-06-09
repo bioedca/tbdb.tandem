@@ -3,7 +3,7 @@
 // tbdb.io link only when a `unique_name`/`tbdb_url` is present. On real data all
 // 949 members have a `unique_name`, so the null branch is covered HERE, not live
 // (PROGRESS S1.5).
-import { render, screen } from '@testing-library/svelte'
+import { fireEvent, render, screen } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import LocusDetail from '../../src/routes/LocusDetail.svelte'
 import { store } from '../../src/lib/stores/filters.svelte'
@@ -79,6 +79,23 @@ describe('LocusDetail', () => {
     )
     // m1 → tbdb + NCBI (2), m2 → NCBI only (1) = 3 element deep-links total.
     expect(deepLinks).toHaveLength(3)
+  })
+
+  test('architecture view defaults to Accurate and can switch to Illustrated', async () => {
+    const { container } = render(LocusDetail, { props: { params: { id: 'TX' } } })
+    const accurate = screen.getByRole('tab', { name: 'Accurate' })
+    const illustrated = screen.getByRole('tab', { name: 'Illustrated' })
+
+    expect(accurate).toHaveAttribute('aria-selected', 'true')
+    expect(illustrated).toHaveAttribute('aria-selected', 'false')
+    expect(container.querySelector('figure.tv-arch')).toBeTruthy()
+    expect(container.querySelector('figure.tv-arch-poster')).toBeNull()
+
+    await fireEvent.click(illustrated)
+    expect(accurate).toHaveAttribute('aria-selected', 'false')
+    expect(illustrated).toHaveAttribute('aria-selected', 'true')
+    expect(container.querySelector('figure.tv-arch')).toBeNull()
+    expect(container.querySelector('figure.tv-arch-poster')).toBeTruthy()
   })
 
   test('an unknown id renders the not-found state', () => {

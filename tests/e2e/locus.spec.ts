@@ -22,6 +22,18 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     await expect(arch).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('figure.tv-arch g.tv-arch-element')).toHaveCount(2)
 
+    // The scientific, to-scale view remains the default. The illustrated Layer Cake
+    // figure mounts only after the user selects it, and switching back restores the
+    // deterministic canonical SVG used for visual regression.
+    const accurate = page.getByRole('tab', { name: 'Accurate' })
+    const illustrated = page.getByRole('tab', { name: 'Illustrated' })
+    await expect(accurate).toHaveAttribute('aria-selected', 'true')
+    await illustrated.click()
+    await expect(page.locator('figure.tv-arch-poster .layercake-container')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Element 1: TRP, UGG/ })).toBeVisible()
+    await accurate.click()
+    await expect(arch).toBeVisible()
+
     // Element-comparison deep-links resolve to the exact tbdb.io + NCBI URLs (§9).
     await expect(page.locator(`a[href="${TBDB_M1}"]`).first()).toBeVisible()
     await expect(page.locator(`a[href="${TBDB_M2}"]`).first()).toBeVisible()
@@ -30,7 +42,7 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     // RNA secondary structure: one tab per element + the guaranteed VARNA deep-link
     // (fornac's force-directed render itself is excluded from assertions, §10.5).
     await expect(page.locator('.tv-rna')).toBeVisible()
-    await expect(page.getByRole('tab')).toHaveCount(2)
+    await expect(page.getByRole('tablist', { name: 'Elements' }).getByRole('tab')).toHaveCount(2)
     await expect(
       page.getByRole('link', { name: /VARNA structure on tbdb\.io/ }).first(),
     ).toBeVisible()

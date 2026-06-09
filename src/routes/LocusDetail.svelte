@@ -16,9 +16,12 @@
   import Badge from '../lib/components/Badge.svelte'
   import Spinner from '../lib/components/Spinner.svelte'
   import ArchitectureDiagram from '../lib/components/ArchitectureDiagram.svelte'
+  import ArchitecturePoster from '../lib/components/ArchitecturePoster.svelte'
   import ElementComparison from '../lib/components/ElementComparison.svelte'
   import MemberSequence from '../lib/components/MemberSequence.svelte'
   import RnaStructure from '../lib/components/RnaStructure.svelte'
+
+  type ArchitectureView = 'accurate' | 'illustrated'
 
   let { params }: { params?: { id?: string } } = $props()
   const id = $derived(params?.id ?? '')
@@ -34,11 +37,41 @@
     void store.ensureIdentity()
   })
   const pairs = $derived(store.identityByLocus?.get(id) ?? [])
+  let architectureView = $state<ArchitectureView>('accurate')
 
   function fmt(value: number | null | undefined, suffix = ''): string {
     return value === null || value === undefined ? '–' : value + suffix
   }
 </script>
+
+{#snippet architectureActions()}
+  <div
+    class="inline-flex rounded-md border border-hairline bg-surface-subtle p-0.5"
+    role="tablist"
+    aria-label="Architecture view"
+  >
+    <button
+      type="button"
+      role="tab"
+      aria-selected={architectureView === 'accurate'}
+      aria-controls="architecture-accurate-panel"
+      class="rounded-sm px-2.5 py-1 text-caption font-medium transition-colors duration-150 ease-standard {architectureView === 'accurate' ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'}"
+      onclick={() => (architectureView = 'accurate')}
+    >
+      Accurate
+    </button>
+    <button
+      type="button"
+      role="tab"
+      aria-selected={architectureView === 'illustrated'}
+      aria-controls="architecture-illustrated-panel"
+      class="rounded-sm px-2.5 py-1 text-caption font-medium transition-colors duration-150 ease-standard {architectureView === 'illustrated' ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'}"
+      onclick={() => (architectureView = 'illustrated')}
+    >
+      Illustrated
+    </button>
+  </div>
+{/snippet}
 
 <section class="space-y-6">
   <a use:link href="/browse" class="inline-flex items-center gap-1 text-small text-brand hover:text-brand-strong">
@@ -149,15 +182,30 @@
       <!-- ① Tandem architecture (PLAN §9①, the signature view) -->
       <Card
         title="Tandem architecture"
-        subtitle="Drawn to scale in 5′ → 3′ transcription order, each element colored by its specifier amino acid"
+        subtitle="Accurate is drawn to scale; Illustrated keeps order and annotations in a figure-style layout"
+        actions={architectureActions}
       >
-        <ArchitectureDiagram
-          {members}
-          strand={locus.strand}
-          funcClass={locus.func_class}
-          funcSource={locus.func_source}
-          downstreamGene={locus.downstream_gene}
-        />
+        {#if architectureView === 'accurate'}
+          <div id="architecture-accurate-panel" role="tabpanel" aria-label="Accurate architecture">
+            <ArchitectureDiagram
+              {members}
+              strand={locus.strand}
+              funcClass={locus.func_class}
+              funcSource={locus.func_source}
+              downstreamGene={locus.downstream_gene}
+            />
+          </div>
+        {:else}
+          <div id="architecture-illustrated-panel" role="tabpanel" aria-label="Illustrated architecture">
+            <ArchitecturePoster
+              {members}
+              strand={locus.strand}
+              funcClass={locus.func_class}
+              funcSource={locus.func_source}
+              downstreamGene={locus.downstream_gene}
+            />
+          </div>
+        {/if}
       </Card>
 
       <!-- ② Element comparison (PLAN §9①) — per-element metrics, deep links, and the
