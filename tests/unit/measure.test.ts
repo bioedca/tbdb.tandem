@@ -6,6 +6,7 @@
 // [min,max] clamp, and the monotonic responses to width and target measure — which
 // hold identically on the real canvas path (only the per-glyph advance differs).
 import { describe, expect, test } from 'vitest'
+import { graphPrimitiveScale, scalePx } from '../../src/lib/text/graphScale'
 import { fitFontSizePx, fitMeasureFontPx } from '../../src/lib/text/measure'
 
 const FONT = '400 24px Inter' // probe shorthand; sizeOf() reads the 24px
@@ -73,5 +74,30 @@ describe('fitFontSizePx', () => {
     const size = fitFontSizePx('a very long value that cannot fit', FONT, 40, { minPx: 14, maxPx: 36 })
     expect(size).toBeGreaterThanOrEqual(14)
     expect(size).toBeLessThanOrEqual(36)
+  })
+})
+
+describe('graphPrimitiveScale', () => {
+  const graphFont = '400 12px Inter'
+
+  test('degenerate boxes use the neutral scale', () => {
+    expect(graphPrimitiveScale(0, 400, graphFont)).toBe(1)
+    expect(graphPrimitiveScale(800, 0, graphFont)).toBe(1)
+  })
+
+  test('grows graph primitives with the measured graph box', () => {
+    const small = graphPrimitiveScale(360, 260, graphFont)
+    const base = graphPrimitiveScale(720, 420, graphFont)
+    const wide = graphPrimitiveScale(1600, 900, graphFont)
+    expect(small).toBeLessThan(base)
+    expect(wide).toBeGreaterThan(base)
+    expect(wide).toBeLessThanOrEqual(1.6)
+  })
+
+  test('honors explicit clamps and scales pixel values predictably', () => {
+    const scale = graphPrimitiveScale(4000, 2400, graphFont, { minScale: 0.9, maxScale: 1.25 })
+    expect(scale).toBe(1.25)
+    expect(scalePx(10, scale, { max: 12 })).toBe(12)
+    expect(scalePx(10, 0, { min: 8 })).toBe(10)
   })
 })

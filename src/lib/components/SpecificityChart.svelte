@@ -19,6 +19,8 @@
   import { aaColor, withAlpha } from '../color'
   import { brand, fontFamily, neutral } from '../design/tokens'
   import { fitOnResize } from '../plotly'
+  import { observeElementSize } from '../responsive'
+  import { graphPrimitiveScale, scalePx } from '../text/graphScale'
   import {
     barModel,
     buildSpecMatrix,
@@ -46,6 +48,8 @@
   let matrixEl: HTMLDivElement
   let barBound = false
   let matrixBound = false
+  let barSize = $state({ w: 0, h: 0 })
+  let matrixSize = $state({ w: 0, h: 0 })
 
   // No `responsive: true` — its window 'resize' listener survives `purge` and leaks
   // per dashboard mount; we refit via fitOnResize() instead (see ../plotly).
@@ -81,7 +85,7 @@
   }
 
   /** Brand-accent outline around every cell whose locus-value is currently active. */
-  function selectionShapes(m: SpecMatrix, active: Set<string>): Record<string, unknown>[] {
+  function selectionShapes(m: SpecMatrix, active: Set<string>, lineWidth = 2): Record<string, unknown>[] {
     if (active.size === 0) return []
     const shapes: Record<string, unknown>[] = []
     for (let i = 0; i < m.axis.length; i++) {
@@ -96,7 +100,7 @@
           x1: j + 0.5,
           y0: i - 0.5,
           y1: i + 0.5,
-          line: { color: brand.accent, width: 2 },
+          line: { color: brand.accent, width: lineWidth },
           fillcolor: 'rgba(0,0,0,0)',
           layer: 'above',
         })
@@ -108,8 +112,19 @@
   // ── Render effects (re-run on plotly load, data change, or selection change) ─────
   $effect(() => {
     if (!plotly || !barEl || !bar) return
+    void barSize.w
+    void barSize.h
     const active = activeSpec
     const anySel = active.size > 0
+    const g = graphPrimitiveScale(
+      barSize.w || barEl.clientWidth || 600,
+      barSize.h || barEl.clientHeight || 360,
+      `400 12px ${fontFamily.sans}`,
+      { targetChars: 78, referenceWidth: 600, referenceHeight: 360, maxScale: 1.55 },
+    )
+    const fontPx = scalePx(12, g, { min: 11, max: 17 })
+    const tickPx = scalePx(11, g, { min: 10, max: 16 })
+    const titlePx = scalePx(11, g, { min: 10, max: 15 })
     const colors = bar.colors.map((c, i) =>
       anySel && !active.has(bar.labels[i]) ? withAlpha(c, 0.25) : c,
     )
@@ -125,20 +140,25 @@
     ]
     const layout = {
       autosize: true,
-      margin: { l: 64, r: 14, t: 6, b: 34 },
-      font: { family: fontFamily.sans, size: 12, color: neutral.text },
+      margin: {
+        l: scalePx(64, g, { min: 58, max: 94 }),
+        r: scalePx(14, g, { min: 12, max: 24 }),
+        t: scalePx(6, g, { min: 6, max: 12 }),
+        b: scalePx(34, g, { min: 30, max: 52 }),
+      },
+      font: { family: fontFamily.sans, size: fontPx, color: neutral.text },
       paper_bgcolor: neutral.surface,
       plot_bgcolor: neutral.surface,
       bargap: 0.22,
       xaxis: {
-        title: { text: 'loci', font: { size: 11, color: neutral.muted } },
+        title: { text: 'loci', font: { size: titlePx, color: neutral.muted } },
         zeroline: false,
         gridcolor: neutral.hairline,
         fixedrange: true,
       },
       yaxis: {
         autorange: 'reversed',
-        tickfont: { family: fontFamily.mono, size: 11 },
+        tickfont: { family: fontFamily.mono, size: tickPx },
         fixedrange: true,
       },
     }
@@ -152,7 +172,19 @@
 
   $effect(() => {
     if (!plotly || !matrixEl || !matrix) return
+    void matrixSize.w
+    void matrixSize.h
     const m = matrix
+    const g = graphPrimitiveScale(
+      matrixSize.w || matrixEl.clientWidth || 720,
+      matrixSize.h || matrixEl.clientHeight || 360,
+      `400 10px ${fontFamily.mono}`,
+      { targetChars: 82, referenceWidth: 720, referenceHeight: 360, maxScale: 1.55 },
+    )
+    const tickPx = scalePx(10, g, { min: 9, max: 16 })
+    const cellPx = scalePx(9, g, { min: 8, max: 15 })
+    const gapPx = scalePx(1.5, g, { min: 1.2, max: 2.8 })
+    const outlinePx = scalePx(2, g, { min: 1.5, max: 3.2 })
     const data: Partial<PlotData>[] = [
       {
         type: 'heatmap',
@@ -161,9 +193,9 @@
         z: m.z,
         text: m.text,
         texttemplate: '%{text}',
-        textfont: { family: fontFamily.mono, size: 9, color: neutral.ink },
-        xgap: 1.5,
-        ygap: 1.5,
+        textfont: { family: fontFamily.mono, size: cellPx, color: neutral.ink },
+        xgap: gapPx,
+        ygap: gapPx,
         colorscale: COUNT_SCALE,
         zmin: 0,
         zmax: Math.min(m.max, 12),
@@ -174,14 +206,19 @@
     ]
     const layout = {
       autosize: true,
-      margin: { l: 52, r: 8, t: 6, b: 52 },
-      font: { family: fontFamily.mono, size: 10, color: neutral.text },
+      margin: {
+        l: scalePx(52, g, { min: 48, max: 82 }),
+        r: scalePx(8, g, { min: 8, max: 16 }),
+        t: scalePx(6, g, { min: 6, max: 12 }),
+        b: scalePx(52, g, { min: 48, max: 84 }),
+      },
+      font: { family: fontFamily.mono, size: tickPx, color: neutral.text },
       paper_bgcolor: neutral.surface,
       plot_bgcolor: neutral.surface,
       xaxis: {
         side: 'bottom',
         tickangle: -90,
-        tickfont: { family: fontFamily.mono, size: 10 },
+        tickfont: { family: fontFamily.mono, size: tickPx },
         showgrid: false,
         zeroline: false,
         fixedrange: true,
@@ -195,13 +232,13 @@
         autorange: 'reversed',
         scaleanchor: 'x',
         scaleratio: 1,
-        tickfont: { family: fontFamily.mono, size: 10 },
+        tickfont: { family: fontFamily.mono, size: tickPx },
         showgrid: false,
         zeroline: false,
         fixedrange: true,
         constrain: 'domain',
       },
-      shapes: selectionShapes(m, activeSpec),
+      shapes: selectionShapes(m, activeSpec, outlinePx),
     }
     void plotly.react(matrixEl, data, layout, CONFIG).then(() => {
       if (!matrixBound) {
@@ -214,6 +251,8 @@
   onMount(() => {
     let disposed = false
     let teardown: (() => void) | null = null
+    const unobserveBar = observeElementSize(barEl, (s) => (barSize = s), { fontsReady: true })
+    const unobserveMatrix = observeElementSize(matrixEl, (s) => (matrixSize = s), { fontsReady: true })
     void import('plotly.js-dist-min').then((mod) => {
       if (disposed) return
       plotly = mod.default ?? (mod as unknown as PlotlyStatic)
@@ -221,6 +260,8 @@
     })
     return () => {
       disposed = true
+      unobserveBar()
+      unobserveMatrix()
       teardown?.()
     }
   })

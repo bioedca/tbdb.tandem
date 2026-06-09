@@ -21,7 +21,9 @@
   import { push } from 'svelte-spa-router'
 
   import { store } from '../stores/filters.svelte'
-  import { neutral } from '../design/tokens'
+  import { fontFamily, neutral } from '../design/tokens'
+  import { observeElementSize } from '../responsive'
+  import { graphPrimitiveScale, scalePx } from '../text/graphScale'
   import {
     buildElementTipMeta,
     buildLocusTipMeta,
@@ -81,6 +83,14 @@
   let Phylo = $state<PhyloCtor | null>(null)
   let containerEl: HTMLDivElement
   let size = $state({ w: 0, h: 0 })
+  const graphScale = $derived(
+    graphPrimitiveScale(size.w || 800, size.h || 600, `400 12px ${fontFamily.sans}`, {
+      targetChars: 120,
+      referenceWidth: 900,
+      referenceHeight: 620,
+      maxScale: 1.65,
+    }),
+  )
 
   // Kick the lazy tree-artifact load (PLAN §7.3); show a spinner until ready.
   onMount(() => {
@@ -90,25 +100,12 @@
       if (disposed) return
       Phylo = ((mod as any).phylotree ?? (mod as any).default) as PhyloCtor
     })
-    // Track the container size so the layout refits on resize. A trailing debounce
-    // coalesces a drag-resize burst into ONE rebuild (a rebuild re-instantiates the
-    // whole tree, so we don't want one per frame). Guarded for environments without
-    // ResizeObserver (jsdom / SSR) — there it simply never fires.
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined
-    let ro: ResizeObserver | null = null
-    if (typeof ResizeObserver !== 'undefined' && containerEl) {
-      ro = new ResizeObserver(() => {
-        clearTimeout(resizeTimer)
-        resizeTimer = setTimeout(() => {
-          if (containerEl) size = { w: containerEl.clientWidth, h: containerEl.clientHeight }
-        }, 150)
-      })
-      ro.observe(containerEl)
-    }
+    // Track the container size so layout and primitive scale refit on resize. A
+    // trailing debounce coalesces a drag-resize burst into one rebuild.
+    const unobserve = observeElementSize(containerEl, (s) => (size = s), { fontsReady: true })
     return () => {
       disposed = true
-      clearTimeout(resizeTimer)
-      ro?.disconnect()
+      unobserve()
     }
   })
 
@@ -242,7 +239,9 @@
     const outOfSelection = crossFiltered && !selectedTandemIds.has(tandemId)
     const dim = (nonFirmicutesOnly && !outlier) || outOfSelection
     const emphasize = nonFirmicutesOnly && outlier
-    const r = dim ? 1.6 : emphasize ? 4 : mode === 'locus' ? 3 : 2.3
+    const rBase = dim ? 1.6 : emphasize ? 4 : mode === 'locus' ? 3 : 2.3
+    const r = scalePx(rBase, graphScale, { min: dim ? 1.4 : 2.1, max: emphasize ? 7 : 5.2 })
+    const ringWidth = scalePx(outlier ? 1.6 : 1, graphScale, { min: outlier ? 1.4 : 0.9, max: outlier ? 2.8 : 2 })
 
     const join = element.selectAll('circle.tv-tip').data([node])
     const merged = join.enter().append('circle').classed('tv-tip', true).merge(join)
@@ -253,7 +252,7 @@
       .style('fill', specifierFill(specifier))
       .style('fill-opacity', dim ? 0.12 : 1)
       .style('stroke', phylumRing(phylum))
-      .style('stroke-width', outlier ? 1.6 : 1)
+      .style('stroke-width', ringWidth)
       .style('stroke-opacity', dim ? 0.15 : 0.9)
       .style('cursor', 'pointer')
       .on('mouseenter', (ev: MouseEvent) => onEnter?.(ev))
@@ -270,10 +269,14 @@
       const s = parseSupport(t.data?.name)
       if (s != null && s < supportThreshold) faded = true
     }
+    const strokeWidth = scalePx(faded ? 0.6 : 1, graphScale, {
+      min: faded ? 0.55 : 0.9,
+      max: faded ? 1.1 : 1.9,
+    })
     element
       .style('fill', 'none')
       .style('stroke', neutral.muted)
-      .style('stroke-width', faded ? '0.6px' : '1px')
+      .style('stroke-width', `${strokeWidth}px`)
       .style('stroke-opacity', faded ? 0.18 : 0.7)
       .style('stroke-dasharray', faded ? '2,2' : null)
   }
