@@ -2,7 +2,7 @@
 //   1. pure folding logic on the synthetic fixtures (deterministic by construction);
 //   2. real-artifact drift guards over the committed public/data/*.json — the
 //      front-end mirror of data-pipeline's test_artifacts.py, pinning the locked
-//      invariants (ILE×LEU = 10, 9 triple-core loci, TRP bar = 139).
+//      invariants (ILE×LEU = 10, 9 three-element loci, TRP bar = 139).
 import { describe, expect, test } from 'vitest'
 import {
   barModel,
@@ -68,7 +68,7 @@ describe('buildSpecMatrix (symmetric element-pair fold)', () => {
     expect(m.z[unk][trp]).toBe(1)
   })
 
-  test('triple-core loci are excluded from the matrix', () => {
+  test('three-element loci are excluded from the matrix', () => {
     // T0005 is (TRP, ILE, LEU); no pair locus contributes a TRP×ILE cell.
     const trp = m.axis.indexOf('TRP')
     const ile = m.axis.indexOf('ILE')
@@ -118,7 +118,7 @@ describe('barModel', () => {
 })
 
 describe('tripleEntries', () => {
-  test('surfaces only the triple-core loci, specs in ordinal order', () => {
+  test('surfaces only the three-element loci, specs in ordinal order', () => {
     const triples = tripleEntries(LOCI, MEMBERS_BY_LOCUS)
     expect(triples).toHaveLength(1)
     expect(triples[0].tandem_id).toBe('T0005')
@@ -160,7 +160,7 @@ describe('committed artifacts (public/data/*.json)', () => {
     }
   })
 
-  test('there are 9 triple-core loci', () => {
+  test('there are 9 three-element loci', () => {
     expect(tripleEntries(loci, map)).toHaveLength(9)
   })
 

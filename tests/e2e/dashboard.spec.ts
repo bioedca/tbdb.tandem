@@ -42,9 +42,9 @@ test.describe('Dashboard', () => {
     await gotoRoute(page, '/')
     await expect(shownCount(page)).toHaveText('470')
 
-    // The matrix needs members.json; the triple-core list appears once it's ready,
+    // The matrix needs members.json; the three-element panel appears once it's ready,
     // and the matrix Plotly graph is rendered by then.
-    await expect(page.getByRole('heading', { name: 'Triple-core loci' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Three-element loci' })).toBeVisible()
     await expect(
       page.locator('div.lg\\:col-span-3:has(h3:has-text("Element-pair matrix")) .js-plotly-plot'),
     ).toBeVisible()

@@ -50,9 +50,9 @@ test.describe('Visual regression', () => {
 
   test('dashboard chrome/layout (charts + tree masked)', async ({ page }) => {
     await gotoRoute(page, '/')
-    // Members ready (triple list) and the dashboard tree rendered, so the masked
+    // Members ready (three-element panel) and the dashboard tree rendered, so the masked
     // regions are stable (no spinner→svg height shift behind the mask).
-    await expect(page.getByRole('heading', { name: 'Triple-core loci' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Three-element loci' })).toBeVisible({
       timeout: 30_000,
     })
     await expect(page.locator('.tv-phylotree circle.tv-tip').first()).toBeVisible({

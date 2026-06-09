@@ -14,7 +14,7 @@
 // so ordinal-1 (most-5′) always lands leftmost and the axis is in bp from the 5′
 // origin. Within a member, window offset w maps to bio = bioLeaderStart + (w − 1)
 // (1 window unit = 1 bp). This handles the 44 collapse-recovered "shared-leader"
-// loci (both cores in one leader window) and the ordinary separate-leader loci
+// loci (both elements in one leader window) and the ordinary separate-leader loci
 // uniformly — the inter-element spacer is just the bp gap between adjacent T-box
 // bodies on this axis.
 
@@ -161,7 +161,7 @@ export function buildArchitecture(members: Member[], strand: Strand): Architectu
 /** True iff two members occupy the identical leader window — the 44 collapse-
  *  recovered loci, whose pairwise leader %-identity saturates at 100 (PLAN §5.1;
  *  PROGRESS S0.5). The element-comparison panel flags this so 100% is not misread
- *  as core-vs-core divergence. */
+ *  as element-vs-element divergence. */
 export function sharesLeader(a: Member, b: Member): boolean {
   return a.coords.leader[0] === b.coords.leader[0] && a.coords.leader[1] === b.coords.leader[1]
 }
