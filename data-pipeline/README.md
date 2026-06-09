@@ -22,8 +22,8 @@ under `public/data/` are committed.
 ## Requirements
 
 - **Python 3.12+** (CI pins 3.12; see `.github/workflows/ci.yml`).
-- Dependencies pinned in [`requirements.txt`](./requirements.txt): `pandas==3.0.0`,
-  `biopython==1.85` (pairwise %-identity), `numpy` (PCoA for `build_cloud.py`), and
+- Dependencies pinned in [`requirements.txt`](./requirements.txt): `pandas==3.0.3`,
+  `biopython==1.87` (pairwise %-identity), `numpy` (PCoA for `build_cloud.py`), and
   `pytest` (test runner).
 
 ## Setup

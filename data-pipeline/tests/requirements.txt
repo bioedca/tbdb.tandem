@@ -5,7 +5,7 @@
 # PairwiseAligner.align(a, b)[0] takes the FIRST of possibly several co-optimal
 # global alignments, and gap placement shifts the identity denominator -- so a
 # different BioPython can change identity.json (and thus summary.json) bytes.
-# The golden baseline in tests/golden/ was built with the EXACT versions below.
+# The golden baseline in tests/golden/ is validated with the EXACT versions below.
 #
 # These mirror data-pipeline/requirements.txt (the pipeline's own pins); kept
 # here too so the reproducibility guarantee is self-documenting next to the suite.
