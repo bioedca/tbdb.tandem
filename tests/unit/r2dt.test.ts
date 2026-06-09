@@ -3,7 +3,15 @@
 // identically). Pure functions, no DOM / no fetch.
 import { describe, expect, test } from 'vitest'
 import { buildStemColorMap, STEM_COLORS, STEM_LINKER_COLOR } from '../../src/lib/color'
-import { diagramViewBox, nucleotideSpacing, type R2dtDiagram } from '../../src/lib/r2dt'
+import {
+  diagramViewBox,
+  nucleotideSpacing,
+  withStemIToIISpacer,
+  type R2dtDiagram,
+} from '../../src/lib/r2dt'
+import type { MembersMap } from '../../src/lib/data/types'
+import membersJson from '../../public/data/members.json'
+import t0060m1Json from '../../public/data/r2dt/T0060.m1.json'
 
 describe('buildStemColorMap', () => {
   test('paints each stem its hue, every other position the linker grey (1-based)', () => {
@@ -65,5 +73,73 @@ describe('nucleotideSpacing', () => {
   })
   test('falls back to a default for a single nucleotide', () => {
     expect(nucleotideSpacing(diagram([5], [5]))).toBe(12)
+  })
+})
+
+describe('withStemIToIISpacer', () => {
+  test('adds a display-only spacer after Stem I when Stem II is packed too close', () => {
+    const d: R2dtDiagram = {
+      seq: 'ACGUACGU',
+      x: [0, 10, 20, 30, 40, 50, 60, 70],
+      y: [0, 0, 0, 0, 0, 0, 0, 0],
+      pairs: [[1, 3], [6, 8]],
+      template: 'T-box',
+      source: 'Rfam',
+    }
+    const out = withStemIToIISpacer(d, [
+      { key: 'i', start: 1, end: 3 },
+      { key: 'ii', start: 6, end: 8 },
+    ])
+
+    expect(out).not.toBe(d)
+    expect(out.seq).toBe(d.seq)
+    expect(out.pairs).toEqual(d.pairs)
+    expect(out.x.slice(0, 3)).toEqual([0, 10, 20])
+    // Two natural linker residues between Stem I and Stem II target a 6-step
+    // virtual spacer. With 10-unit median spacing and a 10-unit current connector,
+    // residues 4..8 shift +50 units.
+    expect(out.x.slice(3)).toEqual([80, 90, 100, 110, 120])
+    expect(out.y).toEqual(d.y)
+  })
+
+  test('does not change diagrams that lack Stem I or Stem II', () => {
+    const d = diagram([0, 10, 20], [0, 0, 0])
+    expect(withStemIToIISpacer(d, [{ key: 'i', start: 1, end: 2 }])).toBe(d)
+    expect(withStemIToIISpacer(d, [{ key: 'ii', start: 2, end: 3 }])).toBe(d)
+  })
+
+  test('does not shift an already-spacious Stem I to Stem II connector', () => {
+    const d: R2dtDiagram = {
+      seq: 'ACGUACGU',
+      x: [0, 10, 20, 90, 100, 110, 120, 130],
+      y: [0, 0, 0, 0, 0, 0, 0, 0],
+      pairs: [],
+      template: null,
+      source: null,
+    }
+    expect(withStemIToIISpacer(d, [
+      { key: 'i', start: 1, end: 3 },
+      { key: 'ii', start: 6, end: 8 },
+    ])).toBe(d)
+  })
+
+  test('extends the Stem I to Stem II connector on the real T0060 example', () => {
+    const member = (membersJson as MembersMap)['T0060.m1']
+    const d = t0060m1Json as R2dtDiagram
+    const stemI = member.stems.find((s) => s.key === 'i')
+    expect(stemI).toBeTruthy()
+    const before = Math.hypot(
+      d.x[stemI!.end] - d.x[stemI!.end - 1],
+      d.y[stemI!.end] - d.y[stemI!.end - 1],
+    )
+    const out = withStemIToIISpacer(d, member.stems)
+    const after = Math.hypot(
+      out.x[stemI!.end] - out.x[stemI!.end - 1],
+      out.y[stemI!.end] - out.y[stemI!.end - 1],
+    )
+
+    expect(out.seq).toBe(d.seq)
+    expect(out.pairs).toEqual(d.pairs)
+    expect(after).toBeGreaterThan(before + 2 * nucleotideSpacing(d))
   })
 })

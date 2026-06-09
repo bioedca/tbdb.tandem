@@ -15,6 +15,7 @@
     PlotlyStatic,
   } from 'plotly.js-dist-min'
 
+  import { fitText } from '../actions/fitText'
   import { store } from '../stores/filters.svelte'
   import { aaColor, withAlpha } from '../color'
   import { brand, fontFamily, neutral } from '../design/tokens'
@@ -30,6 +31,7 @@
   } from '../specificity'
   import Card from './Card.svelte'
   import InfoTip from './InfoTip.svelte'
+  import SpecPhylumHeatmap from './SpecPhylumHeatmap.svelte'
   import Spinner from './Spinner.svelte'
 
   // ── Derived models (bar boots from summary; matrix waits for members) ───────────
@@ -322,40 +324,77 @@
     </div>
   </div>
 
-  <!-- Triple-core loci — surfaced as a list, not forced into 2D cells (§9②) -->
+  <SpecPhylumHeatmap
+    embedded
+    subtitle="The same specificity overview crossed with phylum. Axes stay stable while the counts respond to the dashboard filter; cells use the neutral phylum ramp so the non-Firmicutes outliers remain easy to spot."
+  />
+
+  <!-- Triple-core loci — own section, not forced into 2D cells (§9②) -->
   {#if triples.length}
-    <div class="mt-5 border-t border-hairline pt-4">
-      <h3 class="mb-1 text-small font-medium text-ink">
-        Triple-core loci <span class="font-normal text-muted">({triples.length})</span>
-      </h3>
-      <p class="mb-2 text-caption text-muted">
-        These {triples.length} loci hold three T-box elements, too many for the 2-D matrix above, so they
-        are listed here. Each dot is one element's specifier amino acid in 5′→3′ order; grey
-        <span class="font-mono">?</span> = unresolved.
-      </p>
-      <ul class="flex flex-wrap gap-2">
-        {#each triples as t (t.tandem_id)}
-          <li>
-            <button
-              type="button"
-              class="flex items-center gap-2 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-small transition-colors duration-150 ease-standard hover:bg-surface-subtle"
-              title="{t.organism ?? t.tandem_id}: open locus detail"
-              onclick={() => push(`/locus/${t.tandem_id}`)}
-            >
-              <span class="font-mono font-medium text-brand">{t.tandem_id}</span>
-              <span class="flex items-center gap-1" aria-hidden="true">
-                {#each t.specs as s, i (i)}
-                  <span
-                    class="size-3 rounded-sm ring-1 ring-ink/10"
-                    style:background={aaColor(s)}
-                  ></span>
-                {/each}
-              </span>
-              <span class="font-mono text-caption text-muted">{t.specs.join(' · ')}</span>
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </div>
+    <section class="mt-6 border-t border-hairline pt-5">
+      <div class="grid gap-4 xl:grid-cols-[minmax(9rem,12rem)_1fr]">
+        <div class="min-w-0 bg-surface-subtle px-3 py-3">
+          <p class="text-caption font-medium uppercase tracking-wide text-muted">Triple count</p>
+          <p
+            use:fitText={{ minPx: 26 }}
+            class="mt-1 text-display font-semibold leading-none tabular-nums text-ink"
+          >
+            {triples.length}
+          </p>
+          <p class="mt-2 text-caption text-muted">
+            Three T-box elements in one leader; shown outside the 2-D pair matrix so no element is
+            collapsed into a cell.
+          </p>
+        </div>
+
+        <div class="min-w-0">
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div class="min-w-0">
+              <h3 class="text-small font-medium text-ink">Triple-core loci</h3>
+              <p class="mt-1 max-w-measure text-caption text-muted">
+                Element specifiers are shown in transcript 5′→3′ order. Grey
+                <span class="font-mono">?</span> marks an unresolved element specifier.
+              </p>
+            </div>
+            <span class="shrink-0 rounded-sm bg-brand-subtle px-2 py-1 text-caption font-medium text-brand">
+              3 elements each
+            </span>
+          </div>
+
+          <ul class="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+            {#each triples as t (t.tandem_id)}
+              <li>
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[auto_1fr] items-center gap-3 rounded-md border border-hairline bg-surface px-3 py-2 text-left transition-colors duration-150 ease-standard hover:border-brand/40 hover:bg-brand-subtle/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  title="{t.organism ?? t.tandem_id}: open locus detail"
+                  aria-label="Open {t.tandem_id}, triple-core locus with specifiers {t.specs.join(', ')}"
+                  onclick={() => push(`/locus/${t.tandem_id}`)}
+                >
+                  <span class="font-mono text-small font-semibold text-brand">{t.tandem_id}</span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-small font-medium text-ink">
+                      {t.organism ?? 'unassigned organism'}
+                    </span>
+                    <span class="mt-1 flex flex-wrap items-center gap-1.5">
+                      {#each t.specs as s, i (i)}
+                        <span class="inline-flex items-center gap-1 rounded-sm bg-surface-subtle px-1.5 py-0.5">
+                          <span
+                            class="size-3 rounded-sm ring-1 ring-ink/10"
+                            style:background={aaColor(s)}
+                            aria-hidden="true"
+                          ></span>
+                          <span class="font-mono text-caption text-muted">{i + 1}:{s}</span>
+                        </span>
+                      {/each}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      </div>
+    </section>
   {/if}
 </Card>

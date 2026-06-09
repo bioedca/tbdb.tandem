@@ -7,16 +7,27 @@ import { render, screen, waitFor } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const mock = vi.hoisted(() => {
-  const handlers: { bar: Record<string, (ev: unknown) => void>; heatmap: Record<string, (ev: unknown) => void> } = {
+  const handlers: {
+    bar: Record<string, (ev: unknown) => void>
+    matrix: Record<string, (ev: unknown) => void>
+    phylum: Record<string, (ev: unknown) => void>
+  } = {
     bar: {},
-    heatmap: {},
+    matrix: {},
+    phylum: {},
   }
   const reactCalls: { trace: string }[] = []
   const fake = {
-    react: (el: HTMLElement & { on?: unknown }, data: { type?: string }[]) => {
-      const trace = data?.[0]?.type === 'heatmap' ? 'heatmap' : 'bar'
+    react: (el: HTMLElement & { on?: unknown }, data: { type?: string; y?: unknown }[]) => {
+      const trace =
+        data?.[0]?.type !== 'heatmap'
+          ? 'bar'
+          : Array.isArray(data?.[0]?.y) &&
+              (data[0].y.includes('Firmicutes') || data[0].y.includes('unassigned'))
+            ? 'phylum'
+            : 'matrix'
       ;(el as { on: (evt: string, cb: (ev: unknown) => void) => void }).on = (evt, cb) => {
-        handlers[trace as 'bar' | 'heatmap'][evt] = cb
+        handlers[trace as 'bar' | 'matrix' | 'phylum'][evt] = cb
       }
       reactCalls.push({ trace })
       return Promise.resolve(el)
@@ -37,21 +48,25 @@ import { resetStore, seedStore } from '../helpers'
 beforeEach(() => {
   seedStore()
   mock.handlers.bar = {}
-  mock.handlers.heatmap = {}
+  mock.handlers.matrix = {}
+  mock.handlers.phylum = {}
   mock.reactCalls.length = 0
 })
 
 afterEach(resetStore)
 
 describe('SpecificityChart', () => {
-  test('mounts both Plotly views and renders the triple-core list', async () => {
+  test('mounts all specificity Plotly views and renders the triple-core section', async () => {
     render(SpecificityChart)
-    await waitFor(() => expect(mock.reactCalls.length).toBeGreaterThanOrEqual(2))
+    await waitFor(() => expect(mock.reactCalls.length).toBeGreaterThanOrEqual(3))
     expect(mock.reactCalls.some((c) => c.trace === 'bar')).toBe(true)
-    expect(mock.reactCalls.some((c) => c.trace === 'heatmap')).toBe(true)
+    expect(mock.reactCalls.some((c) => c.trace === 'matrix')).toBe(true)
+    expect(mock.reactCalls.some((c) => c.trace === 'phylum')).toBe(true)
     // the single fixture triple (T0005) is surfaced as a button, not a 2D cell.
     expect(screen.getByText('T0005')).toBeInTheDocument()
-    expect(screen.getByText(/Triple-core loci/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Triple-core loci' })).toBeInTheDocument()
+    expect(screen.getByText(/3 elements each/)).toBeInTheDocument()
+    expect(screen.getByText(/Specifier × phylum/)).toBeInTheDocument()
   })
 
   test('clicking a bar cross-filters the store to that specifier', async () => {
@@ -72,15 +87,23 @@ describe('SpecificityChart', () => {
 
   test('clicking the ILE×LEU matrix cell cross-filters to ILE;LEU', async () => {
     render(SpecificityChart)
-    await waitFor(() => expect(mock.handlers.heatmap.plotly_click).toBeTypeOf('function'))
-    mock.handlers.heatmap.plotly_click({ points: [{ x: 'ILE', y: 'LEU', z: 10 }] })
+    await waitFor(() => expect(mock.handlers.matrix.plotly_click).toBeTypeOf('function'))
+    mock.handlers.matrix.plotly_click({ points: [{ x: 'ILE', y: 'LEU', z: 10 }] })
     expect([...store.filter.specifier]).toEqual(['ILE;LEU'])
   })
 
   test('clicking an empty (null-z) matrix cell does nothing', async () => {
     render(SpecificityChart)
-    await waitFor(() => expect(mock.handlers.heatmap.plotly_click).toBeTypeOf('function'))
-    mock.handlers.heatmap.plotly_click({ points: [{ x: 'TRP', y: 'ALA', z: null }] })
+    await waitFor(() => expect(mock.handlers.matrix.plotly_click).toBeTypeOf('function'))
+    mock.handlers.matrix.plotly_click({ points: [{ x: 'TRP', y: 'ALA', z: null }] })
     expect(store.filter.specifier.size).toBe(0)
+  })
+
+  test('clicking the embedded specifier × phylum heatmap cross-filters both facets', async () => {
+    render(SpecificityChart)
+    await waitFor(() => expect(mock.handlers.phylum.plotly_click).toBeTypeOf('function'))
+    mock.handlers.phylum.plotly_click({ points: [{ x: 'TRP', y: 'Firmicutes', z: 2 }] })
+    expect([...store.filter.specifier]).toEqual(['TRP'])
+    expect([...store.filter.phylum]).toEqual(['Firmicutes'])
   })
 })
