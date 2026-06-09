@@ -111,7 +111,7 @@
         <div>
           <dt class="text-caption uppercase tracking-wide text-muted">Function class</dt>
           <dd class="text-small text-ink">
-            {locus.func_class}{#if locus.func_source === 'text'}<span title="Inferred from the downstream gene's text annotation, not an EC (Enzyme Commission) number">*</span>{/if}
+            {locus.func_class}{#if locus.func_source === 'text'}<span title="Inferred from downstream annotation text, not an EC (Enzyme Commission) number">*</span>{/if}
           </dd>
         </div>
         <div>

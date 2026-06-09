@@ -39,7 +39,7 @@
     high: 'High-confidence locus',
     low: 'Low-confidence locus',
     unknown: 'Unknown / unresolved specifier',
-    inferred: "Function class inferred from the downstream gene's text annotation, not an EC (Enzyme Commission) number",
+    inferred: "Function class inferred from downstream annotation text, not an EC (Enzyme Commission) number",
   } as const
 </script>
 

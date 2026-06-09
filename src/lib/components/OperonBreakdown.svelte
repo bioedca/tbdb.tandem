@@ -3,8 +3,8 @@
   // shared filter state (§7.3): ① horizontal STACKED BARS of loci by `func_class`,
   // split by the two-tier classifier's provenance — solid (EC-backed) · hatched
   // (text-inferred*) · dotted (no annotation) (§5.3); ② a specifier → func_class
-  // SANKEY exposing the observed couplings (TRP→biosynthesis, THR→aaRS, ILE/LEU→
-  // biosynthesis); and ③ the regulation `type` shown as CHIPS, never a toggle
+  // SANKEY exposing the observed couplings (TRP→biosynthesis, THR→aaRS /
+  // oxidoreductase, ILE/LEU→biosynthesis); and ③ the regulation `type` shown as CHIPS, never a toggle
   // (§2.2/§9③). Bar colors + Sankey func_class nodes use the muted FUNC_CLASS
   // categorical chrome palette (distinct hues but low-saturation, kept clear of the
   // specifier data palette by §8.2); specifier nodes use the data palette.

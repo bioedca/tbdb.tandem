@@ -72,11 +72,11 @@ export const GLOSSARY = {
   },
   func_class: {
     term: 'Function class',
-    def: 'The function of the gene a locus regulates, from its EC number or text annotation: aaRS = aminoacyl-tRNA synthetase, biosynthesis = a biosynthetic enzyme (EC transferase/lyase), transporter = a membrane transporter or permease, oxidoreductase = a redox enzyme, or unknown.',
+    def: 'The function of the gene or operon a locus regulates, from EC numbers or downstream protein / description text: aaRS = aminoacyl-tRNA synthetase, biosynthesis = a biosynthetic enzyme (EC transferase/lyase), transporter = a membrane transporter or permease, oxidoreductase = a redox enzyme, or unknown.',
   },
   func_source: {
     term: 'Classification source',
-    def: 'How the function class was assigned: an EC (Enzyme Commission) enzyme number, the gene’s text annotation (*lower confidence), or no annotation.',
+    def: 'How the function class was assigned: an EC (Enzyme Commission) enzyme number, annotation text (*lower confidence), or no annotation.',
   },
   regulation_type: {
     term: 'Regulation type',

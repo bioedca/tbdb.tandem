@@ -5,7 +5,7 @@
 //      split by the two-tier classifier's provenance: EC-backed / text-inferred /
 //      no-annotation; §5.3), and
 //   ② a specifier → func_class Sankey exposing the observed couplings (TRP→
-//      biosynthesis via trpE/anthranilate; THR→aaRS via threonyl-tRNA ligase;
+//      biosynthesis via trpE/anthranilate; THR→aaRS and oxidoreductase;
 //      ILE/LEU/ILE;LEU→biosynthesis branched-chain; §9③).
 //
 // Both are RESPONDERS in the dashboard (PLAN §9 centerpiece; S2.6): the bar/chip

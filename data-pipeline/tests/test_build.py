@@ -413,16 +413,43 @@ def test_members_carry_labelled_stems(built):
             assert 1 <= s["start"] <= s["end"] <= length
 
 
-def test_locus_func_class_keeps_ec_tier_when_member_matches():
-    # PLAN section 5.3: classify the member whose downstream_protein_id == the tandem
-    # downstream_id (so the EC tier still applies at locus level); else text-classify
-    # the tandem downstream_gene.
+def _downstream_member(id_, cls, source, ec=None, protein=None, desc=None):
+    return {"downstream": {
+        "id": id_,
+        "ec": ec,
+        "protein": protein,
+        "desc": desc,
+        "func_class": cls,
+        "func_source": source,
+    }}
+
+
+def test_locus_func_class_keeps_ec_tier_when_single_member_matches():
+    # PLAN section 5.3: a single matched downstream_protein_id inherits the
+    # member's class, preserving EC-backed provenance at locus level.
     member_objs = [
-        {"downstream": {"id": "prot|X", "func_class": "aaRS", "func_source": "EC"}},
-        {"downstream": {"id": "prot|Y", "func_class": "unknown", "func_source": "none"}},
+        _downstream_member("prot|X", "aaRS", "EC", ec="6.1.1.3", protein="threonyl-tRNA synthetase"),
+        _downstream_member("prot|Y", "unknown", "none"),
     ]
     matched = pd.Series({"downstream_id": "prot|X", "downstream_gene": "isoleucine--tRNA ligase"})
     assert bj._locus_func_class(matched, member_objs) == ("aaRS", "EC")
+
+
+def test_locus_func_class_aggregates_multigene_operon_evidence():
+    member_objs = [
+        _downstream_member(
+            "prot|X",
+            "biosynthesis",
+            "EC",
+            ec="4.1.3.27",
+            protein="hypothetical protein",
+            desc="Anthranilate synthase component 1 (EC 4.1.3.27)",
+        ),
+        _downstream_member("prot|Y", "unknown", "text", protein="hypothetical protein", desc="Uncharacterized protein"),
+    ]
+    multi = pd.Series({"downstream_id": "prot|X;prot|Y", "downstream_gene": "hypothetical protein"})
+    assert bj._locus_func_class(multi, member_objs) == ("biosynthesis", "EC")
+
     unmatched = pd.Series({"downstream_id": "prot|Z", "downstream_gene": "ABC transporter permease"})
     assert bj._locus_func_class(unmatched, member_objs) == ("transporter", "text")
 
@@ -447,25 +474,50 @@ def test_project_na_offset_returns_none():
 
 # --- Two-tier function classifier (PLAN section 5.3) ------------------------
 
-@pytest.mark.parametrize("ec,protein,expected", [
+@pytest.mark.parametrize("ec,protein,desc,expected", [
     # Tier 1 -- EC prefixes.
-    ("6.1.1.5", "isoleucine--tRNA ligase", ("aaRS", "EC")),
-    ("2.4.2.18", "anthranilate phosphoribosyltransferase", ("biosynthesis", "EC")),
-    ("4.2.1.20", "tryptophan synthase", ("biosynthesis", "EC")),
-    ("1.1.1.25", "shikimate dehydrogenase", ("oxidoreductase", "EC")),
+    ("6.1.1.5", "isoleucine--tRNA ligase", None, ("aaRS", "EC")),
+    ("2.4.2.18", "anthranilate phosphoribosyltransferase", None, ("biosynthesis", "EC")),
+    ("4.2.1.20", "tryptophan synthase", None, ("biosynthesis", "EC")),
+    ("1.1.1.25", "shikimate dehydrogenase", None, ("oxidoreductase", "EC")),
+    # EC numbers embedded in the richer Master protein_desc count as EC-backed.
+    (None, "hypothetical protein", "Anthranilate synthase component 1 (EC 4.1.3.27)", ("biosynthesis", "EC")),
+    (None, "gamma-glutamyl kinase", "Glutamate 5-kinase (EC 2.7.2.11)", ("biosynthesis", "EC")),
     # An EC present but matching no known prefix falls THROUGH to tier 2.
-    ("3.5.1.2", "branched-chain amino acid ABC transporter", ("transporter", "text")),
+    ("3.5.1.2", "branched-chain amino acid ABC transporter", None, ("transporter", "text")),
     # Tier 2 -- ordered regex over downstream_protein text.
-    (None, "tryptophan--tRNA ligase", ("aaRS", "text")),
-    (None, "histidine ABC transporter permease", ("transporter", "text")),
-    (None, "chorismate synthase", ("biosynthesis", "text")),
-    (None, "hypothetical protein", ("unknown", "text")),
+    (None, "tryptophan--tRNA ligase", None, ("aaRS", "text")),
+    (None, "threonyl-tRNA synthetase", None, ("aaRS", "text")),
+    (None, "hypothetical protein", "tRNA_SAD domain-containing protein | threonyl-tRNA aminoacylation [GO:0006435]", ("aaRS", "text")),
+    (None, "histidine ABC transporter permease", None, ("transporter", "text")),
+    (None, "serine/threonine protein kinase", "K03294 basic amino acid/polyamine antiporter, APA family", ("transporter", "text")),
+    (None, "chorismate synthase", None, ("biosynthesis", "text")),
+    (None, "phospho-2-dehydro-3-deoxyheptonate aldolase", None, ("biosynthesis", "text")),
+    (None, "Phenylalanine 4-monooxygenase", None, ("oxidoreductase", "text")),
+    (None, "hypothetical protein", None, ("unknown", "text")),
     # No signal at all.
-    (None, None, ("unknown", "none")),
-    (None, "membrane protein of unknown role", ("unknown", "none")),
+    (None, None, None, ("unknown", "none")),
+    (None, "membrane protein of unknown role", None, ("unknown", "none")),
 ])
-def test_classify_func(ec, protein, expected):
-    assert bj.classify_func(ec, protein) == expected
+def test_classify_func(ec, protein, desc, expected):
+    assert bj.classify_func(ec, protein, desc) == expected
+
+
+def test_joined_ec_numbers_extracts_and_deduplicates_fields():
+    assert bj.joined_ec_numbers(
+        "2.3.3.13",
+        "2-isopropylmalate synthase",
+        "2-isopropylmalate synthase (EC 2.3.3.13)",
+    ) == "2.3.3.13"
+    assert bj.joined_ec_numbers(
+        "6.1.1.3",
+        "synthase (EC 2.3.3.13)",
+        "lyase family enzyme 4.2.1.20",
+    ) == "6.1.1.3;2.3.3.13;4.2.1.20"
+    assert bj.joined_ec_numbers(None, "kinase (EC 2.7.2.11)", None) == "2.7.2.11"
+    assert bj.joined_ec_numbers(None, None, None) is None
+    assert bj.joined_ec_numbers("", "", "") is None
+    assert bj.joined_ec_numbers(None, "enzymes 2.6.1.42 and 2.6.1.57", None) == "2.6.1.42;2.6.1.57"
 
 
 def test_classify_func_aars_precedes_transporter(built):

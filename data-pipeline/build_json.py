@@ -381,45 +381,94 @@ def resolve_members(tandem: pd.DataFrame, master: pd.DataFrame) -> list[dict]:
 _EC_AARS = re.compile(r"^6\.1\.1\.")        # aminoacyl-tRNA ligases -> aaRS
 _EC_BIOSYN = re.compile(r"^(?:2|4)\.")      # transferases / lyases  -> biosynthesis
 _EC_OXRED = re.compile(r"^1\.")             # oxidoreductases        -> oxidoreductase
+_RE_EC_CODE = re.compile(r"(?<!\d)(\d+\.\d+\.\d+\.\d+)(?!\d)")
 
-# Tier 2 -- ordered regex over `downstream_protein` text (case-insensitive).
-# `--?tRNA (ligase|synthetase)` in PLAN section 5.3 is the "...--tRNA ligase"
-# naming; searching for the tRNA+role phrase anywhere matches it.
-_RE_AARS = re.compile(r"tRNA\s+(?:ligase|synthetase)", re.IGNORECASE)
-_RE_TRANS = re.compile(r"transporter|permease|abc|atp-binding", re.IGNORECASE)
-_RE_BIOSYN = re.compile(
-    r"aminotransferase|dehydratase|synthase|anthranilate|chorismate|"
-    r"isopropylmalate|homoserine",
+# Tier 2 -- ordered regex over downstream protein + description text
+# (case-insensitive). The description field carries GO / domain annotations and
+# many embedded EC numbers in Master_tboxes.csv; using it here moves the operon
+# panel from short-name heuristics to the richer source annotation.
+_RE_AARS = re.compile(
+    r"tRNA\s+(?:ligase|synthetase)|"
+    r"[A-Za-z]+yl-tRNA\s+synthetase|"
+    r"[A-Za-z]+--tRNA(?:\([^)]*\))?\s+ligase|"
+    r"\btRNA[_\s-]*SAD\b|"
+    r"aminoacylation",
     re.IGNORECASE,
 )
-_RE_HYPO = re.compile(r"hypothetical", re.IGNORECASE)
+_RE_TRANS = re.compile(
+    r"transporter|transport\s+(?:system|protein)|permease|abc|"
+    r"atp-binding|substrate-binding protein|antiporter|symporter|"
+    r"major facilitator|\bmfs\b|transport system carrier protein|"
+    r"branched-chain amino acid transport|nitrogen compound transport|"
+    r"amino acid[^|;]*transport",
+    re.IGNORECASE,
+)
+_RE_BIOSYN = re.compile(
+    r"aminotransferase|dehydratase|synthase|anthranilate|chorismate|"
+    r"isopropylmalate|homoserine|biosynth|deoxyheptonate|dahp|"
+    r"aldolase|aspart(?:ate)?\s+kinase|aspartokinase|"
+    r"carbamoyltransferase|phosphoribosyltransferase|prephenate|"
+    r"acetolactate|ketol-acid|dihydroxy-acid|isomeroreductase|"
+    r"branched-chain amino acid aminotransferase|trp[eg]\b",
+    re.IGNORECASE,
+)
+_RE_OXRED = re.compile(
+    r"oxidoreductase|dehydrogenase|reductase|monooxygenase|hydroxylase|oxygenase",
+    re.IGNORECASE,
+)
+_RE_HYPO = re.compile(r"hypothetical|uncharacterized|unknown function", re.IGNORECASE)
 
 
-def classify_func(ec: str | None, protein: str | None) -> tuple[str, str]:
+def extract_ec_numbers(*values: str | None) -> list[str]:
+    """Unique EC numbers from explicit EC cells and free-text annotations."""
+    out: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        for ec in _RE_EC_CODE.findall(value):
+            if ec not in out:
+                out.append(ec)
+    return out
+
+
+def joined_ec_numbers(*values: str | None) -> str | None:
+    """Semicolon-joined EC evidence for the artifact's ``downstream.ec`` field."""
+    ecs = extract_ec_numbers(*values)
+    return ";".join(ecs) if ecs else None
+
+
+def classify_func(ec: str | None, protein: str | None, desc: str | None = None) -> tuple[str, str]:
     """Two-tier ``(func_class, func_source)`` classifier (PLAN section 5.3).
 
-    Tier 1 keys off the EC number (``func_source == 'EC'``). An EC that is present
-    but matches no known prefix falls through to tier 2 rather than being lost.
-    Tier 2 is an ordered regex over ``downstream_protein`` (``func_source ==
-    'text'`` -- the UI marks these with an asterisk). With neither signal the class
-    is ``unknown`` / ``none``.
+    Tier 1 keys off EC numbers in the explicit EC column or embedded in the source
+    annotation text (``func_source == 'EC'``). ECs with no mapped prefix fall
+    through to tier 2 rather than being lost. Tier 2 is an ordered regex over the
+    protein name plus description/GO text (``func_source == 'text'`` -- the UI
+    marks these with an asterisk). With neither signal the class is ``unknown`` /
+    ``none``.
     """
-    if ec:
-        e = ec.strip()
+    ecs = extract_ec_numbers(ec, protein, desc)
+    for e in ecs:
         if _EC_AARS.match(e):
             return ("aaRS", "EC")
+    for e in ecs:
         if _EC_BIOSYN.match(e):
             return ("biosynthesis", "EC")
+    for e in ecs:
         if _EC_OXRED.match(e):
             return ("oxidoreductase", "EC")
-    if protein:
-        if _RE_AARS.search(protein):
+
+    text = " | ".join(value for value in (protein, desc) if value)
+    if text:
+        if _RE_AARS.search(text):
             return ("aaRS", "text")
-        if _RE_TRANS.search(protein):
+        if _RE_TRANS.search(text):
             return ("transporter", "text")
-        if _RE_BIOSYN.search(protein):
+        if _RE_BIOSYN.search(text):
             return ("biosynthesis", "text")
-        if _RE_HYPO.search(protein):
+        if _RE_OXRED.search(text):
+            return ("oxidoreductase", "text")
+        if _RE_HYPO.search(text):
             return ("unknown", "text")
     return ("unknown", "none")
 
@@ -671,9 +720,10 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
         window[name] = [_i(row[c0]), _i(row[c1])]
         genome[name] = [project(row[c0], locus_start, strand), project(row[c1], locus_start, strand)]
 
-    ec = _s(row["downstream_protein_EC"])
     protein = _s(row["downstream_protein"])
-    func_class, func_source = classify_func(ec, protein)
+    desc = _s(row["protein_desc"])
+    ec = joined_ec_numbers(_s(row["downstream_protein_EC"]), protein, desc)
+    func_class, func_source = classify_func(ec, protein, desc)
 
     # Structure/sequence cells the terminator conformation derives from (kept as locals
     # so derive_whole_term_structure reads the SAME assembled values the dict emits).
@@ -728,27 +778,50 @@ def _assemble_member(row: pd.Series, member: dict, accession: str, strand: str) 
             "protein": protein,
             "id": _s(row["downstream_protein_id"]),
             "ec": ec,
-            "desc": _s(row["protein_desc"]),
+            "desc": desc,
             "func_class": func_class,
             "func_source": func_source,
         },
     }
 
 
+def _split_downstream_ids(value: object) -> list[str]:
+    text = _s(value)
+    return [part.strip() for part in text.split(";") if part.strip()] if text else []
+
+
 def _locus_func_class(tandem_row: pd.Series, member_objs: list[dict]) -> tuple[str, str]:
     """Locus-level ``(func_class, func_source)`` (PLAN section 9 (3) -- loci by class).
 
     The tandem regulates one operon recorded as ``downstream_gene`` /
-    ``downstream_id``. Classify the member whose ``downstream_protein_id`` matches
-    that id (so the EC tier still applies); if no member matches, text-classify the
-    tandem ``downstream_gene`` directly (no EC available at locus level).
+    ``downstream_id``. A single matched gene inherits the member's EC/text
+    classification. Multi-gene / ambiguous loci classify the combined regulated-
+    operon annotation (tandem text plus member protein descriptions), so the
+    Sankey uses the richest Master-derived evidence instead of an arbitrary member.
     """
-    target = _s(tandem_row["downstream_id"])
-    if target is not None:
-        for obj in member_objs:
-            if obj["downstream"]["id"] == target:
-                return obj["downstream"]["func_class"], obj["downstream"]["func_source"]
-    return classify_func(None, _s(tandem_row["downstream_gene"]))
+    target_ids = _split_downstream_ids(tandem_row["downstream_id"])
+    matched: list[dict] = []
+    if target_ids:
+        wanted = set(target_ids)
+        matched = [obj["downstream"] for obj in member_objs if obj["downstream"]["id"] in wanted]
+    if len(target_ids) == 1 and len(matched) == 1:
+        down = matched[0]
+        return down["func_class"], down["func_source"]
+
+    # If target_ids exist but matched is empty, evidence intentionally stays
+    # empty: trust downstream_gene text instead of unrelated member_objs downstream data.
+    evidence = matched if matched or target_ids else [obj["downstream"] for obj in member_objs]
+    ec_text = ";".join(dict.fromkeys(d["ec"] for d in evidence if d["ec"])) or None
+    text = " | ".join(
+        part
+        for part in (
+            [_s(tandem_row["downstream_gene"])]
+            + [d["protein"] for d in evidence]
+            + [d["desc"] for d in evidence]
+        )
+        if part
+    )
+    return classify_func(ec_text, text or None)
 
 
 def assemble(
