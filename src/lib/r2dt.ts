@@ -18,6 +18,8 @@ const diagramCache = new Map<string, Promise<R2dtDiagram | null>>()
 let termManifestPromise: Promise<R2dtManifest | null> | null = null
 const termDiagramCache = new Map<string, Promise<R2dtDiagram | null>>()
 
+export const R2DT_MIN_LOOP_CLEARANCE_RATIO = 0.72
+
 /** Fetch the R2DT availability manifest once (cached). Resolves null if absent
  *  (e.g. diagrams not yet generated) so the UI degrades to fornac-only. Only a
  *  SUCCESSFUL result is cached — a null/error result clears the cache slot so a
@@ -135,6 +137,87 @@ function stemCentroid(d: R2dtDiagram, start: number, end: number): [number, numb
   return n > 0 ? [sx / n, sy / n] : [0, 0]
 }
 
+function loopHalfAngle(chordOverStep: number, k: number): number {
+  let lo = 1e-6
+  let hi = Math.PI - 1e-6
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2
+    const value = Math.sin(mid) / Math.sin(mid / (k + 1))
+    if (value > chordOverStep) lo = mid
+    else hi = mid
+  }
+  return (lo + hi) / 2
+}
+
+function arcPoints(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  k: number,
+  spacing: number,
+  side: 1 | -1,
+): [number, number][] | null {
+  const chord = Math.hypot(x1 - x0, y1 - y0)
+  if (chord < 1e-6 || k <= 0) return null
+  // If the anchors sit far apart, let the display-only loop use a slightly larger
+  // step rather than collapsing to a straight guardrail. This preserves readable
+  // separation without editing residue indices or base-pair data.
+  const step = Math.max(spacing, chord / (k + 0.65))
+  if (chord / step >= k + 1) {
+    const straight: [number, number][] = []
+    for (let t = 1; t <= k; t++) {
+      const f = t / (k + 1)
+      straight.push([x0 + f * (x1 - x0), y0 + f * (y1 - y0)])
+    }
+    return straight
+  }
+  const theta = loopHalfAngle(chord / step, k)
+  const delta = (2 * theta) / (k + 1)
+  let heading = Math.atan2(y1 - y0, x1 - x0) + side * ((delta * k) / 2)
+  let px = x0
+  let py = y0
+  const pts: [number, number][] = []
+  for (let t = 0; t < k; t++) {
+    px += step * Math.cos(heading)
+    py += step * Math.sin(heading)
+    pts.push([px, py])
+    heading -= side * delta
+  }
+  return pts
+}
+
+function minClearance(pts: [number, number][], obs: [number, number][]): number {
+  if (!pts.length || !obs.length) return Number.POSITIVE_INFINITY
+  let best = Number.POSITIVE_INFINITY
+  for (const [x, y] of pts) {
+    for (const [ox, oy] of obs) {
+      best = Math.min(best, Math.hypot(x - ox, y - oy))
+    }
+  }
+  return best
+}
+
+function pairResidues(d: R2dtDiagram): Set<number> {
+  const out = new Set<number>()
+  for (const [a, b] of d.pairs) {
+    out.add(a)
+    out.add(b)
+  }
+  return out
+}
+
+function terminatorSpan(terminatorPairs: [number, number][]): { start: number; end: number } | null {
+  if (!terminatorPairs.length) return null
+  let start = Number.POSITIVE_INFINITY
+  let end = 0
+  for (const [a, b] of terminatorPairs) {
+    start = Math.min(start, a, b)
+    end = Math.max(end, a, b)
+  }
+  return Number.isFinite(start) && end >= start ? { start, end } : null
+}
+
 /**
  * Add a display-only spacer after Stem I, before Stem II, using the same idea as
  * tbdb.io's R2DT/VARNA spacer: the biological sequence frame stays unchanged, but
@@ -185,4 +268,94 @@ export function withStemIToIISpacer(d: R2dtDiagram, stems: MemberStem[]): R2dtDi
     y[i] += uy * extra
   }
   return { ...d, x, y }
+}
+
+/**
+ * Open enclosed unpaired runs inside the visible R2DT stems so loops and bulges
+ * read as loops, not as tightly staggered clash-avoidance tracks. The committed
+ * R2DT coordinates already avoid hard overlap, but some Stem-I template guardrails
+ * are still visually cramped after the inter-stem spacer gives us room. This is a
+ * display-only coordinate pass: paired residues, `seq`, and `pairs` stay untouched,
+ * so all residue-indexed color/feature overlays remain aligned.
+ */
+export function withReadableStemLoops(d: R2dtDiagram, spans: { start: number; end: number }[]): R2dtDiagram {
+  const n = d.seq.length
+  if (n < 3 || d.x.length !== n || d.y.length !== n || !spans.length) return d
+  const spacing = nucleotideSpacing(d)
+  if (!Number.isFinite(spacing) || spacing <= 0) return d
+
+  const paired = pairResidues(d)
+  const x = d.x.slice()
+  const y = d.y.slice()
+  const cx = x.reduce((sum, v) => sum + v, 0) / n
+  const cy = y.reduce((sum, v) => sum + v, 0) / n
+  let changed = false
+
+  for (const span of spans) {
+    const lo = Math.max(1, Math.min(span.start, span.end, n))
+    const hi = Math.max(lo, Math.min(Math.max(span.start, span.end), n))
+    let i = lo
+    while (i <= hi) {
+      if (paired.has(i)) {
+        i += 1
+        continue
+      }
+      let j = i
+      while (j <= hi && !paired.has(j)) j += 1
+      const s = i
+      const e = j - 1
+      const k = e - s + 1
+      const left = s - 1
+      const right = e + 1
+      if (k >= 2 && left >= lo && right <= hi && paired.has(left) && paired.has(right)) {
+        const obs: [number, number][] = []
+        for (let r = 1; r <= n; r++) {
+          if (r < s || r > e) obs.push([x[r - 1], y[r - 1]])
+        }
+        const candidates = ([1, -1] as const)
+          .map((side) => {
+            const pts = arcPoints(x[left - 1], y[left - 1], x[right - 1], y[right - 1], k, spacing, side)
+            if (!pts) return null
+            const bx = pts.reduce((sum, p) => sum + p[0], 0) / k
+            const by = pts.reduce((sum, p) => sum + p[1], 0) / k
+            return {
+              pts,
+              clearance: minClearance(pts, obs),
+              outward: Math.hypot(bx - cx, by - cy),
+            }
+          })
+          .filter((c): c is { pts: [number, number][]; clearance: number; outward: number } => !!c)
+          .sort((a, b) => b.clearance - a.clearance || b.outward - a.outward)
+        const best = candidates[0]
+        if (best && best.clearance >= R2DT_MIN_LOOP_CLEARANCE_RATIO * spacing) {
+          for (let r = s; r <= e; r++) {
+            const [nx, ny] = best.pts[r - s]
+            if (Math.abs(x[r - 1] - nx) > 1e-6 || Math.abs(y[r - 1] - ny) > 1e-6) changed = true
+            x[r - 1] = nx
+            y[r - 1] = ny
+          }
+        }
+      }
+      i = j
+    }
+  }
+
+  return changed ? { ...d, x, y } : d
+}
+
+/** Full display-only R2DT readability pass used by the viewer. */
+export function withReadableR2dtLayout(
+  d: R2dtDiagram,
+  stems: MemberStem[],
+  variant: 'antiterm' | 'terminator' = 'antiterm',
+  terminatorPairs: [number, number][] = [],
+): R2dtDiagram {
+  const spaced = withStemIToIISpacer(d, stems)
+  const spans: { start: number; end: number }[] =
+    variant === 'terminator'
+      ? stems.filter((s) => s.key !== 'at').map(({ start, end }) => ({ start, end }))
+      : stems.map(({ start, end }) => ({ start, end }))
+  const term = variant === 'terminator' ? terminatorSpan(terminatorPairs) : null
+  if (term) spans.push(term)
+  return withReadableStemLoops(spaced, spans)
 }
