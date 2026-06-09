@@ -948,7 +948,9 @@
           scroll to zoom, shift-drag to pan; hover a point for its locus;
           {selectable ? 'click to filter the dashboard by its specifier.' : 'click to open its detail page.'}
         </p>
-        <p class="mt-1 max-w-measure text-caption text-muted">{VISUALIZATION_EXCLUSION_NOTE}</p>
+        {#if !selectable}
+          <p class="mt-1 max-w-measure text-caption text-muted">{VISUALIZATION_EXCLUSION_NOTE}</p>
+        {/if}
       </div>
     </div>
   {/snippet}

@@ -5,7 +5,7 @@ import type { NewickNode } from './tree'
 export const VISUALIZATION_EXCLUDED_TANDEM_IDS = ['T0281', 'T0445'] as const
 
 export const VISUALIZATION_EXCLUSION_NOTE =
-  'T0281 and T0445 remain in the database but are omitted from this visualization. Their source annotations appear to join or duplicate nearby T-box features, which makes the sequence layout treat them as artificial long-branch outliers; if shown, they would pull far from the main cluster and compress the rest of the map.'
+  'T0281 and T0445 remain in the database but are omitted from this visualization. Source annotation artifacts appear to merge adjacent or duplicated T-box features in those records, so the sequence layout reads them as artificial long-branch outliers; showing them would pull them far from the main cluster and compress the rest of the map.'
 
 const EXCLUDED = new Set<string>(VISUALIZATION_EXCLUDED_TANDEM_IDS)
 
