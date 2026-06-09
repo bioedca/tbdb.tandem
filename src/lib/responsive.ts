@@ -19,15 +19,17 @@ export function observeElementSize(
   const delay = opts.delay ?? 150
   let last: BoxSize = { w: -1, h: -1 }
   let timer: ReturnType<typeof setTimeout> | undefined
+  let disposed = false
 
   const emit = (size = elementSize(node), force = false) => {
+    if (disposed) return
     if (!force && Math.abs(size.w - last.w) < 0.5 && Math.abs(size.h - last.h) < 0.5) return
     last = size
     cb(size)
   }
 
   emit()
-  if (opts.fontsReady) onFontsReady(() => emit(undefined, true))
+  if (opts.fontsReady) onFontsReady(() => !disposed && emit(undefined, true))
 
   let ro: ResizeObserver | null = null
   if (typeof ResizeObserver !== 'undefined') {
@@ -41,6 +43,7 @@ export function observeElementSize(
   }
 
   return () => {
+    disposed = true
     clearTimeout(timer)
     ro?.disconnect()
   }

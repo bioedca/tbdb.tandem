@@ -269,10 +269,14 @@
       const s = parseSupport(t.data?.name)
       if (s != null && s < supportThreshold) faded = true
     }
+    const strokeWidth = scalePx(faded ? 0.6 : 1, graphScale, {
+      min: faded ? 0.55 : 0.9,
+      max: faded ? 1.1 : 1.9,
+    })
     element
       .style('fill', 'none')
       .style('stroke', neutral.muted)
-      .style('stroke-width', `${scalePx(faded ? 0.6 : 1, graphScale, { min: faded ? 0.55 : 0.9, max: faded ? 1.1 : 1.9 })}px`)
+      .style('stroke-width', `${strokeWidth}px`)
       .style('stroke-opacity', faded ? 0.18 : 0.7)
       .style('stroke-dasharray', faded ? '2,2' : null)
   }

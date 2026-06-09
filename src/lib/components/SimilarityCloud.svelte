@@ -21,6 +21,7 @@
 
   import { store } from '../stores/filters.svelte'
   import { fontFamily } from '../design/tokens'
+  import { observeElementSize } from '../responsive'
   import { graphPrimitiveScale, scalePx } from '../text/graphScale'
   import {
     aggregatePoints,
@@ -598,7 +599,6 @@
     sc.pointsMat.uniforms.uScreen.value = primitiveScale
     if (sc.pointBase > 0) sc.raycaster.params.Points = { threshold: sc.pointBase * PICK_OVER * primitiveScale }
     sc.linesMat.opacity = scalePx(0.18, primitiveScale, { min: 0.16, max: 0.3 })
-    sc.linesMat.linewidth = scalePx(1, primitiveScale, { min: 1, max: 2 })
     sc.linesMat.needsUpdate = true
   }
 
@@ -743,26 +743,18 @@
 
   // ── Resize observer (debounced, jsdom-guarded like PhyloTree) ────────────────────
   onMount(() => {
-    let t: ReturnType<typeof setTimeout> | undefined
-    let ro: ResizeObserver | null = null
-    if (typeof ResizeObserver !== 'undefined' && containerEl) {
-      ro = new ResizeObserver(() => {
-        clearTimeout(t)
-        t = setTimeout(() => {
-          resize()
-          // The framing distance is aspect-dependent (a portrait viewport sits the
-          // camera further back), so re-fit for the new aspect on resize / device
-          // rotation — but only while auto-framing still owns the camera, and eased
-          // (never an instant snap mid-resize). A user-adjusted camera is left alone.
-          if (framed && !userAdjusted) frameView(renderPoints, false)
-        }, 150)
-      })
-      ro.observe(containerEl)
-    }
-    return () => {
-      clearTimeout(t)
-      ro?.disconnect()
-    }
+    return observeElementSize(
+      containerEl,
+      () => {
+        resize()
+        // The framing distance is aspect-dependent (a portrait viewport sits the
+        // camera further back), so re-fit for the new aspect on resize / device
+        // rotation — but only while auto-framing still owns the camera, and eased
+        // (never an instant snap mid-resize). A user-adjusted camera is left alone.
+        if (framed && !userAdjusted) frameView(renderPoints, false)
+      },
+      { fontsReady: true },
+    )
   })
 
   const presetList = $derived(PRESET_ORDER.map((k) => PRESETS[k]))
