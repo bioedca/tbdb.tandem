@@ -144,14 +144,6 @@
   })
   const scaleW = $derived(x(scaleBp) - x(0))
 
-  // Faint engineering gridlines at scale-bar multiples — they anchor the to-scale claim
-  // like graph paper without competing with the glyphs. Deterministic (function of span).
-  const gridlines = $derived.by(() => {
-    const xs: number[] = []
-    for (let k = 1; x(scaleBp * k) < TRACK_R - 1; k++) xs.push(x(scaleBp * k))
-    return xs
-  })
-
 </script>
 
 <figure class="tv-arch w-full">
@@ -166,11 +158,6 @@
     role="img"
     aria-label="Tandem architecture: {model.elements.length} T-box elements, biological 5′ to 3′, {strand} strand; downstream {funcClass} gene or operon."
   >
-    <!-- Faint engineering gridlines at scale-bar multiples (graph-paper anchor) -->
-    {#each gridlines as gx, i (i)}
-      <line x1={gx} y1={Y_LOOP + 6} x2={gx} y2={Y_SCALE - 4} stroke={neutral.hairline} stroke-width="1" stroke-opacity="0.4" />
-    {/each}
-
     <!-- Transcript backbone: a single faint hairline baseline (the data axis) -->
     <line
       x1={TRACK_L}
