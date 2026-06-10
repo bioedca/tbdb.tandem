@@ -46,13 +46,13 @@
 
   <KpiStrip />
 
-  <TripleLociPanel />
-
   <SpecificityChart />
 
   <OperonBreakdown />
 
   <PhyloTree selectable height="clamp(22rem, 52vh, 40rem)" />
+
+  <TripleLociPanel />
 
   <FacetTable height="clamp(24rem, 56vh, 44rem)" />
 </section>
