@@ -49,6 +49,7 @@
     type Orbit,
   } from '../cloud/orbit'
   import {
+    anchorOffsetAt,
     createRelaxState,
     isSettled,
     meanAnchorOffset,
@@ -57,6 +58,14 @@
     type RelaxState,
   } from '../cloud/relax'
   import { pickNearest, pickRadiusPx, type ScreenPoint } from '../cloud/picking'
+  import {
+    dampScalar,
+    HIGHLIGHT_COLOR,
+    HIGHLIGHT_EASE,
+    highlightTargets,
+    POP_DURATION_MS,
+    popScale,
+  } from '../cloud/highlight'
   import type { ColorMode, PresetKey, SizeMode, WhichTree } from '../cloud/types'
   import {
     filterCloudTreeForVisualization,
@@ -143,6 +152,9 @@
     linesMat: any
     pointBase: number
     positions: Float32Array
+    /** Data-derived size / alpha (restyle's output); the highlight composes OVER these. */
+    baseSize: Float32Array
+    baseAlpha: Float32Array
     relax: RelaxState | null
     count: number
     settled: boolean
@@ -201,6 +213,18 @@
     framed = true
   }
 
+  // ── Selection highlight ──────────────────────────────────────────────────────────
+  // The render-point index under the cursor (hover) and the last clicked one (a lock that
+  // persists in the dashboard panel; transient before the full-page navigation). Index-
+  // based, so the highlighted node keeps its identity as Spread slides its position. Both
+  // reset on a topology rebuild (the render set re-orders). `highlightLevels` holds the
+  // per-index eased highlight amount; `popStart` the start time of a one-shot pop.
+  let hoveredIndex = $state(-1)
+  let selectedIndex = $state(-1)
+  const highlightLevels = new Map<number, number>()
+  const popStart = new Map<number, number>()
+  let lastHlActive = -1
+
   // ── Tooltip ──────────────────────────────────────────────────────────────────────
   let tip = $state<{ visible: boolean; x: number; y: number; lines: string[] }>({
     visible: false,
@@ -208,7 +232,7 @@
     y: 0,
     lines: [],
   })
-  function showTipFor(p: CloudRenderPoint, ev: PointerEvent | MouseEvent): void {
+  function showTipFor(p: CloudRenderPoint, ev: PointerEvent | MouseEvent, idx = -1): void {
     const lines = [
       granularity === 'locus' && p.memberCount > 1
         ? `${p.tandem_id} · ${p.memberCount} elements`
@@ -218,6 +242,11 @@
       `Function: ${p.func ?? 'unknown'} · ${p.type ?? 'n/a'} · ${p.conf ?? 'n/a'} conf`,
       `ΔΔG: ${p.ddg ?? 'n/a'} · identity: ${p.ident ?? 'n/a'}`,
     ]
+    // When Spread has inflated the layout, name THIS node's personal offset from its true
+    // position — turning the abstract global mean-offset caveat into a per-node readout.
+    if (spread > 0.001 && sc?.relax && idx >= 0 && idx < sc.count) {
+      lines.push(`Spread offset: ${anchorOffsetAt(sc.relax, idx).toFixed(1)} units from true position`)
+    }
     tip = { visible: true, x: ev.clientX + 14, y: ev.clientY + 14, lines }
   }
   function hideTip(): void {
@@ -229,14 +258,17 @@
     attribute float asize;
     attribute float aalpha;
     attribute vec3 acolor;
+    attribute float aHighlight;
     varying vec3 vColor;
     varying float vAlpha;
+    varying float vHighlight;
     uniform float uScale;
     uniform float uBase;
     uniform float uScreen;
     void main() {
       vColor = acolor;
       vAlpha = aalpha;
+      vHighlight = aHighlight;
       vec4 mv = modelViewMatrix * vec4(position, 1.0);
       gl_PointSize = max(2.0 * uScreen, asize * uBase * uScreen * (uScale / -mv.z));
       gl_Position = projectionMatrix * mv;
@@ -245,12 +277,26 @@
     precision mediump float;
     varying vec3 vColor;
     varying float vAlpha;
+    varying float vHighlight;
+    uniform vec3 uHighlightColor;
     void main() {
       vec2 d = gl_PointCoord - vec2(0.5);
       float r = dot(d, d);
       if (r > 0.25) discard;                 // round sprite
       float edge = smoothstep(0.25, 0.16, r); // soft antialiased rim
-      gl_FragColor = vec4(vColor, vAlpha * edge);
+      vec3 col = vColor;
+      float a = vAlpha * edge;
+      // Highlight: a bold teal halo annulus in the outer band of the (enlarged) sprite,
+      // data colour kept in the core. Zero-cost when aHighlight == 0, so the
+      // un-highlighted render path is byte-identical to before.
+      if (vHighlight > 0.001) {
+        float rr = sqrt(r) * 2.0;             // 0 at centre, 1 at rim
+        float ring = smoothstep(0.55, 0.70, rr) * (1.0 - smoothstep(0.88, 1.0, rr));
+        ring = clamp(ring, 0.0, 1.0) * vHighlight;
+        col = mix(col, uHighlightColor, ring);
+        a = max(a, ring);
+      }
+      gl_FragColor = vec4(col, a);
     }`
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────────
@@ -312,8 +358,14 @@
     // uBase is a base world-radius (≈4.5 units on the ±100 canvas); uScale is half the
     // DRAWING-BUFFER height (device px), so gl_PointSize comes out in real pixels with
     // depth attenuation. Both are (re)set in resize().
+    const hl = hexToRgb01(HIGHLIGHT_COLOR) // teal halo, in the same raw-RGB space as acolor
     const pointsMat = new THREE.ShaderMaterial({
-      uniforms: { uScale: { value: 600 }, uBase: { value: 4.5 }, uScreen: { value: 1 } },
+      uniforms: {
+        uScale: { value: 600 },
+        uBase: { value: 4.5 },
+        uScreen: { value: 1 },
+        uHighlightColor: { value: new THREE.Vector3(hl.r, hl.g, hl.b) },
+      },
       vertexShader: VERT,
       fragmentShader: FRAG,
       transparent: true,
@@ -333,6 +385,8 @@
       linesMat,
       pointBase: 0,
       positions: new Float32Array(0),
+      baseSize: new Float32Array(0),
+      baseAlpha: new Float32Array(0),
       relax: null,
       count: 0,
       settled: true,
@@ -377,6 +431,7 @@
     geom.setAttribute('acolor', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
     geom.setAttribute('asize', new THREE.BufferAttribute(new Float32Array(n), 1))
     geom.setAttribute('aalpha', new THREE.BufferAttribute(new Float32Array(n), 1))
+    geom.setAttribute('aHighlight', new THREE.BufferAttribute(new Float32Array(n), 1))
     geom.computeBoundingSphere()
 
     // Edges (constellation): only meaningful at element granularity (indices reference
@@ -416,9 +471,17 @@
     sc.linesObj = linesObj
     sc.linesGeom = linesGeom
     sc.positions = positions
+    sc.baseSize = new Float32Array(n)
+    sc.baseAlpha = new Float32Array(n)
     sc.relax = createRelaxState(anchors)
     sc.count = n
     sc.settled = spread <= 0.001
+    // The render set re-ordered: drop any stale highlight so an index can't point elsewhere.
+    hoveredIndex = -1
+    selectedIndex = -1
+    highlightLevels.clear()
+    popStart.clear()
+    lastHlActive = -1
 
     // Derive every scale-dependent view constant from the MEASURED geometry of this
     // point set (true anchors, so Spread never rescales the view): the point base size,
@@ -454,6 +517,10 @@
     const col = colAttr.array as Float32Array
     const size = sizeAttr.array as Float32Array
     const alpha = alphaAttr.array as Float32Array
+    // Write the data-derived size/alpha into the BASE arrays (the truth the highlight
+    // composes over), then mirror them into the live attributes — so the per-frame
+    // highlight (a multiplier on the base) survives every restyle. Mirrors the relax
+    // anchors↔positions split: a stable truth array + a live render array.
     const locusBump = granularity === 'locus' ? 1.25 : 1
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i]
@@ -465,8 +532,10 @@
       col[i * 3] = r
       col[i * 3 + 1] = g
       col[i * 3 + 2] = b
-      size[i] = sizeFactor(p, sizeMode, { highlightNonFirmicutes: emphasizeNonFirm }) * locusBump * (dim ? 0.6 : 1)
-      alpha[i] = dim ? 0.12 : 0.92
+      sc.baseSize[i] = sizeFactor(p, sizeMode, { highlightNonFirmicutes: emphasizeNonFirm }) * locusBump * (dim ? 0.6 : 1)
+      sc.baseAlpha[i] = dim ? 0.12 : 0.92
+      size[i] = sc.baseSize[i]
+      alpha[i] = sc.baseAlpha[i]
     }
     colAttr.needsUpdate = true
     sizeAttr.needsUpdate = true
@@ -550,7 +619,66 @@
     // Ease the rendered camera toward the input orbit (snaps under reduced motion).
     orbit = dampOrbit(orbit, targetOrbit, DAMP_ALPHA)
     applyCamera()
+    applyHighlight(s)
     s.renderer.render(s.scene, s.camera)
+  }
+
+  // Animate the hover/selection highlight: ease each tracked point's level toward its
+  // target (1 for the active node, 0 otherwise), compose a teal ring + size bump +
+  // brightness over the data-derived base, and fire a one-shot pop on each new active
+  // node. Only touches tracked indices (the active one + any fading back), so it is O(1)
+  // per frame in practice. Under reduced motion every transition snaps (no ease, no pop).
+  function applyHighlight(s: Scene): void {
+    if (!s.pointsGeom || s.count === 0) return
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    const active =
+      selectedIndex >= 0 && selectedIndex < s.count
+        ? selectedIndex
+        : hoveredIndex >= 0 && hoveredIndex < s.count
+          ? hoveredIndex
+          : -1
+    // A change in the active node starts (or re-starts) its pop and ensures it is tracked.
+    if (active !== lastHlActive) {
+      if (active >= 0) {
+        if (!highlightLevels.has(active)) highlightLevels.set(active, 0)
+        if (!reducedMotion) popStart.set(active, now)
+      }
+      lastHlActive = active
+    }
+    if (highlightLevels.size === 0) return
+    const sizeAttr = s.pointsGeom.getAttribute('asize')
+    const alphaAttr = s.pointsGeom.getAttribute('aalpha')
+    const ringAttr = s.pointsGeom.getAttribute('aHighlight')
+    const size = sizeAttr.array as Float32Array
+    const alpha = alphaAttr.array as Float32Array
+    const ring = ringAttr.array as Float32Array
+    for (const [i, lvl] of highlightLevels) {
+      const target = i === active ? 1 : 0
+      const next = reducedMotion ? target : dampScalar(lvl, target, HIGHLIGHT_EASE)
+      if (next <= 0.001 && target === 0) {
+        // Faded out: restore the base and stop tracking this index.
+        size[i] = s.baseSize[i]
+        alpha[i] = s.baseAlpha[i]
+        ring[i] = 0
+        highlightLevels.delete(i)
+        popStart.delete(i)
+        continue
+      }
+      highlightLevels.set(i, next)
+      const t = highlightTargets(next)
+      let pop = 1
+      const ps = popStart.get(i)
+      if (ps != null && !reducedMotion) {
+        pop = popScale(now - ps)
+        if (now - ps >= POP_DURATION_MS) popStart.delete(i)
+      }
+      size[i] = s.baseSize[i] * t.sizeMul * pop
+      alpha[i] = s.baseAlpha[i] + (1 - s.baseAlpha[i]) * t.alphaLift
+      ring[i] = t.ring
+    }
+    sizeAttr.needsUpdate = true
+    alphaAttr.needsUpdate = true
+    ringAttr.needsUpdate = true
   }
 
   function updateEdgePositions(): void {
@@ -675,7 +803,10 @@
       }
     }
     canvas.addEventListener('pointerup', endDrag)
-    canvas.addEventListener('pointerleave', () => hideTip())
+    canvas.addEventListener('pointerleave', () => {
+      hoveredIndex = -1
+      hideTip()
+    })
     canvas.addEventListener(
       'wheel',
       (ev) => {
@@ -745,20 +876,26 @@
 
   function handleHover(ev: PointerEvent, canvas: HTMLCanvasElement): void {
     const i = pick(ev, canvas)
-    if (i >= 0 && i < renderPoints.length) showTipFor(renderPoints[i], ev)
+    hoveredIndex = i >= 0 && i < renderPoints.length ? i : -1
+    if (hoveredIndex >= 0) showTipFor(renderPoints[hoveredIndex], ev, hoveredIndex)
     else hideTip()
   }
 
   function handleClick(ev: PointerEvent | MouseEvent, canvas: HTMLCanvasElement): void {
     const i = pick(ev, canvas)
     if (i < 0 || i >= renderPoints.length) return
+    selectedIndex = i // lock the highlight on the clicked node (persists in selectable mode)
     const action = pointAction(renderPoints[i], selectable)
     if (action.kind === 'navigate') {
       push(`/locus/${action.tandem_id}`)
     } else if (action.kind === 'facet') {
       const cur = store.filter.specifier
-      if (cur.size === 1 && cur.has(action.specifier)) store.clearFacet('specifier')
-      else store.setFacet('specifier', [action.specifier])
+      if (cur.size === 1 && cur.has(action.specifier)) {
+        store.clearFacet('specifier')
+        selectedIndex = -1 // toggled the filter OFF → drop the lock too
+      } else {
+        store.setFacet('specifier', [action.specifier])
+      }
     }
   }
 

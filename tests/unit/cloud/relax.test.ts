@@ -14,6 +14,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   ALPHA_MIN,
+  anchorOffsetAt,
   createRelaxState,
   isSettled,
   maxAnchorOffset,
@@ -247,5 +248,30 @@ describe('relax cooling / settling (anti-jiggle)', () => {
     expect(isSettled(state, 0)).toBe(false) // off the anchors ⇒ not at rest
     relax(state, 0.0, 300) // ease back exactly
     expect(isSettled(state, 0)).toBe(true)
+  })
+})
+
+describe('anchorOffsetAt (per-node Spread offset)', () => {
+  test('is 0 on the anchors and matches the displacement after dispersal', () => {
+    const { anchors, n } = makeBlobs()
+    const state = createRelaxState(anchors)
+    expect(anchorOffsetAt(state, 0)).toBe(0) // born on the anchor
+    relax(state, 1.0, 60) // disperse
+    // Recompute the offset of node 0 by hand from the live position vs its anchor.
+    const dx = state.positions[0] - state.anchors[0]
+    const dy = state.positions[1] - state.anchors[1]
+    const dz = state.positions[2] - state.anchors[2]
+    expect(anchorOffsetAt(state, 0)).toBeCloseTo(Math.sqrt(dx * dx + dy * dy + dz * dz), 10)
+    // Some node genuinely moved, so at least one offset is positive.
+    let moved = false
+    for (let i = 0; i < n; i++) if (anchorOffsetAt(state, i) > 0) moved = true
+    expect(moved).toBe(true)
+  })
+
+  test('out-of-range indices return 0', () => {
+    const { anchors, n } = makeBlobs()
+    const state = createRelaxState(anchors)
+    expect(anchorOffsetAt(state, -1)).toBe(0)
+    expect(anchorOffsetAt(state, n)).toBe(0)
   })
 })
