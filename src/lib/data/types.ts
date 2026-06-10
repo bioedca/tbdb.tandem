@@ -300,6 +300,69 @@ export interface R2dtManifest {
   diagrams: Record<string, { template: string | null; source: string | null }>
 }
 
+// ── locus genomic context (NCBI; data-pipeline/fetch_genomic_context.py) ───────
+// One per-locus file `public/data/locus_context/<tandem_id>.json`, lazy-loaded on the
+// detail route to draw the downstream gene + intergenic to scale and a continuous
+// full-locus sequence track. `seq` is the interval's genomic sequence in
+// transcription-5′→3′ orientation (reverse-complemented on the minus strand), so
+// `seq.slice(offset, offset + length)` round-trips each member's `fasta_sequence` and
+// each gene's CDS slice — offsets are 0-based into `seq`. Absent / fetch-failed (or
+// `resolved: false`) → the figure degrades to the schematic ORF.
+
+/** A genomic `[start, end]`, 1-based inclusive, ascending. */
+export type GenomeInterval = [number, number]
+
+/** One element's placement within `LocusContext.seq` (0-based, transcription-5′→3′). */
+export interface ElementOffset {
+  member_id: string
+  offset: number
+  length: number
+}
+
+/** A downstream regulated gene on the same molecule, to-scale (chrome-coloured). */
+export interface DownstreamGeneContext {
+  /** Display label (gene symbol / locus tag / protein id); chrome, never a specifier hue. */
+  name: string | null
+  protein_id: string | null
+  locus_tag: string | null
+  /** 0-based offset + length within `LocusContext.seq`. */
+  offset: number
+  length: number
+  /** CDS strand ('+'/'-'); co-orientation is `strand === locus strand`. */
+  strand: Strand
+  /** How the coords were resolved (e.g. `"coded_by"`). */
+  resolution: string
+}
+
+/** Per-locus NCBI genomic context (`public/data/locus_context/<tandem_id>.json`). */
+export interface LocusContext {
+  tandem_id: string
+  accession: string
+  strand: Strand
+  /** True iff ≥1 downstream gene resolved (else the figure draws the schematic ORF). */
+  resolved: boolean
+  /** Absolute genomic interval `[lo, hi]` spanning the elements → the downstream gene. */
+  interval: GenomeInterval
+  /** The interval sequence, transcription-5′→3′; `length === interval[1] - interval[0] + 1`. */
+  seq: string
+  elements: ElementOffset[]
+  downstream_genes: DownstreamGeneContext[]
+  warnings: string[]
+}
+
+/** `public/data/locus_context/manifest.json` — which loci have a committed context file. */
+export interface LocusContextManifest {
+  meta: {
+    generated: string
+    version: number
+    source: string
+    count: number
+    resolved_loci: number
+    fetched_genes: number
+  }
+  loci: Record<string, true>
+}
+
 // ── filter / cross-filter state (PLAN §7.3) ────────────────────────────────────
 
 /** The five multi-select facets backed by `loci.json` `facets` (PLAN §7.3). */
