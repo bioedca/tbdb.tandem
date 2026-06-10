@@ -49,5 +49,7 @@ Changes from upstream, each marked with a `tbdb.tandem vendor adaptation` commen
 4. `onDestroy` cleanup that removes the drag `mousemove`/`mouseup` window listeners, so they can't
    leak if the component unmounts mid-drag (a latent upstream issue; moot here since drag-select is
    unused, but hardened regardless).
+5. Divide-by-zero guards in `bpToX`/`xToBp` so a degenerate zero `size` / non-positive width returns
+   the left margin instead of NaN coordinates (our caller already passes `size ≥ 1`; defensive).
 
 No other files are modified.

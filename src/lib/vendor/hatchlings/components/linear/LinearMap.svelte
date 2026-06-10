@@ -91,12 +91,17 @@
 	let backboneWidth = $derived(width - MARGIN_LEFT - MARGIN_RIGHT);
 
 	/** Convert bp to x coordinate */
+	// tbdb.tandem vendor adaptation: guard against a zero size / non-positive backbone width so a
+	// degenerate render returns the left margin instead of NaN/Infinity coordinates (which would
+	// silently break SVG rendering and any overlay aligned to this projection).
 	function bpToX(bp: number): number {
+		if (size <= 0) return MARGIN_LEFT;
 		return MARGIN_LEFT + (bp / size) * backboneWidth;
 	}
 
 	/** Convert x coordinate to bp */
 	function xToBp(x: number): number {
+		if (backboneWidth <= 0) return 0;
 		return Math.round(((x - MARGIN_LEFT) / backboneWidth) * size);
 	}
 
