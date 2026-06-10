@@ -23,6 +23,7 @@
 		LABEL_ROW_H, CHAR_PX_SMALL,
 	} from '../../util/layout.js';
 	import LinearFeature from './LinearFeature.svelte';
+	import { onDestroy } from 'svelte';
 
 	interface Props {
 		name: string;
@@ -222,6 +223,14 @@
 		const mx = e.clientX - rect.left;
 		return Math.max(0, Math.min(size, xToBp(mx)));
 	}
+
+	// tbdb.tandem vendor adaptation: if the component unmounts mid-drag, the window listeners
+	// attached in handleMouseDown would otherwise leak. (In this app drag-select is unused — no
+	// selectionState is passed, so the listeners are never attached — but harden it regardless.)
+	onDestroy(() => {
+		window.removeEventListener('mousemove', handleWindowMouseMove);
+		window.removeEventListener('mouseup', handleWindowMouseUp);
+	});
 
 	function handleMouseDown(e: MouseEvent) {
 		if (e.button !== 0 || !selectionState) return;

@@ -46,5 +46,8 @@ Changes from upstream, each marked with a `tbdb.tandem vendor adaptation` commen
    re-laned) and an external glyph overlay stays aligned.
 3. New bindable `backboneYOut` / `totalHeightOut` readouts (set via `$effect`) so an external SVG
    overlay can align to the computed backbone Y and total height in the same user/viewBox units.
+4. `onDestroy` cleanup that removes the drag `mousemove`/`mouseup` window listeners, so they can't
+   leak if the component unmounts mid-drag (a latent upstream issue; moot here since drag-select is
+   unused, but hardened regardless).
 
 No other files are modified.
