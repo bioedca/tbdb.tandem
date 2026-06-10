@@ -75,4 +75,23 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     await antiterm.click()
     await expect(page.getByRole('list', { name: 'Stem and motif color key' })).toBeVisible()
   })
+
+  test('zoom widens the to-scale track while preserving the elements', async ({ page }) => {
+    await gotoRoute(page, '/locus/T0342')
+    const arch = page.locator('figure.tv-arch')
+    const overlay = arch.locator('svg.tv-arch-overlay')
+    await expect(overlay).toBeVisible({ timeout: 30_000 })
+
+    const widthOf = () => overlay.evaluate((el) => Number(el.getAttribute('width')))
+    const before = await widthOf()
+    expect(before).toBeGreaterThan(0)
+
+    // The hatchlings ZoomControls "+" (title="Zoom in") scales the LinearMap + overlay width in
+    // lockstep; the figure overflow-scrolls rather than shrinking. The glyph overlay tracks because
+    // it shares the strip's bp→x projection. (Non-visual: the deterministic pixel baseline is the
+    // default-zoom architecture-T0342.png in visual.spec.ts.)
+    await page.locator('button[title="Zoom in"]').click()
+    await expect.poll(widthOf).toBeGreaterThan(before)
+    await expect(arch.locator('g.tv-arch-element')).toHaveCount(2)
+  })
 })

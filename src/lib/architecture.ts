@@ -1,6 +1,7 @@
 // Tandem-architecture layout (PLAN §9①) — the pure geometry behind the signature
-// view. Framework-agnostic so it is unit-tested at S2.7; `ArchitectureDiagram.svelte`
-// renders the model as hand-rolled SVG (D3 only for the position scale, §7.1).
+// view. Framework-agnostic so it is unit-tested at S2.7; `TandemArchitecture.svelte`
+// renders the model over the vendored hatchlings LinearMap with an SVG glyph overlay
+// (`architectureMap.ts` maps this model → LinearMap props; the overlay shares its bp→x).
 //
 // COORDINATE MODEL (the load-bearing bit).
 // Each member carries leader-relative `window` offsets (1-based, alwaysascending)

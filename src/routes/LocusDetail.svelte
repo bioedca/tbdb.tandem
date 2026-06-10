@@ -15,7 +15,7 @@
   import InfoTip from '../lib/components/InfoTip.svelte'
   import Badge from '../lib/components/Badge.svelte'
   import Spinner from '../lib/components/Spinner.svelte'
-  import ArchitectureDiagram from '../lib/components/ArchitectureDiagram.svelte'
+  import TandemArchitecture from '../lib/components/architecture/TandemArchitecture.svelte'
   import ElementComparison from '../lib/components/ElementComparison.svelte'
   import MemberSequence from '../lib/components/MemberSequence.svelte'
   import RnaStructure from '../lib/components/RnaStructure.svelte'
@@ -152,7 +152,7 @@
         title="Tandem architecture"
         subtitle="Each element drawn to scale along the leader, biological 5′→3′, tinted by its specifier amino acid"
       >
-        <ArchitectureDiagram
+        <TandemArchitecture
           {members}
           strand={locus.strand}
           funcClass={locus.func_class}

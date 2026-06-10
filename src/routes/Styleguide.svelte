@@ -21,7 +21,6 @@
   import Spinner from '../lib/components/Spinner.svelte'
   import TbdbLink from '../lib/components/TbdbLink.svelte'
   import NoPolarityBanner from '../lib/components/NoPolarityBanner.svelte'
-  import ArchitectureDiagram from '../lib/components/ArchitectureDiagram.svelte'
   import TandemArchitecture from '../lib/components/architecture/TandemArchitecture.svelte'
   import ElementComparison from '../lib/components/ElementComparison.svelte'
   import { store } from '../lib/stores/filters.svelte'
@@ -239,34 +238,6 @@
             </span>
             <span class="text-muted">· {l.same_specifier ? 'same' : 'mixed'} · {l.strand} strand · {l.n_cores} elements · {l.type}</span>
           </div>
-          <ArchitectureDiagram
-            members={c.members}
-            strand={l.strand}
-            funcClass={l.func_class}
-            funcSource={l.func_source}
-            downstreamGene={l.downstream_gene}
-          />
-          <ElementComparison members={c.members} pairs={c.pairs} />
-        </div>
-      {/each}
-      {#if archCases.length === 0}
-        <Spinner label="Loading loci…" />
-      {/if}
-    </div>
-  </Card>
-
-  <Card
-    title="Tandem architecture (hatchlings)"
-    subtitle="§9① rendered with the vendored hatchlings LinearMap + RNA-glyph overlay + SequenceViewer"
-  >
-    <div class="space-y-8">
-      {#each archCases as c (c.id)}
-        {@const l = c.locus!}
-        <div class="space-y-2">
-          <div class="flex flex-wrap items-center gap-2 text-small">
-            <span class="font-mono font-medium text-ink">{c.id}</span>
-            <span class="text-muted">· {l.same_specifier ? 'same' : 'mixed'} · {l.strand} strand · {l.n_cores} elements · {l.type}</span>
-          </div>
           <TandemArchitecture
             members={c.members}
             strand={l.strand}
@@ -274,6 +245,7 @@
             funcSource={l.func_source}
             downstreamGene={l.downstream_gene}
           />
+          <ElementComparison members={c.members} pairs={c.pairs} />
         </div>
       {/each}
       {#if archCases.length === 0}
