@@ -10,7 +10,7 @@
 //     inclusive leader window `[lo, hi]` therefore maps to `{ start: lo-1, end: hi }`.
 
 import type { ArchitectureModel } from './architecture'
-import type { FuncClass, Member } from './data/types'
+import type { FuncClass, LocusContext, Member } from './data/types'
 import type { Part, SequenceData, Translation } from './vendor/hatchlings'
 import { LINEAR_MARGIN_LEFT, LINEAR_MARGIN_RIGHT } from './vendor/hatchlings/util/layout'
 import { STEM_COLORS, TERMINATOR_COLOR, FUNC_CLASS_SHADE, aaColor } from './color'
@@ -39,8 +39,10 @@ export function linearMapBpToX(bp: number, size: number, width: number): number 
 
 /**
  * Architecture model → LinearMap props: one feature arrow per T-box element body (tinted by its
- * own specifier), plus a trailing schematic downstream-gene arrow. All on a single forward lane
- * (the strip is rendered with `noStack`), bio-axis bp passed through unchanged.
+ * own specifier), plus the downstream gene(s). When the model carries real NCBI `genes` they are
+ * drawn TO SCALE (chrome-coloured, co-orientation honoured); otherwise a single SCHEMATIC ORF is
+ * appended 3′ of the leader (the original behaviour). All on a single forward lane (the strip is
+ * rendered with `noStack`), bio-axis bp passed through unchanged.
  */
 export function toLinearMapProps(
   model: ArchitectureModel,
@@ -60,7 +62,28 @@ export function toLinearMapProps(
     label: el.aa ?? undefined,
   }))
 
-  // Downstream ORF: 3′ of the whole leader (anchor at the leader 3′ end = `span`, always ≥ any body end).
+  if (model.genes && model.genes.length > 0) {
+    // To scale: one chrome arrow per resolved operon gene at its real bio coords. The proximal
+    // gene keeps DOWNSTREAM_ORF_ID (so click/overlay handling that special-cases it still works);
+    // additional operon genes get suffixed ids. Co-orientation flips the arrow.
+    model.genes.forEach((g, i) => {
+      parts.push({
+        id: i === 0 ? DOWNSTREAM_ORF_ID : `${DOWNSTREAM_ORF_ID}-${i + 1}`,
+        name: g.label ?? downstreamGene ?? funcClass,
+        type: 'gene',
+        start: g.start,
+        end: g.end,
+        strand: g.coOriented ? 1 : -1,
+        color: FUNC_CLASS_SHADE[funcClass], // chrome, never a specifier hue
+        label: g.label ?? downstreamGene ?? funcClass,
+      })
+    })
+    const maxGeneEnd = Math.max(model.threePrimeEnd, ...model.genes.map((g) => g.end))
+    const size = maxGeneEnd + Math.max(AXIS_PAD_MIN, Math.round(span * AXIS_PAD_FRAC))
+    return { size, parts }
+  }
+
+  // Schematic ORF: 3′ of the whole leader (anchor at the leader 3′ end = `span`, ≥ any body end).
   const orfStart = span + Math.max(ORF_GAP_MIN, Math.round(span * ORF_GAP_FRAC))
   const orfEnd = orfStart + Math.max(ORF_SPAN_MIN, Math.round(span * ORF_SPAN_FRAC))
   parts.push({
@@ -94,11 +117,15 @@ const AA_THREE_TO_ONE: Record<string, string> = {
 }
 
 /**
- * Member → SequenceViewer data: the gap-free leader (shown as RNA) with one annotation arrow per
- * present feature window, and — when the specifier amino acid is a known single residue — a
- * one-codon translation over the specifier codon. Offsets are converted 1-based→0-based here.
+ * One member's feature annotation parts + specifier-codon translation, shifted by `baseOffset`
+ * (0 for a single-member view; the element's offset within the locus interval for the continuous
+ * locus track). 1-based inclusive leader windows convert to 0-based half-open `[start, end)`. The
+ * SINGLE source both `toSequenceData` and `toLocusSequenceData` build from, so the two never drift.
  */
-export function toSequenceData(member: Member): SequenceData {
+function memberFeatureParts(
+  member: Member,
+  baseOffset: number,
+): { parts: Part[]; translations: Translation[] } {
   const spans = featureSpans(member) // Partial<Record<HighlightFeature, [lo, hi]>>, 1-based inclusive
   const parts: Part[] = []
   for (const name of HIGHLIGHT_FEATURES) {
@@ -109,8 +136,8 @@ export function toSequenceData(member: Member): SequenceData {
       id: `${member.member_id}:${name}`,
       name: FEATURE_LABEL[name],
       type: name,
-      start: lo - 1, // 1-based inclusive → 0-based inclusive
-      end: hi, // 0-based exclusive (== 1-based inclusive hi)
+      start: lo - 1 + baseOffset, // 1-based inclusive → 0-based inclusive, shifted to the track
+      end: hi + baseOffset, // 0-based exclusive (== 1-based inclusive hi)
       strand: 1,
       color: name === 'codon' ? aaColor(member.specifier.aa) : FEATURE_SEQ_COLOR[name],
       label: FEATURE_LABEL[name],
@@ -121,11 +148,81 @@ export function toSequenceData(member: Member): SequenceData {
   const codon = spans.codon
   const one = member.specifier.aa ? AA_THREE_TO_ONE[member.specifier.aa.trim().toUpperCase()] : undefined
   if (codon && one) {
-    translations.push({ start: codon[0] - 1, end: codon[1], strand: 1, aminoAcids: one })
+    translations.push({ start: codon[0] - 1 + baseOffset, end: codon[1] + baseOffset, strand: 1, aminoAcids: one })
+  }
+
+  return { parts, translations }
+}
+
+/**
+ * Member → SequenceViewer data: the gap-free leader (shown as RNA) with one annotation arrow per
+ * present feature window, and — when the specifier amino acid is a known single residue — a
+ * one-codon translation over the specifier codon. Offsets are converted 1-based→0-based here.
+ */
+export function toSequenceData(member: Member): SequenceData {
+  const { parts, translations } = memberFeatureParts(member, 0)
+  return {
+    seq: member.fasta_sequence,
+    parts,
+    cutSites: [],
+    translations,
+    alphabet: 'rna',
+    topology: 'linear',
+  }
+}
+
+/**
+ * The WHOLE locus as one continuous SequenceViewer track (PLAN §9 — "all elements together"):
+ * the NCBI interval sequence (transcription-5′→3′), annotated with, per element, a specifier-tinted
+ * body part + its feature arrows + codon translation (re-projected by the element's interval
+ * offset), plus a chrome arrow per downstream gene. Because the interval seq round-trips each
+ * member's `fasta_sequence` at its stored offset, the per-element features land exactly. Elements
+ * absent from the context (defensive) are skipped.
+ */
+export function toLocusSequenceData(
+  members: Member[],
+  context: LocusContext,
+  funcClass: FuncClass,
+): SequenceData {
+  const offsetById = new Map(context.elements.map((e) => [e.member_id, e.offset]))
+  const sorted = [...members].sort((a, b) => a.ordinal - b.ordinal)
+  const parts: Part[] = []
+  const translations: Translation[] = []
+
+  for (const member of sorted) {
+    const base = offsetById.get(member.member_id)
+    if (base === undefined) continue
+    // the element body (specifier-tinted) — the one place the data hue appears on the track.
+    parts.push({
+      id: member.member_id,
+      name: member.specifier.aa ? `Element ${member.ordinal} · ${member.specifier.aa}` : `Element ${member.ordinal}`,
+      type: 'tbox',
+      start: base,
+      end: base + member.fasta_sequence.length,
+      strand: 1,
+      color: aaColor(member.specifier.aa),
+      label: member.specifier.aa ?? `e${member.ordinal}`,
+    })
+    const { parts: fParts, translations: fTr } = memberFeatureParts(member, base)
+    parts.push(...fParts)
+    translations.push(...fTr)
+  }
+
+  for (const g of context.downstream_genes) {
+    parts.push({
+      id: `gene:${g.protein_id ?? g.locus_tag ?? g.offset}`,
+      name: g.name ?? 'downstream gene',
+      type: 'gene',
+      start: g.offset,
+      end: g.offset + g.length,
+      strand: g.strand === context.strand ? 1 : -1,
+      color: FUNC_CLASS_SHADE[funcClass], // chrome, never a specifier hue
+      label: g.name ?? 'gene',
+    })
   }
 
   return {
-    seq: member.fasta_sequence,
+    seq: context.seq,
     parts,
     cutSites: [],
     translations,

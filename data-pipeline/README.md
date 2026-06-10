@@ -93,6 +93,32 @@ pass `--generated <iso8601>` for a byte-exact rebuild. The 3 PCoA axes capture ~
 of the main tree's pairwise distance (a flat 2D layout: ~32%); the `/cloud` view
 surfaces that caveat. Run **after** the data build + tree artifacts exist.
 
+## Fetch the per-locus genomic context (NCBI)
+
+`fetch_genomic_context.py` resolves each locus's downstream gene coordinates +
+surrounding interval sequence from NCBI (the source data has the gene name + protein
+id but **no coordinates**), so the `/locus` figure can draw the gene + intergenic to
+scale and a continuous full-locus sequence track. Like `build_cloud.py` it reads the
+**already-committed** `loci.json` + `members.json` (never the read-only sources), and
+emits one file per locus under `public/data/locus_context/` + a `manifest.json`:
+
+```bash
+NCBI_EMAIL=you@example.org [NCBI_API_KEY=...] \
+python3 data-pipeline/fetch_genomic_context.py --out public/data   # defaults read public/data/*
+```
+
+It resolves each gene by efetching the protein record and reading the CDS `/coded_by`
+qualifier (coords on the same accession as the leader), computes the interval
+(transcription-direction aware, clamped to 20 kb), and stores the interval sequence
+**transcription-5′→3′** so `seq[offset:offset+length]` round-trips each member's
+`fasta_sequence`. Unresolvable genes degrade gracefully (`resolved:false` → the figure
+draws the schematic ORF). Raw NCBI responses are cached under `data-pipeline/ncbi_cache/`
+(gitignored); `--offline` rebuilds the committed artifact byte-identically from the cache
+(pass `--generated <iso8601>` to pin `meta.generated`). The shipped, network-free
+`public/reproduce_tandem_tbox_db.py` is **untouched** — this is a separate, optional step.
+Run **after** the data build. (No polarity: genomic location + transcription direction
+only.)
+
 ## Build the R2DT structure diagrams
 
 The locus detail page renders each element's RNA 2° structure with **R2DT** on the
