@@ -259,3 +259,64 @@ class TestBuildLocusRecordDegrades:
         )
         assert rec["downstream_genes"] == []
         assert any("!= ACC4" in w for w in rec["warnings"])
+
+
+class TestElementOffset:
+    """The content-search anchor that keeps the round-trip exact when a member's
+    recorded leader coords drift vs the current genome (the T0104 case)."""
+
+    def test_coord_fast_path(self) -> None:
+        seq = "AAAAACCCCCGGGGG"
+        assert fc.element_offset(seq, "CCCCC", 5) == 5  # coords already land it
+
+    def test_content_search_when_coord_offset_wrong(self) -> None:
+        seq = "AAAAACCCCCGGGGG"
+        # coords say offset 0 but the leader is actually at 5 -> found by content
+        assert fc.element_offset(seq, "CCCCC", 0) == 5
+
+    def test_not_found_falls_back_to_coord(self) -> None:
+        assert fc.element_offset("AAAAA", "TTTTT", 2) == 2
+        assert fc.element_offset("", "TTTTT", 7) == 7  # no seq -> coord offset
+
+
+class TestBuildLocusRecordFixes:
+    def test_drifted_element_offset_is_corrected_by_content(self) -> None:
+        # the interval seq has 6 bp of leading context, so m1's leader sits at offset 6,
+        # but its recorded coords would put it at offset 0 (a T0104-style drift).
+        leader = "ACGTACGTACGTACGTACGT"  # 20 bp
+        plus = "TTTTTT" + leader + "GGGGGGGGGG"  # leader at index 6
+        locus = {"tandem_id": "TT05", "accession": "ACC5", "strand": "+",
+                 "downstream_id": "", "downstream_gene": None}
+        members = [{"member_id": "TT05.m1", "ordinal": 1, "coords": {"leader": [101, 120]},
+                    "fasta_sequence": leader}]
+        rec = fc.build_locus_record(
+            locus, members,
+            fetch_protein=lambda pid: None,
+            fetch_interval=lambda acc, lo, hi: f">x\n{plus}\n",
+        )
+        el = rec["elements"][0]
+        assert rec["seq"][el["offset"] : el["offset"] + el["length"]] == leader  # round-trip exact
+        assert el["offset"] == 6
+        assert any("corrected" in w for w in rec["warnings"])
+
+    def test_upstream_operon_gene_is_dropped(self) -> None:
+        # two-gene operon: one downstream (kept), one UPSTREAM of the element 5' (dropped,
+        # would otherwise get a negative offset) -- the T0364 case.
+        plus = "ACGT" * 30  # 120 bp interval [1001..1120]
+        locus = {"tandem_id": "TT06", "accession": "ACC6", "strand": "+",
+                 "downstream_id": "gb|DOWN.1|;gb|UP.1|", "downstream_gene": None}
+        members = [{"member_id": "TT06.m1", "ordinal": 1, "coords": {"leader": [1041, 1060]},
+                    "fasta_sequence": plus[40:60]}]
+        proteins = {
+            "DOWN.1": _gbxml("ACC6.1:1081..1110"),   # downstream of the element -> kept
+            "UP.1": _gbxml("ACC6.1:1001..1020"),     # upstream of the element 5' -> dropped
+        }
+        rec = fc.build_locus_record(
+            locus, members,
+            fetch_protein=lambda pid: proteins.get(pid),
+            fetch_interval=lambda acc, lo, hi: f">x\n{plus[(lo - 1001):(hi - 1000)]}\n",
+        )
+        names = {g["protein_id"] for g in rec["downstream_genes"]}
+        assert names == {"DOWN.1"}  # the upstream gene was dropped
+        assert all(g["offset"] >= 0 for g in rec["downstream_genes"])  # no negative offsets
+        assert any("dropped" in w for w in rec["warnings"])
