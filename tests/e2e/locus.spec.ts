@@ -97,7 +97,11 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     const seqViewer = page.locator('.tv-hatch .overflow-x-auto svg').last()
     await expect(seqViewer).toBeVisible({ timeout: 30_000 })
 
-    const widthOf = () => seqViewer.evaluate((el) => Number(el.getAttribute('width') ?? el.getBoundingClientRect().width))
+    const widthOf = () =>
+      seqViewer.evaluate((el) => {
+        const w = Number(el.getAttribute('width'))
+        return Number.isNaN(w) ? el.getBoundingClientRect().width : w
+      })
     const before = await widthOf()
     expect(before).toBeGreaterThan(0)
     // The hatchlings ZoomControls "+" (title="Zoom in") scales the sequence-viewer width; the track

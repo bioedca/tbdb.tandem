@@ -44,9 +44,14 @@
   $effect(() => {
     const current = id
     locusContext = null
-    loadLocusContext(current).then((c) => {
-      if (current === id) locusContext = c
-    })
+    loadLocusContext(current)
+      .then((c) => {
+        if (current === id) locusContext = c
+      })
+      .catch(() => {
+        // defensive: loadLocusContext resolves null on failure, but never leave a rejection
+        // unhandled — staying null is the correct (schematic) fallback either way.
+      })
   })
 
   function fmt(value: number | null | undefined, suffix = ''): string {
