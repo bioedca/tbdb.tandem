@@ -203,6 +203,26 @@ class TestBuildLocusRecordMinus:
         assert g["offset"] == 50
 
 
+class TestReadHandle:
+    """The Entrez network layer normalises efetch handles to text: retmode='xml'
+    yields bytes, the text modes yield str -- both must become a UTF-8 string for the
+    on-disk cache (regression: write_text rejects bytes)."""
+
+    def test_bytes_handle_is_decoded(self) -> None:
+        class _H:
+            def read(self):
+                return b"<GBSet/>"
+
+        assert fc.NcbiClient._read(_H()) == "<GBSet/>"
+
+    def test_str_handle_passes_through(self) -> None:
+        class _H:
+            def read(self):
+                return ">x\nACGT\n"
+
+        assert fc.NcbiClient._read(_H()) == ">x\nACGT\n"
+
+
 class TestBuildLocusRecordDegrades:
     def test_unresolved_gene_falls_back_to_schematic(self) -> None:
         locus = {

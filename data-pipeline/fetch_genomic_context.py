@@ -387,14 +387,21 @@ class NcbiClient:
                 time.sleep(2.0 ** attempt)
         return None
 
+    @staticmethod
+    def _read(handle: object) -> str:
+        """Read an Entrez handle to text. ``efetch(retmode="xml")`` yields bytes, the
+        text modes yield str -- normalise both to a UTF-8 string for the cache."""
+        data = handle.read()  # type: ignore[attr-defined]
+        return data.decode("utf-8") if isinstance(data, bytes) else data
+
     def fetch_protein(self, protein_id: str) -> str | None:
         safe = re.sub(r"[^A-Za-z0-9_.-]", "_", protein_id)
         path = self.cache_dir / "protein" / f"{safe}.xml"
         return self._cached(
             path,
-            lambda: self._entrez.efetch(
-                db="protein", id=protein_id, rettype="gb", retmode="xml"
-            ).read(),
+            lambda: self._read(
+                self._entrez.efetch(db="protein", id=protein_id, rettype="gb", retmode="xml")
+            ),
         )
 
     def fetch_interval(self, accession: str, lo: int, hi: int) -> str | None:
@@ -402,10 +409,12 @@ class NcbiClient:
         path = self.cache_dir / "interval" / f"{safe}_{lo}_{hi}.fasta"
         return self._cached(
             path,
-            lambda: self._entrez.efetch(
-                db="nuccore", id=accession, rettype="fasta", retmode="text",
-                seq_start=str(lo), seq_stop=str(hi),
-            ).read(),
+            lambda: self._read(
+                self._entrez.efetch(
+                    db="nuccore", id=accession, rettype="fasta", retmode="text",
+                    seq_start=str(lo), seq_stop=str(hi),
+                )
+            ),
         )
 
 
