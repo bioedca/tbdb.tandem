@@ -12,7 +12,7 @@
   import { aaColor } from '../../color'
   import { neutral } from '../../design/tokens'
   import { linearMapBpToX } from '../../architectureMap'
-  import type { ArchitectureGlyphDims, Band } from '../../architectureIllustration'
+  import { spreadLabelXs, type ArchitectureGlyphDims, type Band } from '../../architectureIllustration'
   import ArchitectureElementGlyph from './ArchitectureElementGlyph.svelte'
 
   let {
@@ -46,6 +46,10 @@
   const FEATURE_H = 14
 
   const bbY = $derived(padTop + backboneY) // backbone Y in overlay coords
+  // The specifier stack reads top→bottom as one clean chain — AA chip ▸ Stem-I loop ▸ codon tick on
+  // the body — so the lanes are spaced to keep those three clear of each other (and the terminator
+  // hairpin, which rises into the same band but at the 3′ x). yAntiterm is the alt-fold lane in the
+  // 11px gap between the body bottom and the backbone.
   const dims: ArchitectureGlyphDims = $derived.by(() => {
     const yBodyT = padTop + backboneY - ARROW_TO_BACKBONE
     return {
@@ -53,12 +57,39 @@
       bodyH: FEATURE_H,
       yBodyB: yBodyT + FEATURE_H,
       yBodyMid: yBodyT + FEATURE_H / 2,
-      yLoop: yBodyT - 18,
-      yAa: yBodyT - 48,
-      loopR: 6.5,
+      yLoop: yBodyT - 32,
+      yAa: yBodyT - 62,
+      loopR: 8.5,
+      yAntiterm: yBodyT + FEATURE_H + 1,
     }
   })
   const yGapLabel = $derived(bbY + 13)
+
+  // Per-element AA-chip x, anchored over the specifier (the Stem-I loop, or the codon when a member
+  // lacks the loop window) and spread just enough that two close elements' chips never overlap. The
+  // codon TICK stays at its true bp position — only the label chip shifts (a short connector bridges
+  // them), so the bp→x alignment the tests pin is untouched. CHIP_MIN_SEP ≈ chip width (26) + gap.
+  const CHIP_MIN_SEP = 32
+  const specifierXs = $derived(
+    model.elements.map((el) => {
+      const f = el.features.s1_loop ?? el.features.codon
+      return f ? centre(f) : null
+    }),
+  )
+  const chipXs = $derived.by(() => {
+    const present = specifierXs
+      .map((x, i) => ({ x, i }))
+      .filter((e): e is { x: number; i: number } => e.x !== null)
+    const spread = spreadLabelXs(
+      present.map((e) => e.x),
+      CHIP_MIN_SEP,
+    )
+    const out = specifierXs.slice()
+    present.forEach((e, k) => {
+      out[e.i] = spread[k]
+    })
+    return out
+  })
 
   const bpToX = $derived((bp: number) => linearMapBpToX(bp, size, width))
   function band(box: FeatureBox): Band {
@@ -123,7 +154,7 @@
   {/each}
 
   <!-- Per-element RNA anatomy (body drawn by the LinearMap arrow → showBody=false). -->
-  {#each model.elements as el (el.member.member_id)}
+  {#each model.elements as el, i (el.member.member_id)}
     <ArchitectureElementGlyph
       {el}
       tint={aaColor(el.aa)}
@@ -134,6 +165,7 @@
       termX={el.features.term ? centre(el.features.term) : null}
       discrimX={el.features.discrim ? centre(el.features.discrim) : null}
       codonX={el.features.codon ? centre(el.features.codon) : null}
+      aaChipX={chipXs[i]}
       {dims}
       showBody={false}
       s1Stroke="#ffffff"

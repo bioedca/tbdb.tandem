@@ -28,6 +28,7 @@
     termX = null,
     discrimX = null,
     codonX = null,
+    aaChipX = null,
     dims,
     showBody = true,
     s1Stroke = null,
@@ -41,6 +42,9 @@
     termX?: number | null
     discrimX?: number | null
     codonX?: number | null
+    /** x of the AA chip label (collision-spread by the overlay). The codon TICK stays at `codonX`;
+     *  only the chip moves, joined by a short connector. Defaults to `codonX` (no shift). */
+    aaChipX?: number | null
     dims: ArchitectureGlyphDims
     /** When false, the body capsule is drawn elsewhere (the hatchlings LinearMap feature
      *  arrow) and only the feature glyphs are overlaid. Default true keeps the standalone
@@ -127,9 +131,10 @@
     </g>
   {/if}
 
-  <!-- Antiterminator: the alternative fold, a low dashed two-strand bulge below the body. -->
+  <!-- Antiterminator: the alternative fold, a low dashed two-strand bulge in its own lane just
+       below the body baseline (the "other conformation", drawn faint so it stays subordinate). -->
   {#if antiterm}
-    {@const b = bulge(antiterm, dims.yBodyB + 1, 6)}
+    {@const b = bulge(antiterm, dims.yAntiterm, 7)}
     <g class="tv-arch-feature tv-arch-antiterm" data-feature="antiterm">
       <path d={b.outer} fill="none" stroke={neutral.muted} stroke-width="1.1" stroke-dasharray="2.2 1.8" stroke-linecap="round" />
       <path d={b.inner} fill="none" stroke={neutral.muted} stroke-width="0.8" stroke-opacity="0.6" stroke-linecap="round" />
@@ -139,7 +144,7 @@
   <!-- Terminator hairpin (Transcriptional) / anti-SD sequestrator (Translational). -->
   {#if termX !== null}
     {#if el.member.type === 'Translational'}
-      {@const hp = hairpin(termX, dims.yBodyT, 15, 5, 2)}
+      {@const hp = hairpin(termX, dims.yBodyT, 22, 5.5, 2)}
       <g class="tv-arch-feature tv-arch-term tv-arch-term-sd" data-feature="term">
         <title
           >Translational element: the sequestrator hairpin occludes the Shine-Dalgarno ribosome-binding site (SD/RBS) when the cognate tRNA is charged, blocking translation initiation. Drawn schematically: no SD coordinate is stored.</title
@@ -149,7 +154,7 @@
         <text x={termX} y={hp.apexY - 5} class="tv-arch-sd-label" text-anchor="middle">SD/RBS</text>
       </g>
     {:else}
-      {@const hp = hairpin(termX, dims.yBodyT, 28, 6, 3)}
+      {@const hp = hairpin(termX, dims.yBodyT, 36, 6.5, 3)}
       <g class="tv-arch-feature tv-arch-term tv-arch-term-hairpin" data-feature="term">
         <path d={hp.strands} fill="none" stroke={neutral.ink} stroke-width="1.5" stroke-linecap="round" />
         <path d={hp.loop} fill="none" stroke={neutral.ink} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
@@ -174,18 +179,23 @@
     />
   {/if}
 
-  <!-- Specifier codon: an ink registration tick (serif feet) through the body, with the
-       AA code in a squared chip above, connected to its codon position. The AA letters
-       carry the specifier colour — the one place the data hue appears loud, since the
-       specifier IS the headline datum. -->
+  <!-- Specifier codon: an ink registration tick (serif feet) through the body marks the codon at
+       its true bp position; the AA chip sits in the top lane and joins the specifier stack with a
+       short connector — to the Stem-I loop (the codon is presented in that loop) when present, else
+       straight down to the tick. So the stack reads top→bottom AA chip ▸ loop ▸ codon, never a line
+       crossing the loop. The AA letters carry the specifier hue (the headline datum). The TICK x is
+       always the true codon bp position (the bp→x alignment oracle); only the chip label shifts. -->
   {#if codonX !== null}
+    {@const chipX = aaChipX ?? codonX}
+    {@const anchorX = s1LoopX ?? codonX}
+    {@const anchorY = s1LoopX !== null ? dims.yLoop - dims.loopR : dims.yBodyT - 2}
     <g class="tv-arch-feature tv-arch-codon" data-feature="codon">
       <line x1={codonX} y1={dims.yBodyT - 2} x2={codonX} y2={dims.yBodyB + 2} stroke={neutral.ink} stroke-width="1.6" />
       <line x1={codonX - 2.5} y1={dims.yBodyT - 2} x2={codonX + 2.5} y2={dims.yBodyT - 2} stroke={neutral.ink} stroke-width="1.6" stroke-linecap="round" />
       <line x1={codonX - 2.5} y1={dims.yBodyB + 2} x2={codonX + 2.5} y2={dims.yBodyB + 2} stroke={neutral.ink} stroke-width="1.6" stroke-linecap="round" />
-      <line x1={codonX} y1={dims.yAa + 4} x2={codonX} y2={dims.yBodyT - 2} stroke={tint} stroke-width="1" stroke-opacity="0.55" />
+      <line x1={chipX} y1={dims.yAa + 4} x2={anchorX} y2={anchorY} stroke={tint} stroke-width="1" stroke-opacity="0.55" stroke-linecap="round" />
       <rect
-        x={codonX - 13}
+        x={chipX - 13}
         y={dims.yAa - 11.5}
         width="26"
         height="15"
@@ -194,7 +204,7 @@
         stroke={tint}
         stroke-width="1"
       />
-      <text x={codonX} y={dims.yAa} class="tv-arch-aa" text-anchor="middle" fill={deep}>{el.aa ?? '?'}</text>
+      <text x={chipX} y={dims.yAa} class="tv-arch-aa" text-anchor="middle" fill={deep}>{el.aa ?? '?'}</text>
     </g>
   {/if}
 
