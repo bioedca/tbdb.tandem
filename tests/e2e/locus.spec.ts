@@ -82,11 +82,31 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     const overlay = arch.locator('svg.tv-arch-overlay')
     await expect(overlay).toBeVisible({ timeout: 30_000 })
 
-    // The to-scale overview no longer carries a zoom control — the zoomable detail lives in the
-    // sequence viewer. So the figure has no "Zoom in" affordance, and it renders both elements at a
-    // stable, container-driven width. (The deterministic pixel baseline is architecture-T0342.png.)
+    // The to-scale overview FIGURE carries no zoom control — the zoomable detail lives in the
+    // sequence viewer below it (outside the figure). So the figure has no "Zoom in" affordance, and
+    // renders both elements at a stable, container-driven width. (Baseline: architecture-T0342.png.)
     await expect(arch.getByRole('button', { name: 'Zoom in' })).toHaveCount(0)
     await expect(overlay.evaluate((el) => Number(el.getAttribute('width')))).resolves.toBeGreaterThan(0)
     await expect(arch.locator('g.tv-arch-element')).toHaveCount(2)
+  })
+
+  test('the sequence-viewer zoom widens the full-locus track (the only zoom in the figure)', async ({ page }) => {
+    await gotoRoute(page, '/locus/T0342')
+    // Once the NCBI context loads, the sequence viewer shows the whole locus + carries the zoom.
+    await expect(page.getByText('Full locus sequence', { exact: false })).toBeVisible({ timeout: 30_000 })
+    const seqViewer = page.locator('.tv-hatch .overflow-x-auto svg').last()
+    await expect(seqViewer).toBeVisible({ timeout: 30_000 })
+
+    const widthOf = () =>
+      seqViewer.evaluate((el) => {
+        const w = Number(el.getAttribute('width'))
+        return Number.isNaN(w) ? el.getBoundingClientRect().width : w
+      })
+    const before = await widthOf()
+    expect(before).toBeGreaterThan(0)
+    // The hatchlings ZoomControls "+" (title="Zoom in") scales the sequence-viewer width; the track
+    // overflow-scrolls. (The diagram above is static — it has no zoom control.)
+    await page.locator('button[title="Zoom in"]').click()
+    await expect.poll(widthOf).toBeGreaterThan(before)
   })
 })

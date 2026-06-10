@@ -425,6 +425,18 @@ python3 reproduce_tandem_tbox_db.py \
         faithful full-leader diagram for most elements; a minority with degenerate or atypically long
         leaders fall back to the fornac view.
       </p>
+      <p class="text-small text-muted">
+        The tandem-architecture figure also shows the regulated <strong class="font-medium text-ink"
+          >downstream gene</strong
+        > to scale and a continuous full-locus sequence track. The source table records the gene's name
+        and protein id but not its genomic coordinates, so those — and the surrounding interval sequence —
+        are fetched once from <TbdbLink href="https://www.ncbi.nlm.nih.gov/">NCBI</TbdbLink> for each locus
+        and committed as small per-locus files. Like the structure and tree builds this runs as a separate,
+        cached step (not the master-only reproduction script), so the app stays fully static. The gene
+        resolves for most loci; where its annotation can't be located on the leader's molecule, the figure
+        draws the gene schematically instead. The interval is oriented in the direction of transcription;
+        no ancestry is read or implied.
+      </p>
     </div>
   </Card>
 
