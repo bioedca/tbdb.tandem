@@ -218,6 +218,21 @@ def leader_5p_3p(leader: list[int], strand: str) -> tuple[int, int]:
     return (max(a, b), min(a, b))
 
 
+def element_offset(seq: str, fasta: str, coord_off: int) -> int:
+    """0-based offset of a member's gap-free leader within the (transcription-oriented)
+    interval seq. The coord-derived offset is the fast path -- trusted when it already
+    lands the leader. Otherwise the leader is located by CONTENT (a unique exact match
+    of the >50 bp leader), which keeps the round-trip exact through a per-locus
+    leader-coord drift vs the current genome (e.g. T0104, whose recorded coords sit 177
+    bp off). Falls back to the coord offset when the leader isn't present at all."""
+    if not seq:
+        return coord_off
+    if 0 <= coord_off and seq[coord_off : coord_off + len(fasta)] == fasta:
+        return coord_off
+    idx = seq.find(fasta)
+    return idx if idx >= 0 else coord_off
+
+
 # ---------------------------------------------------------------------------
 # Locus record assembly (pure given pre-fetched responses -> dependency-injected)
 # ---------------------------------------------------------------------------
@@ -274,12 +289,30 @@ def build_locus_record(
         resolved_genes.append((gene, coords))
 
     member_leaders = [tuple(m["coords"]["leader"]) for m in members]
-    gene_spans = [(c.start, c.end) for _, c in resolved_genes]
-    iv, clamped = compute_interval(member_leaders, gene_spans, strand, max_bp)
+
+    def _spans(genes):
+        return [(c.start, c.end) for _, c in genes]
+
+    def _drop_outside(genes, interval):
+        kept, dropped = [], []
+        for g, c in genes:
+            (kept if interval.lo <= c.start and c.end <= interval.hi else dropped).append((g, c))
+        return kept, dropped
+
+    # Interval from the elements + ALL resolved genes, then drop any gene that falls
+    # OUTSIDE it (an upstream / opposite-strand operon member is not the downstream
+    # regulated gene and would get a negative offset, e.g. T0364's second operon gene),
+    # and recompute tightly from the kept genes (re-dropping against a clamp).
+    iv, _clamped = compute_interval(member_leaders, _spans(resolved_genes), strand, max_bp)
+    resolved_genes, dropped = _drop_outside(resolved_genes, iv)
+    for g, _c in dropped:
+        warnings.append(f"gene outside interval, dropped: {g.protein_id or g.raw}")
+    iv, clamped = compute_interval(member_leaders, _spans(resolved_genes), strand, max_bp)
     if clamped:
         warnings.append(f"interval clamped to {max_bp} bp")
-        # drop genes that fall outside the clamped interval
-        resolved_genes = [(g, c) for g, c in resolved_genes if c.start >= iv.lo and c.end <= iv.hi]
+        resolved_genes, dropped2 = _drop_outside(resolved_genes, iv)
+        for g, _c in dropped2:
+            warnings.append(f"gene outside clamped interval, dropped: {g.protein_id or g.raw}")
 
     # 2. fetch + orient the interval sequence.
     raw_fasta = fetch_interval(accession, iv.lo, iv.hi)
@@ -290,13 +323,19 @@ def build_locus_record(
         warnings.append(f"interval seq length {len(plus_seq)} != {expected_len}")
     seq = orient_seq(plus_seq, strand) if plus_seq else ""
 
-    # 3. per-element offsets within the oriented seq.
+    # 3. per-element offsets within the oriented seq (coord fast-path, content-search
+    #    fallback so a per-locus coord drift never breaks the round-trip).
     elements = []
     for m in members:
-        g5, g3 = leader_5p_3p(m["coords"]["leader"], strand)
-        off = offset_5p(g5, iv, strand)
-        length = len(m["fasta_sequence"])
-        elements.append({"member_id": m["member_id"], "offset": off, "length": length})
+        g5, _g3 = leader_5p_3p(m["coords"]["leader"], strand)
+        fasta = m["fasta_sequence"]
+        coord_off = offset_5p(g5, iv, strand)
+        off = element_offset(seq, fasta, coord_off)
+        if seq and seq[off : off + len(fasta)] != fasta:
+            warnings.append(f"element leader not found in interval: {m['member_id']}")
+        elif seq and off != coord_off:
+            warnings.append(f"element offset corrected to {off} (coords {coord_off}): {m['member_id']}")
+        elements.append({"member_id": m["member_id"], "offset": off, "length": len(fasta)})
 
     # 4. per-gene offsets (only those inside the interval).
     out_genes = []

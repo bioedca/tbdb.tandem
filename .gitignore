@@ -36,3 +36,6 @@ CLAUDE.md
 AGENTS.md
 # archived worklist + running log (STEPS.md, PROGRESS.md) — no longer loaded each session
 dump/
+
+# NCBI genomic-context fetch cache (raw responses; regenerated, not committed)
+data-pipeline/ncbi_cache/
