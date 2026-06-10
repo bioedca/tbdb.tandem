@@ -75,9 +75,16 @@ describe('loadLocusContextManifest', () => {
   })
 
   test('resolves null on absence and retries on a later call', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(new Response('', { status: 404 }))
+    const manifest = { meta: { generated: 'x', version: 1, source: 'ncbi-entrez', count: 0, resolved_loci: 0, fetched_genes: 0 }, loci: {} }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('', { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(manifest), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     const { loadLocusContextManifest } = await freshModule()
     expect(await loadLocusContextManifest()).toBeNull()
+    // the null cleared the slot, so the second call re-fetches and now succeeds
+    expect(await loadLocusContextManifest()).toEqual(manifest)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
