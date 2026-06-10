@@ -4,7 +4,16 @@
 // 949 members have a `unique_name`, so the null branch is covered HERE, not live
 // (PROGRESS S1.5).
 import { render, screen } from '@testing-library/svelte'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+
+// The Tandem architecture figure (mounted here) composes the vendored LinearMap (renders fine in
+// jsdom) with the published SequenceViewer + ZoomControls — stub those so this route test stays
+// focused on the deep-link / identity assertions and skips the heavy sequence grid.
+vi.mock('@molbiohive/hatchlings', async () => ({
+  SequenceViewer: (await import('../stubs/SequenceViewerStub.svelte')).default,
+  ZoomControls: (await import('../stubs/ZoomControlsStub.svelte')).default,
+}))
+
 import LocusDetail from '../../src/routes/LocusDetail.svelte'
 import { store } from '../../src/lib/stores/filters.svelte'
 import { makeLocus, makeMember } from '../fixtures'

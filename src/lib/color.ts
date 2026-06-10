@@ -275,9 +275,8 @@ export const PHYLUM_COUNT_RAMP: [number, string][] = [
  * so the func-class encoding is still chrome, just no longer grey. Single source of
  * truth: the architecture diagram's downstream-ORF arrow (S2.1) and the operon
  * breakdown's bars + Sankey func_class nodes (S2.5) both read from here, so the same
- * function class is the same color everywhere. Lightness splits the set into "dark"
- * (white ORF label: aaRS / biosynthesis / oxidoreductase) and "light" (ink label:
- * transporter / unknown) — see ArchitectureDiagram `orfDark`.
+ * function class is the same color everywhere. The architecture figure's downstream-gene
+ * arrow (the hatchlings LinearMap feature) is also filled from this map.
  */
 export const FUNC_CLASS_SHADE: Record<FuncClass, string> = {
   aaRS: '#4767ad', // muted blue

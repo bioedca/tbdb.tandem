@@ -35,15 +35,19 @@
   const model = $derived(buildArchitecture(members, strand))
   const map = $derived(toLinearMapProps(model, funcClass, downstreamGene))
 
-  // Geometry. Width scales with zoom (the figure overflows-scrolls rather than shrinking labels);
-  // vertical bands are fixed px, so zooming spreads the track horizontally only. PAD_TOP reserves
-  // headroom above the LinearMap arrow band for the tall glyphs (AA chip / Stem I loop / hairpin);
-  // FIG_HEIGHT clears the scale bar + ordinal below the backbone.
+  // Geometry. At zoom 1 the track fills the container width (responsive, like the old figure);
+  // zoom multiplies that, and the figure overflow-scrolls rather than shrinking labels. Vertical
+  // bands are fixed px, so zooming spreads the track horizontally only. MIN_TRACK keeps the dense
+  // figure legible on narrow phones (it scrolls instead). BASE_WIDTH is the fallback before the
+  // container is measured (jsdom / first paint). PAD_TOP reserves headroom above the LinearMap arrow
+  // band for the tall glyphs (AA chip / Stem I loop / hairpin); FIG_HEIGHT clears the scale bar.
   const BASE_WIDTH = 920
+  const MIN_TRACK = 560
   const PAD_TOP = 52
   const FIG_HEIGHT = 134
   let zoom = $state(1)
-  const width = $derived(Math.round(BASE_WIDTH * zoom))
+  let containerW = $state(0) // measured container width (0 until laid out → BASE_WIDTH fallback)
+  const width = $derived(Math.round(Math.max(containerW || BASE_WIDTH, MIN_TRACK) * zoom))
 
   let backboneY = $state(0) // bound out of LinearMap (its computed backbone Y, user units)
 
@@ -59,7 +63,7 @@
   }
 </script>
 
-<div class="tv-hatch w-full">
+<div class="tv-hatch w-full" bind:clientWidth={containerW}>
   <div class="mb-2 flex items-center justify-between gap-3">
     <p class="text-caption text-muted">
       Biological 5′→3′, to scale · each element tinted by its specifier · click an element for its sequence
