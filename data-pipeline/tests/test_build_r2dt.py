@@ -495,6 +495,129 @@ def test_route_tail_reverse_orders_from_the_anchor_inward():
     assert max(steps) <= 1.5 * 3.0  # no backbone break anywhere along the tail or at the anchor
 
 
+# --- compact serpentine routing of LONG single strands -----------------------
+#
+# The user's "dynamic looping / staggering" ask: a long straight tail (a dangling ray of k*L) or a
+# slacky wide arc inflates the drawing box. The routers fold those into a compact serpentine/meander
+# while leaving short, already-tight, or genuinely TAUT runs exactly as drawn (do no harm).
+
+
+def test_serpentine_pts_folds_a_long_tail_compact_and_continuous():
+    # 20 residues snaked into boustrophedon rows: the block's bbox diagonal is far smaller than the
+    # k*L straight ray, every backbone step stays continuous, and no two glyphs overlap themselves.
+    med = 10.0
+    pts = br._serpentine_pts((0.0, 0.0), (1.0, 0.0), 20, med, 5, 1)
+    assert len(pts) == 20
+    assert br._run_extent(pts) < 0.5 * 20 * med           # << straight-ray extent (200)
+    assert br._run_continuous((0.0, 0.0), pts, med)        # joins the anchor + folds without a break
+    assert br._self_clear(pts, med)                        # rows spaced far enough apart
+
+
+def test_meander_pts_hugs_the_chord_for_a_slacky_run():
+    # A mildly-slacky interior run (chord 100, k 20) folds into a tight sawtooth hugging the chord:
+    # both ends land on their anchors and the band is far more compact than the wide arc it replaces.
+    med = 10.0
+    pts = br._meander_pts((0.0, 0.0), (100.0, 0.0), 20, med, 1)
+    assert pts is not None and len(pts) == 20 and br._self_clear(pts, med)
+    assert br._run_extent(pts) < 1.3 * 100                 # hugs the chord, no big outward bulge
+    assert math.hypot(pts[0][0] - 0.0, pts[0][1] - 0.0) <= 2.2 * med   # leaves p0 continuously
+    assert math.hypot(pts[-1][0] - 100.0, pts[-1][1] - 0.0) <= 2.2 * med  # lands on p1
+
+
+def test_meander_pts_returns_none_when_not_slack():
+    # When the residues span the chord at ~one step each there is no slack to fold -> None (the
+    # caller keeps the even arc), and a too-slack sawtooth is dropped by the caller's self-clear gate.
+    assert br._meander_pts((0.0, 0.0), (250.0, 0.0), 20, 10.0, 1) is None  # du >= med, not slack
+    very_slack = br._meander_pts((0.0, 0.0), (40.0, 0.0), 20, 10.0, 1)     # du tiny -> sawtooth piles up
+    assert very_slack is not None and not br._self_clear(very_slack, 10.0)  # rejected -> arc kept
+
+
+def test_route_tail_folds_a_long_straight_tail():
+    # A long, clear 3' tail drawn as a straight ray (extent ~k*L) is FOLDED into a compact block even
+    # though it was already clear -- the bounding-box win the straight ray cannot give. Anchor stays.
+    med, n = 10.0, 21
+    xs = [0.0] + [float(i * 10) for i in range(n)]  # anchor = 1 at (0,0); tail 2..21 straight along +x
+    ys = [0.0] + [0.0] * n
+    obs = np.array([[0.0, 500.0]])  # far away: the straight ray is clear, so only compaction moves it
+    before = br._run_extent([(xs[i], ys[i]) for i in range(2, 22)])
+    br._route_tail(xs, ys, 2, 21, 1, med, n, {}, (-100.0, 0.0), obs, outward=True, reverse=False)
+    tail = [(xs[i], ys[i]) for i in range(2, 22)]
+    assert br._run_extent(tail) < 0.5 * before                       # folded much smaller
+    assert br._self_clear(tail, med)                                  # no self-overlap
+    assert math.hypot(xs[2] - xs[1], ys[2] - ys[1]) <= 2.2 * med      # residue 2 joins the anchor
+    steps = [math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) for i in range(2, 22)]
+    assert max(steps) <= 2.2 * med                                   # no backbone break
+
+
+def test_route_tail_keeps_a_short_tail_as_a_straight_ray():
+    # Do no harm: a short (k < 8) tail that is already clear and continuous is left exactly as drawn,
+    # never folded -- folding a 5-nt ray saves no meaningful space and would only add clutter.
+    med, n = 10.0, 6
+    xs = [0.0] + [float(i * 10) for i in range(n)]  # anchor 1; tail 2..6 straight, clear
+    ys = [0.0] + [0.0] * n
+    bx, by = xs[:], ys[:]
+    br._route_tail(xs, ys, 2, 6, 1, med, n, {}, (-100.0, 0.0), np.array([[0.0, 500.0]]),
+                   outward=True, reverse=False)
+    assert xs == bx and ys == by  # untouched
+
+
+def test_route_arc_folds_a_slacky_interior_run():
+    # A long interior run whose anchors are close (chord 100, k 20) but which R2DT bowed into a wide
+    # arc is folded into the tight sawtooth -- more compact, anchors untouched, every value finite.
+    med, n = 10.0, 22
+    xs = [0.0] * (n + 1)
+    ys = [0.0] * (n + 1)
+    xs[1], ys[1] = 0.0, 0.0
+    xs[22], ys[22] = 100.0, 0.0
+    for t, (px, py) in enumerate(br._turtle_pts((0.0, 0.0), (100.0, 0.0), 20, med, 1), start=1):
+        xs[1 + t], ys[1 + t] = px, py  # seed the run on the wide R2DT-like arc
+    pre = br._run_extent([(xs[i], ys[i]) for i in range(2, 22)])
+    br._route_arc(xs, ys, 2, 21, 1, 22, med, (50.0, 0.0), np.array([[50.0, 1000.0]]))
+    post = br._run_extent([(xs[i], ys[i]) for i in range(2, 22)])
+    assert post < pre                                       # the bulge folded inward
+    assert (xs[1], ys[1]) == (0.0, 0.0) and (xs[22], ys[22]) == (100.0, 0.0)  # anchors fixed
+    assert all(math.isfinite(v) for v in xs[1:] + ys[1:])
+
+
+def test_route_arc_leaves_a_taut_run_straight():
+    # Do no harm: a TAUT run (anchors genuinely far apart, chord 200 > 0.6*k*L) is not slacky -- a
+    # meander cannot shrink that span -- so the clear straight placement is kept exactly as drawn.
+    med, n = 10.0, 12
+    xs = [0.0] * (n + 1)
+    ys = [0.0] * (n + 1)
+    xs[1], ys[1] = 0.0, 0.0
+    xs[12], ys[12] = 200.0, 0.0
+    for t in range(1, 11):
+        xs[1 + t] = t * (200.0 / 11.0)  # run 2..11 evenly along the chord (~18 per step, no break)
+    bx, by = xs[:], ys[:]
+    br._route_arc(xs, ys, 2, 11, 1, 12, med, (100.0, 0.0), np.array([[100.0, 1000.0]]))
+    assert xs == bx and ys == by  # untouched
+
+
+def test_best_compact_placement_prefers_compact_over_clearance():
+    # Among candidates that clear the structure (>= 1.15*med) the picker takes the SMALLEST extent --
+    # so a tight fold beats a sprawling-but-very-clear ray. When the fold is below the clearance
+    # floor it loses, and the clearest candidate wins (legacy do-least-harm). Tuples: (clr, extent, pref, pts).
+    med = 10.0
+    assert br._best_compact_placement([(50.0, 200.0, 0, "ray"), (12.0, 20.0, 0, "fold")], med) == "fold"
+    assert br._best_compact_placement([(50.0, 200.0, 0, "ray"), (5.0, 20.0, 0, "fold")], med) == "ray"
+
+
+def test_serpentine_routing_is_deterministic():
+    # No randomness / iteration-dependent relaxation: routing the same long tail twice is byte-
+    # identical, which is what pins a shared single strand across the antiterm<->term toggle.
+    med, n = 10.0, 21
+    base_x = [0.0] + [float(i * 10) for i in range(n)]
+    base_y = [0.0] + [0.0] * n
+    obs = np.array([[20.0, 40.0], [0.0, 500.0]])
+    runs = []
+    for _ in range(2):
+        xs, ys = base_x[:], base_y[:]
+        br._route_tail(xs, ys, 2, 21, 1, med, n, {}, (-100.0, 0.0), obs, outward=True, reverse=False)
+        runs.append((xs, ys))
+    assert runs[0] == runs[1]
+
+
 # --- stage 4: the full-length terminator graft -------------------------------
 #
 # graft_terminator_member folds a member's terminator hairpin onto its raw R2DT layout,

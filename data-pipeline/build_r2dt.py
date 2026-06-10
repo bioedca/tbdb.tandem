@@ -693,21 +693,162 @@ def _max_run_step(xs, ys, a: int, b: int) -> float:
     return max((math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) for k in range(a + 1, b + 1)), default=0.0)
 
 
-def _route_arc(xs, ys, s, e, lo, hi, med, cen, obs) -> None:
-    """Re-route interior unpaired run ``[s..e]`` between anchors lo/hi ONLY if it overlaps or breaks.
+# --- compact serpentine routing of LONG single strands (the "dynamic looping / staggering" ask) ---
+#
+# A long straight 5'/3' tail (a dangling ray of ``k * L``) or a slacky wide arc inflates the drawing's
+# bounding box and reads as wasted space -- the illustration ends up unnecessarily large with tiny
+# glyphs. When a run is long enough that folding it meaningfully shrinks its footprint, the routers
+# below also offer a compact SERPENTINE/meander candidate and take the most COMPACT placement that
+# still clears the structure. Do-no-harm: the straight ray / wide arc / keep-current placements are
+# always in the running, so a run that is already tight, or genuinely TAUT (anchors simply far apart,
+# which folding cannot shrink), is left exactly as drawn.
+SERPENTINE_MIN_TAIL_NT = 8             # shorter tails barely span a stem -> never worth folding
+SERPENTINE_MIN_INTERIOR_NT = 10        # interior connectors only fold when clearly long
+SERPENTINE_ROW_SEP_RATIO = 1.45        # perpendicular gap between snake rows, in median steps
+SERPENTINE_MAX_ROWS = 6                # cap rows so a huge tail snakes WIDER, not into a tall stack
+SERPENTINE_MIN_CLEARANCE_RATIO = 1.15  # a fold is accepted only this clear of structure (> 0.88 touch)
+SLACK_ARC_RATIO = 0.6                  # interior run is "slacky" (foldable) when chord/L <= this * k
 
-    Most single strands carry R2DT's own (locally compact) coordinates and are already clear --
-    re-laying those on a fresh arc only wastes space and discards the recognisable layout. So the
-    run is KEPT in place when it is break-free AND already clear of every obstacle (stems, hairpin,
-    strands routed earlier this pass). Only a run that overlaps something (or carries a graft-
-    induced backbone break) is moved -- onto whichever even-arc bow direction sits furthest from
-    the obstacles, with its current placement also in the running so routing never makes it worse.
-    Deterministic tie-break: clearance (rounded), then keep-current, then bulge-away-from-centroid.
+
+def _run_extent(pts: list[tuple[float, float]]) -> float:
+    """Bounding-box diagonal of a run's points -- the proxy for how far it pushes the diagram box out.
+    A straight ray of ``k`` steps has extent ``~k * L``; the same residues folded into a serpentine
+    have extent ``~sqrt(k) * L``, so MINIMISING this is exactly what compaction optimises."""
+    if not pts:
+        return 0.0
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    return math.hypot(max(xs) - min(xs), max(ys) - min(ys))
+
+
+def _self_clear(pts: list[tuple[float, float]], med: float, factor: float = VISUAL_OVERLAP) -> bool:
+    """True if no two NON-adjacent points of a run sit closer than ``factor * med`` -- the run does not
+    overlap ITSELF. A straight ray is self-clear by construction; a serpentine fold is self-clear only
+    when its rows are spaced far enough apart, so this gates fold candidates."""
+    m = len(pts)
+    if m < 3:
+        return True
+    P = np.asarray(pts, dtype=float)
+    d = np.hypot(P[:, 0, None] - P[None, :, 0], P[:, 1, None] - P[None, :, 1])
+    iu = np.triu_indices(m, k=2)
+    return bool(d[iu].min() >= factor * med) if iu[0].size else True
+
+
+def _run_continuous(anchor: tuple[float, float], pts: list[tuple[float, float]], med: float,
+                    factor: float = 2.2) -> bool:
+    """True if every backbone step from ``anchor`` along ``pts`` stays under ``factor * med`` (no
+    break). Validates a fold candidate's first step off the anchor and its row-to-row fold steps."""
+    prev = anchor
+    lim = factor * med
+    for p in pts:
+        if math.hypot(p[0] - prev[0], p[1] - prev[1]) > lim:
+            return False
+        prev = p
+    return True
+
+
+def _serpentine_pts(anchor: tuple[float, float], seed: tuple[float, float], k: int, med: float,
+                    row_len: int, side: int) -> list[tuple[float, float]]:
+    """``k`` points snaking out from ``anchor`` in BOUSTROPHEDON rows -- the compact tail fold.
+
+    Rows run along ``seed`` (the launch bearing) one ``med`` step apart, fold 180 degrees every
+    ``row_len`` residues, and stack ``SERPENTINE_ROW_SEP_RATIO * med`` apart on the chosen ``side``.
+    The first point sits one median step off the anchor (so the backbone joins continuously) and the
+    block's longest side is ``~row_len * med`` instead of the straight ray's ``k * med``.
+    """
+    ax, ay = anchor
+    sl = math.hypot(seed[0], seed[1]) or 1.0
+    ux, uy = seed[0] / sl, seed[1] / sl              # along (row) direction
+    vx, vy = -uy * side, ux * side                   # across (row-stacking) direction
+    rowsep = SERPENTINE_ROW_SEP_RATIO * med
+    pts: list[tuple[float, float]] = []
+    for i in range(k):
+        r, pos = divmod(i, row_len)
+        c = pos if r % 2 == 0 else row_len - 1 - pos  # boustrophedon: reverse every other row
+        pts.append((ax + ux * med * (c + 1) + vx * rowsep * r,
+                    ay + uy * med * (c + 1) + vy * rowsep * r))
+    return pts
+
+
+def _meander_pts(p0: tuple[float, float], p1: tuple[float, float], k: int, med: float,
+                 side: int) -> list[tuple[float, float]] | None:
+    """A tight sawtooth of ``k`` points from anchor ``p0`` to anchor ``p1`` -- the compact interior
+    fold. Both ends are pinned (an interior run must land on its two flanking pairs), so the slack of
+    a wide arc is absorbed as a low-amplitude zigzag hugging the chord instead of a big outward bulge.
+    Each backbone step is exactly ``med``. Returns ``None`` when the chord is not slack enough to fold
+    (the caller then keeps the even arc); a too-slack run whose sawtooth would self-overlap is dropped
+    by the caller's ``_self_clear`` gate, leaving the wide arc -- do no harm."""
+    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+    chord = math.hypot(dx, dy)
+    if chord < 1e-6 or k <= 0:
+        return None
+    ux, uy = dx / chord, dy / chord
+    vx, vy = -uy * side, ux * side
+    du = chord / (k + 1)                  # along-progress per residue -> residue k lands one step shy of p1
+    if du >= med:                         # not slack: the straight/arc placement already fits
+        return None
+    dv = math.sqrt(max(med * med - du * du, 0.0)) * 0.5  # half-swing keeps the band tight
+    pts: list[tuple[float, float]] = []
+    for i in range(1, k + 1):
+        along = du * i
+        off = dv if i % 2 else -dv
+        pts.append((p0[0] + ux * along + vx * off, p0[1] + uy * along + vy * off))
+    return pts
+
+
+def _best_compact_placement(cands, med, floor_ratio: float = SERPENTINE_MIN_CLEARANCE_RATIO):
+    """Two-tier pick over ``(clearance, extent, pref, pts)`` candidates. Among those that clear the
+    structure by ``floor_ratio * med`` take the MOST COMPACT (smallest extent); only when none clear
+    the floor fall back to the highest-clearance one (legacy do-least-harm). Deterministic rounded
+    keys + a keep-current ``pref`` tie-break, so the antiterm<->term toggle folds identically."""
+    if not cands:
+        return None
+    floor = floor_ratio * med
+    tier1 = [c for c in cands if c[0] >= floor]
+    if tier1:
+        tier1.sort(key=lambda c: (c[1], -c[0], -c[2]))   # extent ASC, then clearer, then keep-current
+        return tier1[0][3]
+    cands.sort(key=lambda c: (c[0], c[2]), reverse=True)
+    return cands[0][3]
+
+
+def _route_arc(xs, ys, s, e, lo, hi, med, cen, obs) -> None:
+    """Re-route interior unpaired run ``[s..e]`` between anchors lo/hi.
+
+    Most single strands carry R2DT's own (locally compact) coordinates and are already clear -- a
+    short or genuinely TAUT run that is break-free AND clear of every obstacle is KEPT in place (re-
+    laying it only wastes space and discards the recognisable layout). A run that overlaps something
+    (or carries a graft-induced backbone break) is moved onto whichever even-arc bow sits furthest
+    from the obstacles, with its current placement in the running so routing never makes it worse
+    (clearance rounded, then keep-current, then bulge-away-from-centroid). A LONG, SLACKY run -- its
+    two anchors close together while R2DT bowed the residues into a wide arc -- additionally offers a
+    tight sawtooth meander and takes the most COMPACT clear placement, so the bulge folds inward
+    (do-no-harm: the wide arcs stay candidates, so a run that cannot fold clear is left as drawn).
+    Anchors are never moved.
     """
     k = e - s + 1
     p0, p1 = (xs[lo], ys[lo]), (xs[hi], ys[hi])
     cur = [(xs[t], ys[t]) for t in range(s, e + 1)]
     cur_ok = _max_run_step(xs, ys, lo, hi) <= 2.2 * med
+    chord = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+    if k >= SERPENTINE_MIN_INTERIOR_NT and 1e-6 < chord <= SLACK_ARC_RATIO * k * med:
+        cands = []
+        if cur_ok:
+            cands.append((round(_clearance(cur, obs), 2), round(_run_extent(cur), 2), 1, cur))
+        for sgn in (1, -1):
+            pts = _turtle_pts(p0, p1, k, med, sgn)
+            if pts is not None:
+                cands.append((round(_clearance(pts, obs), 2), round(_run_extent(pts), 2), 0, pts))
+        for side in (1, -1):
+            pts = _meander_pts(p0, p1, k, med, side)
+            if (pts is not None and _self_clear(pts, med) and _run_continuous(p0, pts, med)
+                    and math.hypot(pts[-1][0] - p1[0], pts[-1][1] - p1[1]) <= 2.2 * med):
+                cands.append((round(_clearance(pts, obs), 2), round(_run_extent(pts), 2), 0, pts))
+        best = _best_compact_placement(cands, med)
+        if best is not None:
+            for t, (px, py) in enumerate(best, start=1):
+                xs[s + t - 1], ys[s + t - 1] = px, py
+        return
     if cur_ok and _clearance(cur, obs) >= VISUAL_OVERLAP * med:
         return  # already clear and continuous -> leave R2DT's layout untouched
     cands = []
@@ -731,16 +872,40 @@ def _route_arc(xs, ys, s, e, lo, hi, med, cen, obs) -> None:
 #: Fan of launch bearings (degrees off the seed direction) the tail router scans for a clear exit.
 _TAIL_FAN = (0, 20, -20, 40, -40, 60, -60, 90, -90, 120, -120, 150, -150, 180)
 
+#: Coarser fan of seed bearings the serpentine FOLD tries, to snake into the clearest open wedge.
+_FOLD_FAN = (0, 30, -30, 60, -60, 90, -90, 180)
+
+
+def _tail_seed(xs, ys, anchor, ax, ay, ox, oy, n, partner, outward, reverse) -> float:
+    """Launch bearing (radians) for a tail: OUTWARD from the layout centroid (the post-fold reflow)
+    or the backbone rail-exit tangent. Factored so the straight-ray and serpentine-fold paths seed
+    from the SAME direction."""
+    if outward:
+        sx, sy = ox, oy
+    else:
+        prev = anchor - 1 if not reverse else anchor + 1
+        if 1 <= prev <= n:
+            rx, ry = ax - xs[prev], ay - ys[prev]
+        else:
+            p = partner.get(anchor)
+            rx, ry = (ax - xs[p], ay - ys[p]) if p is not None else (1.0, 0.0)
+        rl = math.hypot(rx, ry) or 1.0
+        sx, sy = rx / rl, ry / rl
+    return math.atan2(sy, sx)
+
 
 def _route_tail(xs, ys, s, e, anchor, med, n, partner, cen, obs, outward, reverse) -> None:
-    """Place a dangling 5'/3' tail as the CLEAREST straight ray of even median steps off ``anchor``.
+    """Place a dangling 5'/3' tail off ``anchor`` -- a straight ray for a short tail, a compact
+    SERPENTINE fold for a long one.
 
-    Scans a fan of launch bearings around the seed direction (OUTWARD from the layout centroid for
-    the post-fold reflow, else the backbone rail-exit tangent) and lays the tail as a straight ray
-    along whichever bearing keeps its glyphs furthest from all placed structure. A straight ray is
-    self-overlap-free by construction (no tail can clash with itself), so the only job is to find
-    an open wedge -- which the mostly-empty drawing box reliably has. Tie-break: clearance, then
-    alignment with the outward direction.
+    A short tail (or one already clear and continuous) is laid as the clearest straight ray of even
+    median steps over a fan of launch bearings (OUTWARD from the layout centroid for the post-fold
+    reflow, else the backbone rail-exit tangent). A straight ray is self-overlap-free by construction,
+    so the only job is to find an open wedge, which the mostly-empty box reliably has. A LONG tail
+    (``k >= SERPENTINE_MIN_TAIL_NT``) would make that ray ``k * med`` long and inflate the drawing box,
+    so it also offers boustrophedon folds (a few seed bearings x both sides x two row widths) and takes
+    the most COMPACT clear placement -- folding the ray into a ``~sqrt(k) * med`` block. The straight
+    ray and keep-current stay in the running, so a tail that cannot fold clear is never made worse.
     """
     k = e - s + 1
     ax, ay = xs[anchor], ys[anchor]
@@ -752,30 +917,47 @@ def _route_tail(xs, ys, s, e, anchor, med, n, partner, cen, obs, outward, revers
     walk = list(range(s, e + 1)) if not reverse else list(range(e, s - 1, -1))
     cur = [(xs[idx], ys[idx]) for idx in walk]
     cur_ok = _max_run_step(xs, ys, min(s, anchor), max(e, anchor)) <= 2.2 * med
-    if cur_ok and _clearance(cur, obs) >= VISUAL_OVERLAP * med:
-        return  # tail already clear and continuous -> leave it
-    if outward:
-        seed = (ox, oy)
-    else:
-        prev = anchor - 1 if not reverse else anchor + 1
-        if 1 <= prev <= n:
-            rx, ry = ax - xs[prev], ay - ys[prev]
-        else:
-            p = partner.get(anchor)
-            rx, ry = (ax - xs[p], ay - ys[p]) if p is not None else (1.0, 0.0)
-        rl = math.hypot(rx, ry) or 1.0
-        seed = (rx / rl, ry / rl)
-    bang = math.atan2(seed[1], seed[0])
+    if k < SERPENTINE_MIN_TAIL_NT:
+        if cur_ok and _clearance(cur, obs) >= VISUAL_OVERLAP * med:
+            return  # short tail already clear and continuous -> leave it
+        bang = _tail_seed(xs, ys, anchor, ax, ay, ox, oy, n, partner, outward, reverse)
+        cands = []
+        if cur_ok:
+            cands.append((round(_clearance(cur, obs), 2), 1, cur))  # keep-current
+        for deg in _TAIL_FAN:
+            a = bang + math.radians(deg)
+            dx, dy = math.cos(a), math.sin(a)
+            pts = [(ax + dx * med * t, ay + dy * med * t) for t in range(1, k + 1)]
+            cands.append((round(_clearance(pts, obs), 2), round(dx * ox + dy * oy, 3), pts))
+        cands.sort(key=lambda c: (c[0], c[1]), reverse=True)
+        for idx, (px, py) in zip(walk, cands[0][2]):
+            xs[idx] = px
+            ys[idx] = py
+        return
+    # long tail: straight rays + keep-current + serpentine folds, picked for compactness.
+    bang = _tail_seed(xs, ys, anchor, ax, ay, ox, oy, n, partner, outward, reverse)
     cands = []
     if cur_ok:
-        cands.append((round(_clearance(cur, obs), 2), 1, cur))  # keep-current
+        cands.append((round(_clearance(cur, obs), 2), round(_run_extent(cur), 2), 1.0, cur))
     for deg in _TAIL_FAN:
         a = bang + math.radians(deg)
         dx, dy = math.cos(a), math.sin(a)
         pts = [(ax + dx * med * t, ay + dy * med * t) for t in range(1, k + 1)]
-        cands.append((round(_clearance(pts, obs), 2), round(dx * ox + dy * oy, 3), pts))
-    cands.sort(key=lambda c: (c[0], c[1]), reverse=True)
-    for idx, (px, py) in zip(walk, cands[0][2]):
+        cands.append((round(_clearance(pts, obs), 2), round(_run_extent(pts), 2),
+                      round(dx * ox + dy * oy, 3), pts))
+    rlbase = max(math.ceil(math.sqrt(k)), math.ceil(k / SERPENTINE_MAX_ROWS))
+    for deg in _FOLD_FAN:
+        a = bang + math.radians(deg)
+        sd = (math.cos(a), math.sin(a))
+        for side in (1, -1):
+            for rl in (rlbase, rlbase + 1):
+                pts = _serpentine_pts((ax, ay), sd, k, med, rl, side)
+                if _run_continuous((ax, ay), pts, med) and _self_clear(pts, med):
+                    cands.append((round(_clearance(pts, obs), 2), round(_run_extent(pts), 2), 0.0, pts))
+    best = _best_compact_placement(cands, med)
+    if best is None:
+        return
+    for idx, (px, py) in zip(walk, best):
         xs[idx] = px
         ys[idx] = py
 
