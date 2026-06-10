@@ -35,6 +35,14 @@ N_TERMINATOR = 922
 #: the old quality gate rejected, 778 -> 784.)
 N_TERMINATOR_R2DT = 784
 
+#: Corpus ceiling on the number of NON-adjacent glyph pairs that visually overlap (centres < 0.88 x
+#: median step) summed over every committed antiterm + term diagram. The committed set sits at ~661
+#: (212 antiterm + 449 term -- pre-existing structural crowding the single-strand reflow already
+#: minimises); the compact serpentine fold of long tails left it slightly LOWER, not higher. This is
+#: a regression ceiling against a future routing change flooding overlaps -- a conscious constant: a
+#: regen that legitimately moves it updates it (like N_TERMINATOR_R2DT).
+N_R2DT_VISUAL_OVERLAP_CEILING = 720
+
 # Load-bearing counts (PLAN section 3.1, 5.4; CLAUDE.md section 2). The main-tree
 # tip count is the value the S0.6 build emitted and PROGRESS.md recorded -- never
 # assumed (CLAUDE.md section 2). A legitimate source change that moves it must
@@ -320,6 +328,88 @@ def test_term_sequence_pairs_with_term_structure(members):
         assert set(td) <= set("().") and is_balanced(td), f"{mid}: term_structure not balanced round-brackets"
         paired += 1
     assert paired >= 900  # ~935 members carry a complete terminator on the committed data
+
+
+# --- compact serpentine folding of long single strands ----------------------
+#
+# The final reflow folds long 5'/3' tails (straight rays of k*L that inflate the drawing box) into a
+# compact serpentine. These guard the COMMITTED artifacts: the bulk of long tails are actually folded
+# (the feature acted, the box shrank) AND each fold is clean -- continuous backbone, no self-overlap --
+# so compaction never traded the bloat for a clash. Stem pinning across the toggle is guarded
+# separately by test_terminator_diagrams_pin_stems_across_the_toggle (folding is confined to the
+# final pass, so the stems-only base is unchanged).
+
+
+def _r2dt_diagram_paths():
+    for d in (DATA / "r2dt", DATA / "r2dt" / "term"):
+        for p in d.glob("*.json"):
+            if p.stem != "manifest":
+                yield p
+
+
+def _end_tails(d: dict) -> list[tuple[int, int]]:
+    """The 5' and 3' maximal UNPAIRED end-runs (1-based inclusive) of a committed diagram."""
+    n = len(d["seq"])
+    paired = {i for pr in d["pairs"] for i in pr}
+    out: list[tuple[int, int]] = []
+    i = 1
+    while i <= n and i not in paired:
+        i += 1
+    if i - 1 >= 1:
+        out.append((1, i - 1))
+    j = n
+    while j >= 1 and j not in paired:
+        j -= 1
+    if j + 1 <= n and j + 1 != 1:  # avoid double-counting an all-unpaired diagram
+        out.append((j + 1, n))
+    return out
+
+
+def test_long_tails_are_folded_compactly():
+    """The committed diagrams show the compaction acted: the overwhelming majority of long end-tails
+    (k >= SERPENTINE_MIN_TAIL_NT) are FOLDED -- bbox diagonal well under the k*L of a straight ray --
+    and every fold is clean: continuous backbone (no break) and no self-overlap (the serpentine rows
+    stay apart). A tail that could not fold clear of the structure stays a straight ray (do no harm),
+    so the fraction is a high floor, not 100%."""
+    long_tails, folded = 0, 0
+    for p in _r2dt_diagram_paths():
+        d = json.loads(p.read_text())
+        n = len(d["seq"])
+        if n < 3:
+            continue
+        xs = [0.0] + list(d["x"])
+        ys = [0.0] + list(d["y"])
+        med = br._median_step(xs, ys)
+        for s, e in _end_tails(d):
+            k = e - s + 1
+            if k < br.SERPENTINE_MIN_TAIL_NT:
+                continue
+            long_tails += 1
+            pts = [(d["x"][r - 1], d["y"][r - 1]) for r in range(s, e + 1)]
+            if br._run_extent(pts) < 0.7 * k * med:  # clearly not a straight ray
+                folded += 1
+                step = max(math.hypot(pts[t][0] - pts[t - 1][0], pts[t][1] - pts[t - 1][1])
+                           for t in range(1, len(pts)))
+                assert step <= 1.6 * med, f"{p.stem}: folded tail has a backbone break ({step / med:.2f}*L)"
+                assert br._self_clear(pts, med, factor=0.85), f"{p.stem}: folded tail overlaps itself"
+    assert long_tails > 1000  # the corpus really does carry many long tails (median ~42 nt antiterm)
+    assert folded / long_tails >= 0.9, f"only {folded}/{long_tails} long tails folded"
+
+
+def test_committed_r2dt_overlap_within_ceiling():
+    """No-new-clash regression guard: the total visual glyph overlap across every committed antiterm +
+    term diagram stays at or below N_R2DT_VISUAL_OVERLAP_CEILING -- so a future single-strand routing
+    change (e.g. a more aggressive fold) cannot silently flood the diagrams with overlapping glyphs."""
+    total = 0
+    for p in _r2dt_diagram_paths():
+        d = json.loads(p.read_text())
+        n = len(d["seq"])
+        if n < 3:
+            continue
+        xs = [0.0] + list(d["x"])
+        ys = [0.0] + list(d["y"])
+        total += br._overlap_count(xs, ys, n)
+    assert total <= N_R2DT_VISUAL_OVERLAP_CEILING, f"corpus visual overlap {total} exceeds ceiling"
 
 
 # --- Gate #1 / #2 / #9 : absolute counts ------------------------------------

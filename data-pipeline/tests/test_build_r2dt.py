@@ -540,13 +540,27 @@ def test_route_tail_folds_a_long_straight_tail():
     ys = [0.0] + [0.0] * n
     obs = np.array([[0.0, 500.0]])  # far away: the straight ray is clear, so only compaction moves it
     before = br._run_extent([(xs[i], ys[i]) for i in range(2, 22)])
-    br._route_tail(xs, ys, 2, 21, 1, med, n, {}, (-100.0, 0.0), obs, outward=True, reverse=False)
+    br._route_tail(xs, ys, 2, 21, 1, med, n, {}, (-100.0, 0.0), obs, outward=True, reverse=False,
+                   compact=True)
     tail = [(xs[i], ys[i]) for i in range(2, 22)]
     assert br._run_extent(tail) < 0.5 * before                       # folded much smaller
     assert br._self_clear(tail, med)                                  # no self-overlap
     assert math.hypot(xs[2] - xs[1], ys[2] - ys[1]) <= 2.2 * med      # residue 2 joins the anchor
     steps = [math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) for i in range(2, 22)]
     assert max(steps) <= 2.2 * med                                   # no backbone break
+
+
+def test_route_tail_does_not_fold_in_the_base_reflow():
+    # Folding is gated to the final (compact) pass: with compact=False (the stems-only base reflow) a
+    # long, clear tail is left as the straight ray, so the rigid-body stem declash settles against the
+    # SAME single-strand field as before and the toggle's stem pin is untouched.
+    med, n = 10.0, 21
+    xs = [0.0] + [float(i * 10) for i in range(n)]
+    ys = [0.0] + [0.0] * n
+    bx, by = xs[:], ys[:]
+    br._route_tail(xs, ys, 2, 21, 1, med, n, {}, (-100.0, 0.0), np.array([[0.0, 500.0]]),
+                   outward=True, reverse=False, compact=False)
+    assert xs == bx and ys == by  # straight ray kept (already clear) -> base reflow unchanged
 
 
 def test_route_tail_keeps_a_short_tail_as_a_straight_ray():
@@ -557,8 +571,8 @@ def test_route_tail_keeps_a_short_tail_as_a_straight_ray():
     ys = [0.0] + [0.0] * n
     bx, by = xs[:], ys[:]
     br._route_tail(xs, ys, 2, 6, 1, med, n, {}, (-100.0, 0.0), np.array([[0.0, 500.0]]),
-                   outward=True, reverse=False)
-    assert xs == bx and ys == by  # untouched
+                   outward=True, reverse=False, compact=True)
+    assert xs == bx and ys == by  # untouched even in the compact pass (k < 8)
 
 
 def test_route_arc_folds_a_slacky_interior_run():
@@ -572,7 +586,7 @@ def test_route_arc_folds_a_slacky_interior_run():
     for t, (px, py) in enumerate(br._turtle_pts((0.0, 0.0), (100.0, 0.0), 20, med, 1), start=1):
         xs[1 + t], ys[1 + t] = px, py  # seed the run on the wide R2DT-like arc
     pre = br._run_extent([(xs[i], ys[i]) for i in range(2, 22)])
-    br._route_arc(xs, ys, 2, 21, 1, 22, med, (50.0, 0.0), np.array([[50.0, 1000.0]]))
+    br._route_arc(xs, ys, 2, 21, 1, 22, med, (50.0, 0.0), np.array([[50.0, 1000.0]]), compact=True)
     post = br._run_extent([(xs[i], ys[i]) for i in range(2, 22)])
     assert post < pre                                       # the bulge folded inward
     assert (xs[1], ys[1]) == (0.0, 0.0) and (xs[22], ys[22]) == (100.0, 0.0)  # anchors fixed
@@ -590,7 +604,7 @@ def test_route_arc_leaves_a_taut_run_straight():
     for t in range(1, 11):
         xs[1 + t] = t * (200.0 / 11.0)  # run 2..11 evenly along the chord (~18 per step, no break)
     bx, by = xs[:], ys[:]
-    br._route_arc(xs, ys, 2, 11, 1, 12, med, (100.0, 0.0), np.array([[100.0, 1000.0]]))
+    br._route_arc(xs, ys, 2, 11, 1, 12, med, (100.0, 0.0), np.array([[100.0, 1000.0]]), compact=True)
     assert xs == bx and ys == by  # untouched
 
 
@@ -613,7 +627,8 @@ def test_serpentine_routing_is_deterministic():
     runs = []
     for _ in range(2):
         xs, ys = base_x[:], base_y[:]
-        br._route_tail(xs, ys, 2, 21, 1, med, n, {}, (-100.0, 0.0), obs, outward=True, reverse=False)
+        br._route_tail(xs, ys, 2, 21, 1, med, n, {}, (-100.0, 0.0), obs, outward=True, reverse=False,
+                       compact=True)
         runs.append((xs, ys))
     assert runs[0] == runs[1]
 
