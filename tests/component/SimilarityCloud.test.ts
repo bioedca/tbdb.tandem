@@ -3,7 +3,10 @@
 // but lets the component reach its ready state, so we can assert the spinner→ready
 // transition, that every control toggles state without throwing, that a pick-through
 // click routes (or sets the facet in selectable mode), and that reduced motion
-// disables idle rotation. `cloud.json` loading is mocked; raycasting returns index 0.
+// disables idle rotation. `cloud.json` loading is mocked; the screen-space picker
+// projects through a deterministic mock `Vector3.project` (world→NDC, ÷100), so on a
+// pinned 800×600 rect the world-origin point (T1) lands at the canvas centre and a
+// centred click resolves to render index 0.
 import { fireEvent, render, waitFor } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -70,17 +73,13 @@ vi.mock('three', () => {
         },
       }
       aspect = 1
+      matrixWorldInverse = {}
+      projectionMatrix = {}
       lookAt() {}
       updateProjectionMatrix() {}
+      updateMatrixWorld() {}
       constructor() {
         cameraCapture.last = this
-      }
-    },
-    Raycaster: class {
-      params: Record<string, unknown> = { Points: {} }
-      setFromCamera() {}
-      intersectObject() {
-        return [{ index: 0, distance: 1 }]
       }
     },
     ShaderMaterial: class {
@@ -114,6 +113,33 @@ vi.mock('three', () => {
         public x: number,
         public y: number,
       ) {}
+    },
+    Vector3: class {
+      x = 0
+      y = 0
+      z = 0
+      constructor(x = 0, y = 0, z = 0) {
+        this.x = x
+        this.y = y
+        this.z = z
+      }
+      set(x: number, y: number, z: number) {
+        this.x = x
+        this.y = y
+        this.z = z
+        return this
+      }
+      applyMatrix4() {
+        return this
+      }
+      // Deterministic stand-in for the real view+projection: squash world→NDC by ÷100,
+      // so the fixture's points land at predictable canvas pixels (world origin → centre).
+      project() {
+        this.x = this.x / 100
+        this.y = this.y / 100
+        this.z = this.z / 100
+        return this
+      }
     },
   }
 })
@@ -220,21 +246,32 @@ describe('SimilarityCloud', () => {
     expect(getByRole('button', { name: 'Advanced…' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  // jsdom drops clientX/clientY on synthetic PointerEvents but carries them on a
+  // MouseEvent (the component's pointer listeners fire on the matching type string).
+  // Pin a real rect so the centred click maps to the canvas centre, where the mock
+  // projects the world-origin point T1 (render index 0; excluded T0281 is not in the set).
+  const PINNED_RECT = () =>
+    ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON() {} }) as DOMRect
+  const clickCentre = (canvas: HTMLElement, type: string) =>
+    fireEvent(canvas, new MouseEvent(type, { clientX: 400, clientY: 300, button: 0, bubbles: true }))
+
   test('clicking a point navigates to its locus detail page (default mode)', async () => {
     const { container } = await renderReady()
     const canvas = container.querySelector('canvas')!
-    await fireEvent.pointerDown(canvas, { clientX: 20, clientY: 20 })
-    await fireEvent.pointerUp(canvas, { clientX: 20, clientY: 20 })
-    expect(push).toHaveBeenCalledWith('/locus/T1') // excluded T0281 is filtered; raycast index 0 → T1
+    canvas.getBoundingClientRect = PINNED_RECT
+    await clickCentre(canvas, 'pointerdown')
+    await clickCentre(canvas, 'pointerup')
+    expect(push).toHaveBeenCalledWith('/locus/T1') // centre click → nearest = index 0 → T1
   })
 
   test('selectable mode: clicking a point toggles the specifier facet', async () => {
     const { container } = await renderReady({ selectable: true })
     const canvas = container.querySelector('canvas')!
-    await fireEvent.pointerDown(canvas, { clientX: 20, clientY: 20 })
-    await fireEvent.pointerUp(canvas, { clientX: 20, clientY: 20 })
+    canvas.getBoundingClientRect = PINNED_RECT
+    await clickCentre(canvas, 'pointerdown')
+    await clickCentre(canvas, 'pointerup')
     expect(push).not.toHaveBeenCalled()
-    expect(store.filter.specifier.has('TRP')).toBe(true) // excluded T0281 is filtered; index 0 → spec TRP
+    expect(store.filter.specifier.has('TRP')).toBe(true) // index 0 → spec TRP
   })
 
   // ── Camera wiring: the new drag-rotate (de-inverted vertical), damping + framing ──
@@ -272,10 +309,14 @@ describe('SimilarityCloud', () => {
     const cam = cameraCapture.last!
     await waitFor(() => expect(Number.isFinite(cam.position.y)).toBe(true))
     const y0 = cam.position.y
-    // 3px of vertical jitter ⇒ moved = 3 < 4 ⇒ still a click, NOT a drag.
-    await pointer(canvas, 'pointerdown', 200)
-    await pointer(canvas, 'pointermove', 203)
-    await pointer(canvas, 'pointerup', 203)
+    // Pin the rect + tap at the centre (where T1 projects); 3px of vertical jitter ⇒
+    // moved = 3 < 4 ⇒ still a click, NOT a drag.
+    canvas.getBoundingClientRect = PINNED_RECT
+    const tap = (type: string, clientY: number) =>
+      fireEvent(canvas, new MouseEvent(type, { clientX: 400, clientY, button: 0, bubbles: true }))
+    await tap('pointerdown', 300)
+    await tap('pointermove', 303)
+    await tap('pointerup', 303)
     expect(push).toHaveBeenCalledWith('/locus/T1') // routed as a tap → navigates
     // Below threshold the camera is untouched: polar (hence camera.y, which idle
     // rotation never changes) stays put. Pre-fix the 3px jitter shifted it ~0.5.

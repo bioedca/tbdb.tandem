@@ -56,6 +56,7 @@
     step,
     type RelaxState,
   } from '../cloud/relax'
+  import { pickNearest, pickRadiusPx, type ScreenPoint } from '../cloud/picking'
   import type { ColorMode, PresetKey, SizeMode, WhichTree } from '../cloud/types'
   import {
     filterCloudTreeForVisualization,
@@ -134,7 +135,6 @@
     renderer: any
     scene: any
     camera: any
-    raycaster: any
     pointsObj: any
     pointsGeom: any
     pointsMat: any
@@ -172,15 +172,14 @@
   let lastOffsetTick = 0
 
   // ── Geometry-derived view scale ───────────────────────────────────────────────────
-  // Point size, pick radius, zoom clamps and the camera frustum are all derived from the
-  // MEASURED cloud geometry each rebuild (see `cloudMetrics`), so the view adapts when
-  // the embedding's extent changes — a dense tree, the spread-out fallback, or a future
+  // Point size, zoom clamps and the camera frustum are all derived from the MEASURED
+  // cloud geometry each rebuild (see `cloudMetrics`), so the view adapts when the
+  // embedding's extent changes — a dense tree, the spread-out fallback, or a future
   // `cloud.json` regenerated at a different scale all render at a consistent on-screen
-  // size, frame correctly, and stay clickable. `uBase` (world-radius per unit point) is
-  // set so a point is a sensible fraction of the core radius; the pick threshold tracks
-  // the visible sprite so you can click what you see.
+  // size and frame correctly. `uBase` (world-radius per unit point) is set so a point is
+  // a sensible fraction of the core radius. Picking is done in SCREEN pixels (see `pick`
+  // + `../cloud/picking`), so the clickable target matches the visible sprite at any zoom.
   const POINT_WORLD_FRACTION = 0.12 // point base world-radius as a fraction of core radius
-  const PICK_OVER = 1.6 // pick radius relative to the point world-radius (forgiving clicks)
   // The active geometry-matched zoom window (recomputed per rebuild; the fixed fallback
   // rails until the first build). Read by `frameView` + the wheel handler.
   let viewBounds: DistanceBounds = { ...DEFAULT_BOUNDS }
@@ -309,8 +308,6 @@
     renderer.setPixelRatio(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2))
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000)
-    const raycaster = new THREE.Raycaster()
-    raycaster.params.Points = { threshold: 3 }
 
     // uBase is a base world-radius (≈4.5 units on the ±100 canvas); uScale is half the
     // DRAWING-BUFFER height (device px), so gl_PointSize comes out in real pixels with
@@ -328,7 +325,6 @@
       renderer,
       scene,
       camera,
-      raycaster,
       pointsObj: null,
       pointsGeom: null,
       pointsMat,
@@ -433,7 +429,6 @@
     const uBase = metrics.radius * POINT_WORLD_FRACTION
     sc.pointBase = uBase
     sc.pointsMat.uniforms.uBase.value = uBase
-    sc.raycaster.params.Points = { threshold: uBase * PICK_OVER * (sc.pointsMat.uniforms.uScreen.value || 1) }
     // Frustum sized to the geometry: near comfortably inside the closest legal approach,
     // far past the fullest zoom-out, so nothing clips at any scale.
     sc.camera.near = Math.max(viewBounds.min * 0.5, 0.05)
@@ -601,7 +596,6 @@
       maxScale: 1.75,
     })
     sc.pointsMat.uniforms.uScreen.value = primitiveScale
-    if (sc.pointBase > 0) sc.raycaster.params.Points = { threshold: sc.pointBase * PICK_OVER * primitiveScale }
     sc.linesMat.opacity = scalePx(0.18, primitiveScale, { min: 0.16, max: 0.3 })
     sc.linesMat.needsUpdate = true
   }
@@ -703,17 +697,50 @@
     )
   }
 
-  /** Raycast the points object; return the picked render-point index or -1. */
+  /**
+   * Pick the render-point nearest the cursor in SCREEN space — within a forgiving pixel
+   * radius, frontmost on a genuine overlap. Projects the LIVE position buffer, so the
+   * candidate tracks the spread relaxation frame-to-frame. Returns the index or -1.
+   */
   function pick(ev: PointerEvent | MouseEvent, canvas: HTMLCanvasElement): number {
-    if (!sc || !THREE || !sc.pointsObj) return -1
+    if (!sc || !THREE || !sc.pointsObj || sc.count === 0) return -1
     const rect = canvas.getBoundingClientRect()
-    const ndc = new THREE.Vector2(
-      ((ev.clientX - rect.left) / rect.width) * 2 - 1,
-      -(((ev.clientY - rect.top) / rect.height) * 2 - 1),
-    )
-    sc.raycaster.setFromCamera(ndc, sc.camera)
-    const hits = sc.raycaster.intersectObject(sc.pointsObj, false)
-    return hits.length > 0 && hits[0].index != null ? hits[0].index : -1
+    if (!(rect.width > 0) || !(rect.height > 0)) return -1
+    const screen = projectPoints(rect)
+    return pickNearest(screen, ev.clientX - rect.left, ev.clientY - rect.top, pickRadius(rect)).index
+  }
+
+  /** Project the live positions to canvas pixels (one scratch vector, reused per call). */
+  function projectPoints(rect: DOMRect): ScreenPoint[] {
+    const s = sc!
+    const cam = s.camera
+    cam.updateMatrixWorld?.() // a pointer event can land between frames — match the render
+    const P = s.positions
+    const v = new THREE!.Vector3()
+    const out: ScreenPoint[] = new Array(s.count)
+    for (let i = 0; i < s.count; i++) {
+      v.set(P[i * 3], P[i * 3 + 1], P[i * 3 + 2])
+      v.project(cam) // → NDC (−1..1): applies the view + projection transform + divide
+      const ndcZ = v.z
+      out[i] = {
+        sx: (v.x * 0.5 + 0.5) * rect.width,
+        sy: (1 - (v.y * 0.5 + 0.5)) * rect.height,
+        depth: ndcZ,
+        visible: Number.isFinite(v.x) && Number.isFinite(v.y) && ndcZ > -1 && ndcZ < 1,
+      }
+    }
+    return out
+  }
+
+  /** Screen-pixel pick radius from the representative on-screen sprite size. */
+  function pickRadius(rect: DOMRect): number {
+    const u = sc!.pointsMat.uniforms
+    const depthRep = Math.max(orbit.distance, 1e-3)
+    // gl_PointSize (device px) = asize·uBase·uScreen·(uScale/−mv.z) with uScale = (h·dpr)/2,
+    // so a unit sprite's CSS-pixel diameter at the representative depth is
+    // uBase·uScreen·(rect.height/2)/depth — no DPR factor needed.
+    const spritePx = (u.uBase.value * u.uScreen.value * (rect.height / 2)) / depthRep
+    return pickRadiusPx(spritePx)
   }
 
   function handleHover(ev: PointerEvent, canvas: HTMLCanvasElement): void {
