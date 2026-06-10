@@ -19,7 +19,7 @@
 // uniformly — the inter-element spacer is just the bp gap between adjacent T-box
 // bodies on this axis.
 
-import type { FeatureName, Member, Span, Strand } from './data/types'
+import type { FeatureName, LocusContext, Member, Span, Strand } from './data/types'
 
 /** The per-element features drawn as distinct glyphs (the body = `tbox`, separate). */
 export const ELEMENT_FEATURES: Exclude<FeatureName, 'tbox'>[] = [
@@ -68,6 +68,17 @@ export interface SpacerLayout {
   overlap: boolean
 }
 
+/** A downstream gene drawn TO SCALE on the element bio axis (from NCBI context). */
+export interface GeneLayout {
+  /** Gene body extent on the biological axis, `start ≤ end` (bp from the 5′ origin). */
+  start: number
+  end: number
+  /** True iff the gene reads in the locus transcription direction (co-oriented). */
+  coOriented: boolean
+  /** Display label (gene symbol / locus tag); chrome-coloured, never a specifier hue. */
+  label: string | null
+}
+
 /** The full to-scale layout of one locus's tandem architecture. */
 export interface ArchitectureModel {
   strand: Strand
@@ -79,6 +90,14 @@ export interface ArchitectureModel {
   spacers: SpacerLayout[]
   /** Bio coordinate of the 3′-most element body end (anchor for the downstream ORF). */
   threePrimeEnd: number
+  /** Downstream operon genes drawn TO SCALE (real NCBI coords), proximal-first; present
+   *  only when a `LocusContext` with resolved genes was supplied. The context's interval
+   *  shares the element bio frame (both anchored at the 5′-most genome coord), so a gene's
+   *  0-based seq `offset` is directly its bio coordinate. Absent → the downstream gene is
+   *  drawn schematically (see `toLinearMapProps`). */
+  genes?: GeneLayout[]
+  /** True iff the figure was built from real NCBI context (≥1 gene to scale). */
+  toScale: boolean
 }
 
 /**
@@ -103,8 +122,19 @@ export function leaderLength(member: Member): number {
 /**
  * Project a locus's members onto one to-scale, biological-5′→3′ track (PLAN §9①).
  * `members` need not be pre-sorted; the result is ordinal-ordered.
+ *
+ * When a `LocusContext` (the NCBI genomic context) is supplied AND it resolved ≥1
+ * downstream gene, each operon gene is added TO SCALE. The context's interval is anchored
+ * at the same 5′-most genome coordinate as the element bio axis, so a gene's 0-based seq
+ * `offset` is directly its bio coordinate (no reconciliation needed). With no context (or
+ * an unresolved one) the model is byte-identical to the 2-arg call — `genes` is absent and
+ * `toScale` is false, so `toLinearMapProps` falls back to the schematic ORF.
  */
-export function buildArchitecture(members: Member[], strand: Strand): ArchitectureModel {
+export function buildArchitecture(
+  members: Member[],
+  strand: Strand,
+  context?: LocusContext | null,
+): ArchitectureModel {
   const sorted = [...members].sort((a, b) => a.ordinal - b.ordinal)
 
   // Common biological axis from every leader endpoint (features stay within them).
@@ -156,7 +186,30 @@ export function buildArchitecture(members: Member[], strand: Strand): Architectu
   }
 
   const threePrimeEnd = Math.max(...elements.map((e) => e.bodyEnd))
-  return { strand, span, elements, spacers, threePrimeEnd }
+
+  // Downstream operon genes to scale (real NCBI coords), when context resolved them. A
+  // gene's 0-based seq offset is its bio coordinate (same frame as the elements); we keep
+  // only genes that lie within the fetched interval (the pipeline already guarantees this,
+  // but guard defensively so a malformed context degrades to schematic rather than drawing
+  // off-axis).
+  let genes: GeneLayout[] | undefined
+  let toScale = false
+  if (context && context.resolved && context.seq.length > 0 && context.downstream_genes.length > 0) {
+    const within = context.downstream_genes.filter(
+      (g) => g.offset >= 0 && g.offset + g.length <= context.seq.length,
+    )
+    if (within.length > 0) {
+      genes = within.map((g) => ({
+        start: g.offset,
+        end: g.offset + g.length,
+        coOriented: g.strand === strand,
+        label: g.name,
+      }))
+      toScale = true
+    }
+  }
+
+  return { strand, span, elements, spacers, threePrimeEnd, genes, toScale }
 }
 
 /** True iff two members occupy the identical leader window — the 44 collapse-
