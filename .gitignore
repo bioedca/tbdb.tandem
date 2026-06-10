@@ -32,6 +32,7 @@ r2dt-before-*.png
 
 # local-only driver docs (navigation aids — never committed; see CLAUDE.md)
 PLAN.md
-STEPS.md
 CLAUDE.md
-PROGRESS.md
+AGENTS.md
+# archived worklist + running log (STEPS.md, PROGRESS.md) — no longer loaded each session
+dump/
