@@ -20,11 +20,13 @@ const termDiagramCache = new Map<string, Promise<R2dtDiagram | null>>()
 
 export const R2DT_MIN_LOOP_CLEARANCE_RATIO = 0.72
 
-// An internal loop's two unpaired strands must end up at least this many median steps apart
-// (centre-to-centre) for the display pass to open them as a coordinated pair; below it the
-// open wouldn't read as two separate strands, so the loop falls back to one-sided bulging.
-// Comfortably above the glyph touch distance (2 × the 0.44-spacing circle radius = 0.88), so
-// the opened strands never visually merge into one arch.
+// The comfortable centre-to-centre separation (in median steps) the coordinated open AIMS to
+// give an internal loop's two unpaired strands: at this gap they clearly read as two separate
+// strands rather than one arch. It is a target, not a gate — the pass maximises separation
+// (subject to clearance) and never reduces it below what the committed layout already has, so a
+// loop opens past this when it can and is left as drawn when it can't, but never crammed below
+// it on purpose. Comfortably above the glyph touch distance (2 × the 0.44-spacing circle radius
+// = 0.88), so an opened loop never visually merges into one arch.
 export const R2DT_LOOP_STRAND_SEP_RATIO = 1.15
 
 /** Fetch the R2DT availability manifest once (cached). Resolves null if absent
@@ -296,11 +298,14 @@ export function withStemIToIISpacer(d: R2dtDiagram, stems: MemberStem[]): R2dtDi
  * even though the residues across it are not base-paired.
  *
  * So an INTERNAL loop (an unpaired run on the 5′ strand with a matching unpaired run on
- * the 3′ strand of the same helix) is opened as a COORDINATED pair: the two strands bow
- * to opposite sides of the helix axis, separated by at least {@link R2DT_LOOP_STRAND_SEP_RATIO}
- * median steps, so the opening reads as two distinct strands. Bulges, hairpin loops, and
- * single-residue loops (one-sided) keep the original per-run outward bow, and an internal
- * loop whose closing pairs are too cramped to separate falls back to that same bow.
+ * the 3′ strand of the same helix) is always resolved as a COORDINATED pair — never as two
+ * independent one-sided runs, which can bow the strands toward each other and bury a loop the
+ * raw layout had well separated. Among the side assignments that stay clear of the rest of the
+ * structure, the pass takes the one that MAXIMISES the 5′↔3′ separation (aiming past the
+ * {@link R2DT_LOOP_STRAND_SEP_RATIO} comfortable target), and places it only when it does not
+ * pull the strands closer than the committed layout already has them (do no harm); a loop too
+ * cramped to separate is left exactly as drawn. Bulges, hairpin loops, and single-residue loops
+ * keep the original per-run outward bow.
  *
  * This is a display-only coordinate pass: paired residues, `seq`, and `pairs` stay
  * untouched, so all residue-indexed color/feature overlays remain aligned.
@@ -397,45 +402,74 @@ export function withReadableStemLoops(d: R2dtDiagram, spans: { start: number; en
     if (best && best.clearance >= R2DT_MIN_LOOP_CLEARANCE_RATIO * spacing) place(s, e, best.pts)
   }
 
-  const handled = new Set<number>() // run start indices already opened as an internal-loop strand
+  // Current working coords of residues [s, e] as [x, y] points (the "keep as drawn" option).
+  const currentPoints = (s: number, e: number): [number, number][] => {
+    const pts: [number, number][] = []
+    for (let r = s; r <= e; r++) pts.push([x[r - 1], y[r - 1]])
+    return pts
+  }
+  // Min centre-to-centre distance (diagram units) between two residue point-sets.
+  const pointGap = (a: [number, number][], b: [number, number][]): number => {
+    let gap = Number.POSITIVE_INFINITY
+    for (const [ax, ay] of a) for (const [bx, by] of b) gap = Math.min(gap, Math.hypot(ax - bx, ay - by))
+    return gap
+  }
+
+  const handled = new Set<number>() // run starts resolved as an internal-loop strand (opened or left as-is)
   for (const run of runs) {
     if (handled.has(run.s)) continue
     const three = matchingThree(run.s, run.e)
-    if (three) {
+    // The "two strands blur into one arch" misread only happens when BOTH strands carry several
+    // residues. An internal loop with a single-residue strand is a lone bulge: it can't read as a
+    // continuous loop, and the single-residue legibility pass needs it bowed off-axis to be seen —
+    // so those fall through to the per-strand opener below, exactly as bulges/hairpins do.
+    if (three && run.e - run.s + 1 >= 2 && three.te - three.ts + 1 >= 2) {
       const { ts, te } = three
+      // A multi-residue internal loop is resolved as a coordinated pair and never falls through to
+      // the independent one-sided opener — mark both strands handled up front, whatever we decide,
+      // so the 3′ strand is never re-opened on its own iteration.
+      handled.add(run.s)
+      handled.add(ts)
       const members = new Set<number>()
       for (let r = run.s; r <= run.e; r++) members.add(r)
       for (let r = ts; r <= te; r++) members.add(r)
       const obs = obstaclesExcluding(members)
-      // Try both side assignments; keep the one that best separates the strands while staying
-      // clear of the rest of the structure.
-      let best: { pts5: [number, number][]; pts3: [number, number][]; clearance: number; separation: number } | null = null
-      for (const side5 of [1, -1] as const) {
-        const pts5 = arcPoints(x[run.s - 2], y[run.s - 2], x[run.e], y[run.e], run.e - run.s + 1, spacing, side5)
-        if (!pts5) continue
-        for (const side3 of [1, -1] as const) {
-          const pts3 = arcPoints(x[ts - 2], y[ts - 2], x[te], y[te], te - ts + 1, spacing, side3)
-          if (!pts3) continue
-          const separation = minClearance(pts5, pts3)
-          const clearance = Math.min(minClearance(pts5, obs), minClearance(pts3, obs))
-          const key = Math.min(clearance, separation)
-          if (!best || key > Math.min(best.clearance, best.separation) ||
-              (key === Math.min(best.clearance, best.separation) && separation > best.separation)) {
-            best = { pts5, pts3, clearance, separation }
-          }
+
+      // Per-strand opening options: keep the strand as drawn (always allowed — the committed
+      // position is already clear), or bow it to either side IF that side clears the rest of the
+      // structure (a hard constraint). A long strand whose only clear bow would still swing into
+      // a neighbour keeps just its "as drawn" option, so it stays put while its partner opens.
+      const strandOptions = (s: number, e: number): [number, number][][] => {
+        const opts: [number, number][][] = [currentPoints(s, e)]
+        for (const side of [1, -1] as const) {
+          const pts = arcPoints(x[s - 2], y[s - 2], x[e], y[e], e - s + 1, spacing, side)
+          if (pts && minClearance(pts, obs) >= R2DT_MIN_LOOP_CLEARANCE_RATIO * spacing) opts.push(pts)
+        }
+        return opts
+      }
+      const opts5 = strandOptions(run.s, run.e)
+      const opts3 = strandOptions(ts, te)
+
+      // Among the clearance-safe option pairs, take the one that MAXIMISES the 5′↔3′ separation
+      // — but never one that pulls the strands closer than the committed layout already has them
+      // (the "as drawn / as drawn" pair is always a valid fallback at the raw gap, so do no
+      // harm). Maximising separation (rather than the earlier min(clearance, separation), which
+      // capped it at the ~1-step clearance ceiling) is what lets a loop open to the 3+ steps that
+      // keep its two strands from reading as one continuous arch.
+      const rawGap = pointGap(opts5[0], opts3[0])
+      let best: { p5: [number, number][]; p3: [number, number][]; separation: number } | null = null
+      for (const p5 of opts5) {
+        for (const p3 of opts3) {
+          const separation = pointGap(p5, p3)
+          if (separation < rawGap - 1e-6) continue
+          if (!best || separation > best.separation) best = { p5, p3, separation }
         }
       }
-      if (
-        best &&
-        best.clearance >= R2DT_MIN_LOOP_CLEARANCE_RATIO * spacing &&
-        best.separation >= R2DT_LOOP_STRAND_SEP_RATIO * spacing
-      ) {
-        place(run.s, run.e, best.pts5)
-        place(ts, te, best.pts3)
-        handled.add(run.s)
-        handled.add(ts)
-        continue
+      if (best) {
+        place(run.s, run.e, best.p5)
+        place(ts, te, best.p3)
       }
+      continue
     }
     openOneSided(run)
   }

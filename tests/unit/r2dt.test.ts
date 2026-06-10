@@ -248,6 +248,69 @@ function minSeparation(d: R2dtDiagram, a: [number, number], b: [number, number])
   return best / spacing
 }
 
+/** Min centre-to-centre distance (raw diagram units) between two residue ranges — the absolute
+ *  5′↔3′ strand gap, compared before/after the pass without re-normalising by a median spacing
+ *  that the pass itself nudges. */
+function minCentreDist(d: R2dtDiagram, a: [number, number], b: [number, number]): number {
+  let best = Number.POSITIVE_INFINITY
+  for (let i = a[0]; i <= a[1]; i++) {
+    for (let j = b[0]; j <= b[1]; j++) {
+      best = Math.min(best, Math.hypot(d.x[i - 1] - d.x[j - 1], d.y[i - 1] - d.y[j - 1]))
+    }
+  }
+  return best
+}
+
+/** residue → base-pair partner (both directions). */
+function partnerOf(d: R2dtDiagram): Map<number, number> {
+  const m = new Map<number, number>()
+  for (const [a, b] of d.pairs) {
+    m.set(a, b)
+    m.set(b, a)
+  }
+  return m
+}
+
+/** Enclosed MULTI-residue internal loops (a 5′ run of ≥2 unpaired residues with a matching 3′
+ *  run of ≥2 unpaired residues on the same helix) within `stems` — exactly the loops the
+ *  coordinated opener promises never to cram tighter than the committed layout. */
+function multiResidueInternalLoops(
+  d: R2dtDiagram,
+  stems: { start: number; end: number }[],
+): { s: number; e: number; ts: number; te: number }[] {
+  const paired = pairedResidues(d)
+  const partner = partnerOf(d)
+  const loops: { s: number; e: number; ts: number; te: number }[] = []
+  for (const span of stems) {
+    const lo = Math.max(1, Math.min(span.start, span.end, d.seq.length))
+    const hi = Math.max(lo, Math.min(Math.max(span.start, span.end), d.seq.length))
+    let i = lo
+    while (i <= hi) {
+      if (paired.has(i)) {
+        i += 1
+        continue
+      }
+      let j = i
+      while (j <= hi && !paired.has(j)) j += 1
+      const s = i
+      const e = j - 1
+      if (s - 1 >= lo && e + 1 <= hi && paired.has(s - 1) && paired.has(e + 1)) {
+        const pLeft = partner.get(s - 1)
+        const pRight = partner.get(e + 1)
+        if (pLeft !== undefined && pRight !== undefined && pRight < pLeft) {
+          const ts = pRight + 1
+          const te = pLeft - 1
+          let ok = ts > e + 1 && te >= ts
+          if (ok) for (let r = ts; r <= te; r++) if (paired.has(r)) ok = false
+          if (ok && e - s + 1 >= 2 && te - ts + 1 >= 2) loops.push({ s, e, ts, te })
+        }
+      }
+      i = j
+    }
+  }
+  return loops
+}
+
 /** Largest pairwise centre overlap (in median steps) among unpaired residues of `stems`, where
  *  two glyphs (radius 0.44 spacing) overlap when their centres are closer than 0.88 spacing.
  *  0 ⇒ no two non-adjacent, non-paired residues visibly merge. */
@@ -352,6 +415,73 @@ describe('withReadableStemLoops', () => {
       (out.y.slice(lo - 1, hi).reduce((s, v) => s + v, 0)) / (hi - lo + 1)
     expect((meanY(3, 4) - 2) * (meanY(9, 10) - 2)).toBeLessThan(0)
   })
+
+  test('keeps a well-separated internal loop open instead of cramming it (max separation, not balanced min)', () => {
+    // The 5′ run (3-4) and 3′ run (8-9) are already drawn ~3 steps apart, but a flanking
+    // residue (12) sits just outside the 5′ strand so the most-separated opening clears the
+    // structure by only ~1 step. The retired objective maximised min(clearance, separation),
+    // which would pull the strands back toward that ~1-step clearance ceiling; the pass must
+    // instead keep them at their wide separation (it never opens an internal loop tighter than
+    // the committed layout).
+    const d: R2dtDiagram = {
+      seq: 'A'.repeat(12),
+      //         1       2      3      4     5      6      7      8      9     10      11      12
+      x: [0, 0, 0, 0, 0, 0.5, 9.5, 10, 10, 10, 10, -2.2],
+      y: [-10, -3, 0, 3, 6, 9, 9, 6, 3, 0, -3, 1.5],
+      pairs: [[1, 11], [2, 10], [5, 7]],
+      template: 'T-box',
+      source: 'Rfam',
+    }
+    const out = withReadableStemLoops(d, [{ start: 1, end: 11 }])
+    expect(minSeparation(d, [3, 4], [8, 9])).toBeGreaterThan(R2DT_LOOP_STRAND_SEP_RATIO)
+    expect(minCentreDist(out, [3, 4], [8, 9])).toBeGreaterThanOrEqual(minCentreDist(d, [3, 4], [8, 9]) - 1e-6)
+  })
+
+  test('never crams a multi-residue internal loop tighter than the committed layout (do no harm)', () => {
+    // The regression guard the original coordinated-open lacked: an internal loop whose 5′ and
+    // 3′ strands each carry ≥2 residues must never leave the readability pass closer together
+    // than R2DT already drew it. (A balanced clearance/separation objective once crammed
+    // well-separated loops — raw ~3 steps — back to ~1 step, where the two strands blur into one
+    // arch. Asserting this across every committed diagram would have caught that immediately.)
+    const members = membersJson as MembersMap
+    const data = join(process.cwd(), 'public', 'data')
+    let checkedLoops = 0
+
+    for (const [dir, variant] of [
+      ['r2dt/', 'antiterm'],
+      ['r2dt/term/', 'terminator'],
+    ] as const) {
+      for (const name of readdirSync(join(data, dir))) {
+        if (!name.endsWith('.json') || name === 'manifest.json') continue
+        const memberId = name.replace(/\.json$/, '')
+        const member = members[memberId]
+        if (!member) continue
+        const d = readDiagram(join(data, dir, name))
+        const termPairs = variant === 'terminator' ? terminatorHairpinPairs(member) : []
+        const spans =
+          variant === 'terminator'
+            ? [
+                ...member.stems.filter((s) => s.key !== 'at').map(({ start, end }) => ({ start, end })),
+                ...(termPairs.length
+                  ? [{ start: Math.min(...termPairs.flat()), end: Math.max(...termPairs.flat()) }]
+                  : []),
+              ]
+            : member.stems.map(({ start, end }) => ({ start, end }))
+        const out = withReadableR2dtLayout(d, member.stems, variant, termPairs)
+        for (const lp of multiResidueInternalLoops(d, spans)) {
+          const before = minCentreDist(d, [lp.s, lp.e], [lp.ts, lp.te])
+          const after = minCentreDist(out, [lp.s, lp.e], [lp.ts, lp.te])
+          expect(
+            after,
+            `${memberId} 5'[${lp.s}-${lp.e}] 3'[${lp.ts}-${lp.te}] crammed ${before.toFixed(2)}→${after.toFixed(2)}`,
+          ).toBeGreaterThanOrEqual(before - 1e-6)
+          checkedLoops += 1
+        }
+      }
+    }
+
+    expect(checkedLoops).toBeGreaterThan(2000)
+  }, 20_000)
 
   test('opens the real T0185 Stem-I guardrail loop in both conformations', () => {
     const member = (membersJson as MembersMap)['T0185.m2']
