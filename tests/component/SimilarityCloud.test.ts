@@ -274,6 +274,16 @@ describe('SimilarityCloud', () => {
     expect(store.filter.specifier.has('TRP')).toBe(true) // index 0 → spec TRP
   })
 
+  test('hovering a point surfaces its tooltip and drives the highlight loop without throwing', async () => {
+    const { container } = await renderReady()
+    const canvas = container.querySelector('canvas')!
+    canvas.getBoundingClientRect = PINNED_RECT
+    // A hover (pointermove while not dragging) over the centre resolves to index 0 and
+    // sets the highlight target; the per-frame applyHighlight then runs on the mock scene.
+    fireEvent(canvas, new MouseEvent('pointermove', { clientX: 400, clientY: 300, bubbles: true }))
+    await waitFor(() => expect(container.textContent).toMatch(/Specifier:\s*TRP/))
+  })
+
   // ── Camera wiring: the new drag-rotate (de-inverted vertical), damping + framing ──
   // The pure orbit math is unit-tested in orbit.test.ts; these assert the COMPONENT
   // wires it correctly — drag mutates targetOrbit, the loop eases `orbit` onto it, and

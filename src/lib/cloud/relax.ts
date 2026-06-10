@@ -255,6 +255,16 @@ export function meanAnchorOffset(state: RelaxState): number {
   return sum / n
 }
 
+/** Offset of a single live position from its anchor (per-node Spread distortion readout). */
+export function anchorOffsetAt(state: RelaxState, i: number): number {
+  const { positions: P, anchors: A, n } = state
+  if (i < 0 || i >= n) return 0
+  const dx = P[i * 3] - A[i * 3]
+  const dy = P[i * 3 + 1] - A[i * 3 + 1]
+  const dz = P[i * 3 + 2] - A[i * 3 + 2]
+  return Math.sqrt(dx * dx + dy * dy + dz * dz)
+}
+
 /** Max offset of any live position from its anchor (bounded-drift invariant #3). */
 export function maxAnchorOffset(state: RelaxState): number {
   const { positions: P, anchors: A, n } = state
