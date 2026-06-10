@@ -16,6 +16,8 @@
   import Badge from '../lib/components/Badge.svelte'
   import Spinner from '../lib/components/Spinner.svelte'
   import TandemArchitecture from '../lib/components/architecture/TandemArchitecture.svelte'
+  import { loadLocusContext } from '../lib/locusContext'
+  import type { LocusContext } from '../lib/data/types'
   import ElementComparison from '../lib/components/ElementComparison.svelte'
   import MemberSequence from '../lib/components/MemberSequence.svelte'
   import RnaStructure from '../lib/components/RnaStructure.svelte'
@@ -34,6 +36,18 @@
     void store.ensureIdentity()
   })
   const pairs = $derived(store.identityByLocus?.get(id) ?? [])
+
+  // Lazily pull this locus's NCBI genomic context (downstream gene + interval sequence) for
+  // the to-scale gene + full-locus sequence track. Absent / fetch-failed → null → the figure
+  // degrades to the schematic ORF + the per-element sequence view (mirrors the r2dt load).
+  let locusContext = $state<LocusContext | null>(null)
+  $effect(() => {
+    const current = id
+    locusContext = null
+    loadLocusContext(current).then((c) => {
+      if (current === id) locusContext = c
+    })
+  })
 
   function fmt(value: number | null | undefined, suffix = ''): string {
     return value === null || value === undefined ? '–' : value + suffix
@@ -158,6 +172,7 @@
           funcClass={locus.func_class}
           funcSource={locus.func_source}
           downstreamGene={locus.downstream_gene}
+          context={locusContext}
         />
       </Card>
 

@@ -82,7 +82,7 @@ describe('TandemArchitecture', () => {
     expect(Number(codonLine.getAttribute('x1'))).toBeCloseTo(expectedX, 1)
   })
 
-  test('mounts a SequenceViewer for the most-5′ element by default', () => {
+  test('without context: a per-element SequenceViewer + the schematic-scale figure', () => {
     const members = MEMBERS_BY_LOCUS.get('T0002')!
     const { container } = render(TandemArchitecture, {
       props: { members, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD' },
@@ -90,5 +90,27 @@ describe('TandemArchitecture', () => {
     const seq = container.querySelector('[data-seqviewer]')
     expect(seq).toBeTruthy()
     expect(Number(seq!.getAttribute('data-seqlen'))).toBe(members[0].fasta_sequence.length)
+    expect(container.querySelector('figure.tv-arch')!.getAttribute('data-arch-scale')).toBe('schematic')
+  })
+
+  test('with context: the SequenceViewer shows the whole-locus track (all elements) + the figure is to scale', () => {
+    const members = MEMBERS_BY_LOCUS.get('T0002')!
+    const seq = 'A'.repeat(1000)
+    const context = {
+      tandem_id: 'T0002', accession: 'ACC', strand: '+' as const, resolved: true,
+      interval: [1, 1000] as [number, number], seq,
+      elements: members.map((m, i) => ({ member_id: m.member_id, offset: i * 200, length: m.fasta_sequence.length })),
+      downstream_genes: [{ name: 'ilvD', protein_id: 'P1', locus_tag: null, offset: 600, length: 300, strand: '+' as const, resolution: 'coded_by' }],
+      warnings: [],
+    }
+    const { container } = render(TandemArchitecture, {
+      props: { members, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD', context },
+    })
+    const sv = container.querySelector('[data-seqviewer]')!
+    // the track is the whole interval (not a single leader), and carries a part per element body +
+    // its features + the gene (≥ members + 1)
+    expect(Number(sv.getAttribute('data-seqlen'))).toBe(seq.length)
+    expect(Number(sv.getAttribute('data-partcount'))).toBeGreaterThan(members.length)
+    expect(container.querySelector('figure.tv-arch')!.getAttribute('data-arch-scale')).toBe('to-scale')
   })
 })

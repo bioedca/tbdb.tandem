@@ -34,6 +34,9 @@ test.describe('Visual regression', () => {
     const arch = page.locator('figure.tv-arch')
     // The main diagram svg carries role="img"; the legend glyph svgs are aria-hidden.
     await expect(arch.locator('svg[role="img"]')).toBeVisible({ timeout: 30_000 })
+    // T0342 resolves trpE → the downstream gene draws TO SCALE once the NCBI context loads. Wait for
+    // that settled state (not the first schematic frame) so the pixel baseline is deterministic.
+    await expect(arch).toHaveAttribute('data-arch-scale', 'to-scale', { timeout: 30_000 })
     await fontsReady(page)
     await expect(arch).toHaveScreenshot('architecture-T0342.png')
   })
