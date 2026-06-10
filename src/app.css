@@ -289,6 +289,60 @@
   min-height: revert-layer;
 }
 
+/* ── hatchlings theme bridge (PLAN §8.2) ────────────────────────────────────────
+   The vendored LinearMap + the published SequenceViewer / ZoomControls / Tooltip key
+   their chrome off `--hatch-*` CSS variables that default to a DARK instrument theme
+   (`--hatch-bg: #0c1018`, …). We map every used variable onto the Slate Instrument
+   palette on a LOCAL `.tv-hatch` wrapper — NOT via hatchlings' <ThemeProvider>, whose
+   $effect would mutate document.documentElement and leak the theme app-wide. The
+   specifier data palette never appears here: element/feature fills are passed per-Part
+   (the data-colour oracle), and every variable below resolves to neutral or brand
+   chrome, so the chrome⟂data invariant holds (brand teal is ≥24° off every specifier
+   hue). hatchlings' own component styles are Svelte-scoped class selectors, so unlike
+   fornac they don't leak a bare `svg` rule. ── */
+.tv-hatch {
+  --hatch-bg: transparent;
+  --hatch-plot-bg: var(--color-surface);
+  --hatch-text: var(--color-ink);
+  --hatch-text-muted: var(--color-muted);
+  --hatch-text-dim: var(--color-muted);
+  --hatch-border: var(--color-hairline);
+  --hatch-grid-color: var(--color-hairline);
+  --hatch-highlight: var(--color-brand);
+  --hatch-axis-color: var(--color-hairline-strong);
+  --hatch-axis-text: var(--color-muted);
+  --hatch-axis-label: var(--color-muted);
+  --hatch-ring-color: var(--color-hairline-strong);
+  --hatch-tick-major: var(--color-muted);
+  --hatch-tick-minor: var(--color-hairline);
+  --hatch-cutsite-color: var(--color-muted);
+  --hatch-legend-color: var(--color-muted);
+  --hatch-title-color: var(--color-ink);
+  --hatch-seq-bg: transparent;
+  --hatch-seq-border: var(--color-hairline);
+  --hatch-ruler-color: var(--color-hairline-strong);
+  --hatch-ruler-text: var(--color-muted);
+  --hatch-line-number: var(--color-muted);
+  --hatch-selection-fill: rgba(21, 103, 125, 0.12);
+  --hatch-selection-stroke: rgba(21, 103, 125, 0.4);
+  --hatch-selection-handle: var(--color-brand);
+  --hatch-selection-outline: var(--color-ink);
+  --hatch-caret-color: var(--color-ink);
+  --hatch-annotation-text: #ffffff;
+  --hatch-annotation-stroke: var(--color-surface);
+  --hatch-annotation-stroke-hover: var(--color-brand);
+  --hatch-controls-bg: var(--color-surface-subtle);
+  --hatch-controls-border: var(--color-hairline);
+  --hatch-controls-color: var(--color-ink);
+  --hatch-controls-hover: var(--color-brand-subtle);
+  --hatch-tooltip-bg: var(--color-surface);
+  --hatch-tooltip-border: var(--color-hairline);
+  --hatch-tooltip-text: var(--color-ink);
+  --hatch-tooltip-label: var(--color-muted);
+  --hatch-font: var(--font-sans);
+  --hatch-font-mono: var(--font-mono);
+}
+
 /* ── Motion (§8.4): honor prefers-reduced-motion — neutralize transitions/animation ── */
 @media (prefers-reduced-motion: reduce) {
   *,

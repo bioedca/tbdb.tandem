@@ -29,6 +29,8 @@
     discrimX = null,
     codonX = null,
     dims,
+    showBody = true,
+    s1Stroke = null,
   }: {
     el: ElementLayout
     tint: string
@@ -40,6 +42,14 @@
     discrimX?: number | null
     codonX?: number | null
     dims: ArchitectureGlyphDims
+    /** When false, the body capsule is drawn elsewhere (the hatchlings LinearMap feature
+     *  arrow) and only the feature glyphs are overlaid. Default true keeps the standalone
+     *  to-scale figure unchanged. `body` is still used to place the ordinal tag. */
+    showBody?: boolean
+    /** Stroke for the Stem-I ladder. Defaults to the specifier tint (legible on the standalone
+     *  figure's pale capsule). When the ladder sits over a SOLID-tint LinearMap arrow, pass a
+     *  contrasting colour (e.g. white) so the duplex reads as an engraved relief. */
+    s1Stroke?: string | null
   } = $props()
 
   const bodyCx = $derived(body.x + body.w / 2)
@@ -47,6 +57,10 @@
   // keeps even a pale specifier (GLY/VAL/MET) legible as the AA letters + the Stem-I loop
   // outline without leaving the data hue family. NOT used for the body fill (the oracle).
   const deep = $derived(aaCodeColor(tint))
+  // Stem-I ladder colour: the tint on the pale standalone capsule; an explicit contrasting
+  // colour when overlaid on a solid LinearMap arrow (so the duplex doesn't vanish into it).
+  const s1Color = $derived(s1Stroke ?? tint)
+  const s1RungOpacity = $derived(s1Stroke ? 0.85 : 0.7)
 
   // Stem-I ladder rails sit in the upper third of the body (the structured 5′ region).
   const railTop = $derived(dims.yBodyT + 6)
@@ -58,39 +72,41 @@
        fill/stroke ARE the data-colour oracle the tests read — keep them the tint. The
        engineered look comes from a flat tint fill + a 1px inset white top-bevel, not a
        glossy gradient. -->
-  <rect
-    class="tv-arch-body"
-    x={body.x}
-    y={dims.yBodyT}
-    width={body.w}
-    height={dims.bodyH}
-    rx="4"
-    fill={tint}
-    fill-opacity="0.1"
-    stroke={tint}
-    stroke-width="1.5"
-  />
-  <line
-    class="tv-arch-body-bevel"
-    x1={body.x + 2}
-    y1={dims.yBodyT + 1.25}
-    x2={body.x + body.w - 2}
-    y2={dims.yBodyT + 1.25}
-    stroke="#ffffff"
-    stroke-width="1"
-    stroke-opacity="0.5"
-    pointer-events="none"
-  />
+  {#if showBody}
+    <rect
+      class="tv-arch-body"
+      x={body.x}
+      y={dims.yBodyT}
+      width={body.w}
+      height={dims.bodyH}
+      rx="4"
+      fill={tint}
+      fill-opacity="0.1"
+      stroke={tint}
+      stroke-width="1.5"
+    />
+    <line
+      class="tv-arch-body-bevel"
+      x1={body.x + 2}
+      y1={dims.yBodyT + 1.25}
+      x2={body.x + body.w - 2}
+      y2={dims.yBodyT + 1.25}
+      stroke="#ffffff"
+      stroke-width="1"
+      stroke-opacity="0.5"
+      pointer-events="none"
+    />
+  {/if}
 
   <!-- Stem I: a two-rail base-pair ladder (the duplex), tinted. -->
   {#if s1}
     {@const rails = ladderRails(s1)}
     {@const rungs = ladderRungs(s1, railTop, railBot)}
     <g class="tv-arch-feature tv-arch-stem1" data-feature="s1">
-      <line x1={rails.x0} y1={railTop} x2={rails.x1} y2={railTop} stroke={tint} stroke-width="1.1" stroke-linecap="round" />
-      <line x1={rails.x0} y1={railBot} x2={rails.x1} y2={railBot} stroke={tint} stroke-width="1.1" stroke-linecap="round" />
+      <line x1={rails.x0} y1={railTop} x2={rails.x1} y2={railTop} stroke={s1Color} stroke-width="1.1" stroke-linecap="round" />
+      <line x1={rails.x0} y1={railBot} x2={rails.x1} y2={railBot} stroke={s1Color} stroke-width="1.1" stroke-linecap="round" />
       {#each rungs as r, i (i)}
-        <line x1={r.x1} y1={r.y1} x2={r.x2} y2={r.y2} stroke={tint} stroke-width="0.8" stroke-opacity="0.7" />
+        <line x1={r.x1} y1={r.y1} x2={r.x2} y2={r.y2} stroke={s1Color} stroke-width="0.8" stroke-opacity={s1RungOpacity} />
       {/each}
     </g>
   {/if}
