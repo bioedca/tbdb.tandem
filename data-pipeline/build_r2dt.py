@@ -706,7 +706,12 @@ SERPENTINE_MIN_TAIL_NT = 8             # shorter tails barely span a stem -> nev
 SERPENTINE_MIN_INTERIOR_NT = 10        # interior connectors only fold when clearly long
 SERPENTINE_ROW_SEP_RATIO = 1.45        # perpendicular gap between snake rows, in median steps
 SERPENTINE_MAX_ROWS = 6                # cap rows so a huge tail snakes WIDER, not into a tall stack
-SERPENTINE_MIN_CLEARANCE_RATIO = 1.15  # a fold is accepted only this clear of structure (> 0.88 touch)
+# A fold is accepted (Tier 1) only when its closest approach to other structure is at least this many
+# median steps -- just above the 0.88 glyph-touch so an accepted fold never visually overlaps, yet
+# below 1.0 because a tail's FIRST residue sits exactly one step from the anchor's paired neighbour, so
+# every placement (ray or fold) caps at ~1.0 here; a higher floor would reject every fold (the bug that
+# left long tails as straight rays). Crowded tails whose only fold would touch structure stay rays.
+SERPENTINE_MIN_CLEARANCE_RATIO = 0.92
 SLACK_ARC_RATIO = 0.6                  # interior run is "slacky" (foldable) when chord/L <= this * k
 
 
@@ -812,7 +817,7 @@ def _best_compact_placement(cands, med, floor_ratio: float = SERPENTINE_MIN_CLEA
     return cands[0][3]
 
 
-def _route_arc(xs, ys, s, e, lo, hi, med, cen, obs) -> None:
+def _route_arc(xs, ys, s, e, lo, hi, med, cen, obs, compact: bool = False) -> None:
     """Re-route interior unpaired run ``[s..e]`` between anchors lo/hi.
 
     Most single strands carry R2DT's own (locally compact) coordinates and are already clear -- a
@@ -831,7 +836,7 @@ def _route_arc(xs, ys, s, e, lo, hi, med, cen, obs) -> None:
     cur = [(xs[t], ys[t]) for t in range(s, e + 1)]
     cur_ok = _max_run_step(xs, ys, lo, hi) <= 2.2 * med
     chord = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
-    if k >= SERPENTINE_MIN_INTERIOR_NT and 1e-6 < chord <= SLACK_ARC_RATIO * k * med:
+    if compact and k >= SERPENTINE_MIN_INTERIOR_NT and 1e-6 < chord <= SLACK_ARC_RATIO * k * med:
         cands = []
         if cur_ok:
             cands.append((round(_clearance(cur, obs), 2), round(_run_extent(cur), 2), 1, cur))
@@ -872,8 +877,15 @@ def _route_arc(xs, ys, s, e, lo, hi, med, cen, obs) -> None:
 #: Fan of launch bearings (degrees off the seed direction) the tail router scans for a clear exit.
 _TAIL_FAN = (0, 20, -20, 40, -40, 60, -60, 90, -90, 120, -120, 150, -150, 180)
 
-#: Coarser fan of seed bearings the serpentine FOLD tries, to snake into the clearest open wedge.
-_FOLD_FAN = (0, 30, -30, 60, -60, 90, -90, 180)
+#: How many of the CLEAREST straight-ray wedges the serpentine fold is seeded along -- a fold dropped
+#: into the open direction the ray would escape into is far more likely to clear the structure than a
+#: bushy block placed right next to the anchor.
+_FOLD_SEED_WEDGES = 3
+
+#: Row counts the fold tries (rl = ceil(k / rows)): from a thin 2-row hairpin -- which follows the
+#: clear wedge and fits a crowded box -- up to a bushy ``SERPENTINE_MAX_ROWS`` block, the most compact
+#: when the box is open. The picker takes the most compact one that still clears the structure.
+_SERPENTINE_ROW_OPTIONS = (2, 3, 4, SERPENTINE_MAX_ROWS)
 
 
 def _tail_seed(xs, ys, anchor, ax, ay, ox, oy, n, partner, outward, reverse) -> float:
@@ -894,18 +906,20 @@ def _tail_seed(xs, ys, anchor, ax, ay, ox, oy, n, partner, outward, reverse) -> 
     return math.atan2(sy, sx)
 
 
-def _route_tail(xs, ys, s, e, anchor, med, n, partner, cen, obs, outward, reverse) -> None:
-    """Place a dangling 5'/3' tail off ``anchor`` -- a straight ray for a short tail, a compact
-    SERPENTINE fold for a long one.
+def _route_tail(xs, ys, s, e, anchor, med, n, partner, cen, obs, outward, reverse,
+                compact: bool = False) -> None:
+    """Place a dangling 5'/3' tail off ``anchor`` -- a straight ray, or a compact SERPENTINE fold.
 
-    A short tail (or one already clear and continuous) is laid as the clearest straight ray of even
-    median steps over a fan of launch bearings (OUTWARD from the layout centroid for the post-fold
-    reflow, else the backbone rail-exit tangent). A straight ray is self-overlap-free by construction,
-    so the only job is to find an open wedge, which the mostly-empty box reliably has. A LONG tail
+    The tail is laid as the clearest straight ray of even median steps over a fan of launch bearings
+    (OUTWARD from the layout centroid for the post-fold reflow, else the backbone rail-exit tangent).
+    A straight ray is self-overlap-free by construction, so the only job is to find an open wedge,
+    which the mostly-empty box reliably has. In the FINAL ``compact`` reflow a LONG tail
     (``k >= SERPENTINE_MIN_TAIL_NT``) would make that ray ``k * med`` long and inflate the drawing box,
-    so it also offers boustrophedon folds (a few seed bearings x both sides x two row widths) and takes
-    the most COMPACT clear placement -- folding the ray into a ``~sqrt(k) * med`` block. The straight
-    ray and keep-current stay in the running, so a tail that cannot fold clear is never made worse.
+    so it ALSO offers boustrophedon folds -- seeded along the CLEAREST ray wedges (the open directions
+    the ray would escape into), in row counts from a thin 2-row hairpin up to a bushy block -- and
+    takes the most COMPACT placement that still clears the structure. The straight ray and keep-current
+    stay in the running, so a tail that cannot fold clear is left as a ray (do no harm). Folding is
+    confined to ``compact`` (the final pass) so the stems-only base reflow is byte-identical to before.
     """
     k = e - s + 1
     ax, ay = xs[anchor], ys[anchor]
@@ -917,10 +931,11 @@ def _route_tail(xs, ys, s, e, anchor, med, n, partner, cen, obs, outward, revers
     walk = list(range(s, e + 1)) if not reverse else list(range(e, s - 1, -1))
     cur = [(xs[idx], ys[idx]) for idx in walk]
     cur_ok = _max_run_step(xs, ys, min(s, anchor), max(e, anchor)) <= 2.2 * med
-    if k < SERPENTINE_MIN_TAIL_NT:
+    bang = _tail_seed(xs, ys, anchor, ax, ay, ox, oy, n, partner, outward, reverse)
+    if not (compact and k >= SERPENTINE_MIN_TAIL_NT):
+        # straight-ray path: short tails, and EVERY tail in the (non-compact) base reflow.
         if cur_ok and _clearance(cur, obs) >= VISUAL_OVERLAP * med:
-            return  # short tail already clear and continuous -> leave it
-        bang = _tail_seed(xs, ys, anchor, ax, ay, ox, oy, n, partner, outward, reverse)
+            return  # already clear and continuous -> leave it
         cands = []
         if cur_ok:
             cands.append((round(_clearance(cur, obs), 2), 1, cur))  # keep-current
@@ -934,23 +949,25 @@ def _route_tail(xs, ys, s, e, anchor, med, n, partner, cen, obs, outward, revers
             xs[idx] = px
             ys[idx] = py
         return
-    # long tail: straight rays + keep-current + serpentine folds, picked for compactness.
-    bang = _tail_seed(xs, ys, anchor, ax, ay, ox, oy, n, partner, outward, reverse)
+    # long tail, final reflow: straight rays + keep-current + serpentine folds, picked for compactness.
     cands = []
     if cur_ok:
         cands.append((round(_clearance(cur, obs), 2), round(_run_extent(cur), 2), 1.0, cur))
+    rays = []
     for deg in _TAIL_FAN:
         a = bang + math.radians(deg)
         dx, dy = math.cos(a), math.sin(a)
         pts = [(ax + dx * med * t, ay + dy * med * t) for t in range(1, k + 1)]
-        cands.append((round(_clearance(pts, obs), 2), round(_run_extent(pts), 2),
-                      round(dx * ox + dy * oy, 3), pts))
-    rlbase = max(math.ceil(math.sqrt(k)), math.ceil(k / SERPENTINE_MAX_ROWS))
-    for deg in _FOLD_FAN:
-        a = bang + math.radians(deg)
+        clr = _clearance(pts, obs)
+        cands.append((round(clr, 2), round(_run_extent(pts), 2), round(dx * ox + dy * oy, 3), pts))
+        rays.append((round(clr, 2), a))
+    rays.sort(key=lambda r: (r[0], r[1]), reverse=True)  # clearest wedges first (deterministic)
+    fold_bangs = [a for _, a in rays[:_FOLD_SEED_WEDGES]]
+    row_opts = sorted({max(1, math.ceil(k / r)) for r in _SERPENTINE_ROW_OPTIONS})
+    for a in fold_bangs:
         sd = (math.cos(a), math.sin(a))
         for side in (1, -1):
-            for rl in (rlbase, rlbase + 1):
+            for rl in row_opts:
                 pts = _serpentine_pts((ax, ay), sd, k, med, rl, side)
                 if _run_continuous((ax, ay), pts, med) and _self_clear(pts, med):
                     cands.append((round(_clearance(pts, obs), 2), round(_run_extent(pts), 2), 0.0, pts))
@@ -963,7 +980,8 @@ def _route_tail(xs, ys, s, e, anchor, med, n, partner, cen, obs, outward, revers
 
 
 def _reflow_single_strands(
-    xs: list[float], ys: list[float], pairs: list, n: int, outward_tails: bool = False
+    xs: list[float], ys: list[float], pairs: list, n: int, outward_tails: bool = False,
+    compact: bool = False,
 ) -> None:
     """Route EVERY single-stranded run collision-aware around all placed structure, in place.
 
@@ -979,7 +997,10 @@ def _reflow_single_strands(
     Routing every run (not only the broken ones the old reflow touched) also closes any backbone
     break by construction -- each run is re-laid at an even median step. With ``outward_tails``
     (the post-fold reflow) tails seed OUTWARD from the centroid into open 3' space rather than back
-    down the helix rail into the frozen stems.
+    down the helix rail into the frozen stems. With ``compact`` (also the post-fold reflow) long
+    tails / slacky interior runs additionally fold into a compact serpentine/meander -- gated to this
+    FINAL pass so the stems-only base reflow stays byte-identical (the rigid-body stem declash settles
+    against the SAME single-strand field as before, so the toggle's stem pin is untouched).
     """
     med = _median_step(xs, ys)
     cen = (sum(xs[1 : n + 1]) / n, sum(ys[1 : n + 1]) / n)
@@ -1009,11 +1030,13 @@ def _reflow_single_strands(
             mask[s - 1 : e] = False  # exclude the run's own residues from its obstacle field
             obs = pos[mask]
             if ha_lo and ha_hi:
-                _route_arc(xs, ys, s, e, lo, hi, med, cen, obs)
+                _route_arc(xs, ys, s, e, lo, hi, med, cen, obs, compact=compact)
             elif ha_lo:
-                _route_tail(xs, ys, s, e, lo, med, n, partner, cen, obs, outward_tails, reverse=False)
+                _route_tail(xs, ys, s, e, lo, med, n, partner, cen, obs, outward_tails,
+                            reverse=False, compact=compact)
             else:
-                _route_tail(xs, ys, s, e, hi, med, n, partner, cen, obs, outward_tails, reverse=True)
+                _route_tail(xs, ys, s, e, hi, med, n, partner, cen, obs, outward_tails,
+                            reverse=True, compact=compact)
             for t in range(s, e + 1):
                 pos[t - 1] = (xs[t], ys[t])  # commit the run so later runs avoid its new position
         i = j
@@ -1330,7 +1353,7 @@ def graft_member(raw: dict, member: dict, max_step_ratio: float = GRAFT_MAX_STEP
         # guarantee), then give the single strands the LAST word with a final collision-aware route.
         _orient_hairpin_outward(xs, ys, n, p_lo, p_hi, list(lx), list(ly), {r for pr in kept for r in pr})
         _clear_hairpin_off_stems(xs, ys, n, p_lo, p_hi, kept)
-        _reflow_single_strands(xs, ys, pairs, n, outward_tails=True)  # route strands clear of all structure
+        _reflow_single_strands(xs, ys, pairs, n, outward_tails=True, compact=True)  # route + fold strands clear
         xs, ys = _declash(xs, ys, pairs, n, anchor=_frozen_anchor(n, kept, at_pairs, p_lo))  # settle local turns
 
     coords = xs[1 : n + 1] + ys[1 : n + 1]
@@ -1556,7 +1579,7 @@ def graft_terminator_member(
     # stay byte-identical to the base graft_member also pins to), then settle local turns.
     _orient_hairpin_outward(xs, ys, n, p_lo, p_hi, list(lx), list(ly), {r for pr in kept for r in pr})
     _clear_hairpin_off_stems(xs, ys, n, p_lo, p_hi, kept)
-    _reflow_single_strands(xs, ys, pairs, n, outward_tails=True)  # route strands clear of all structure
+    _reflow_single_strands(xs, ys, pairs, n, outward_tails=True, compact=True)  # route + fold strands clear
     xs, ys = _declash(xs, ys, pairs, n, anchor=_frozen_anchor(n, kept, term_pairs, p_lo))  # settle local turns
 
     coords = xs[1 : n + 1] + ys[1 : n + 1]
