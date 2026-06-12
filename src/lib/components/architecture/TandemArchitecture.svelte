@@ -7,13 +7,16 @@
   //   • ArchitectureOverlay adds the RNA-structure anatomy on top (Stem I, specifier codon,
   //     antiterminator, terminator hairpin / anti-SD, discriminator) sharing LinearMap's bp→x;
   //   • the published SequenceViewer shows the locus nucleotides + annotations — when the NCBI
-  //     `context` is present it is the WHOLE locus as one continuous, zoomable track (all elements +
-  //     the downstream gene); without it, the selected element's leader (click an arrow to switch).
-  //     The ONLY zoom in the figure lives here, on the sequence viewer.
+  //     `context` is present it is the WHOLE locus as one continuous track (all elements + the
+  //     downstream gene); without it, the selected element's leader (click an arrow to switch).
+  //     The ONLY zoom in the figure lives here, on the sequence viewer: a continuous slider that
+  //     scales the on-screen TEXT SIZE (the library's glyph font is fixed, so we scale the rendered
+  //     track with CSS `zoom`) — slid down it fits more of the locus as an overview, slid up it
+  //     enlarges the bases for reading. The track wraps to the container; one scroller owns scroll.
   // Same prop shape as the retired ArchitectureDiagram so mount sites need only swap the import.
   // Theming: a local .tv-hatch wrapper maps --hatch-* onto the Slate Instrument palette (no global
   // ThemeProvider). The specifier hue appears only on the data arrows + AA chip (chrome⟂data).
-  import { SequenceViewer, ZoomControls } from '@molbiohive/hatchlings'
+  import { SequenceViewer } from '@molbiohive/hatchlings'
   import { LinearMap } from '../../vendor/hatchlings'
   import type { FuncClass, FuncSource, LocusContext, Member, Strand } from '../../data/types'
   import { buildArchitecture } from '../../architecture'
@@ -78,11 +81,26 @@
   )
 
   // Sequence-viewer zoom — the only zoom in the figure (the diagram is a static overview). The
-  // viewer widens and overflow-scrolls; vertical layout is the viewer's own.
+  // hatchlings glyph font is fixed in the library, so widening the viewer only spreads the same-size
+  // bases sideways; to actually resize the text we scale the rendered track with CSS `zoom`. The
+  // slider runs from SEQ_ZOOM_MIN (a compact whole-locus overview) up to SEQ_ZOOM_MAX (large,
+  // readable bases). The viewer is laid out ONCE at the container width (so wrapping is stable) and
+  // given a height tall enough to render every row; the CSS below collapses its own scroll so the
+  // single outer scroller — sized correctly because CSS `zoom` scales the layout box — owns scroll.
+  const SEQ_ZOOM_MIN = 0.5
+  const SEQ_ZOOM_MAX = 3
+  const SEQ_ZOOM_STEP = 0.05
+  // Far taller than any locus track: the SequenceViewer's virtual scroller renders only the rows
+  // within `height`, so this forces every row out (its box is then collapsed to content by CSS).
+  const SEQ_RENDER_ALL_H = 50000
+  // The visible window before the outer scroller takes over (kept modest so a long locus scrolls
+  // rather than pushing the rest of the page far down).
+  const SEQ_VIEWPORT_H = 440
   let seqZoom = $state(1)
   let seqContainerW = $state(0)
   let seqScroller: HTMLDivElement | undefined = $state()
-  const seqWidth = $derived(Math.round(Math.max(seqContainerW || BASE_WIDTH, MIN_SEQ_TRACK) * seqZoom))
+  // Base (unzoomed) wrap width — fit the container; CSS `zoom` rescales from here.
+  const baseSeqWidth = $derived(Math.round(Math.max(seqContainerW || BASE_WIDTH, MIN_SEQ_TRACK)))
 
   function handlePartClick(part: Part) {
     // gene parts (the proximal one keeps DOWNSTREAM_ORF_ID, operon genes are suffixed) aren't elements.
@@ -92,17 +110,18 @@
   }
 
   // Scroll the continuous track so the clicked element is in view (approximate: the element's
-  // fractional position along the interval). Honours prefers-reduced-motion.
+  // fractional position along the interval → vertical offset, since the track wraps). scrollHeight
+  // already reflects the CSS-zoomed layout. Honours prefers-reduced-motion.
   function scrollToElement(memberId: string) {
     const el = context?.elements.find((e) => e.member_id === memberId)
     if (!el || !seqScroller || !context) return
     const frac = el.offset / Math.max(context.seq.length, 1)
-    const target = frac * Math.max(seqWidth - seqScroller.clientWidth, 0)
+    const target = frac * Math.max(seqScroller.scrollHeight - seqScroller.clientHeight, 0)
     const reduce =
       typeof window !== 'undefined' && window.matchMedia
         ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
         : false
-    seqScroller.scrollTo({ left: target, behavior: reduce ? 'auto' : 'smooth' })
+    seqScroller.scrollTo({ top: target, behavior: reduce ? 'auto' : 'smooth' })
   }
 </script>
 
@@ -140,7 +159,7 @@
   </figure>
 
   {#if seqData}
-    <div class="mt-4" bind:clientWidth={seqContainerW}>
+    <div class="mt-4">
       <div class="mb-1.5 flex items-end justify-between gap-3">
         <div class="min-w-0">
           {#if hasLocusTrack}
@@ -155,11 +174,68 @@
             {/if}
           {/if}
         </div>
-        <ZoomControls zoom={seqZoom} minZoom={0.5} maxZoom={6} step={0.5} onzoomchange={(z) => (seqZoom = z)} />
+        <!-- Continuous text-size zoom: slid left = compact whole-locus overview, right = larger bases. -->
+        <div class="flex shrink-0 items-center gap-2">
+          <span class="text-caption text-muted">Zoom</span>
+          <input
+            type="range"
+            class="tv-seq-zoom"
+            min={SEQ_ZOOM_MIN}
+            max={SEQ_ZOOM_MAX}
+            step={SEQ_ZOOM_STEP}
+            bind:value={seqZoom}
+            aria-label="Sequence text size"
+          />
+          <button
+            type="button"
+            class="min-w-[3.5ch] text-caption tabular-nums text-muted hover:text-ink"
+            title="Reset zoom"
+            onclick={() => (seqZoom = 1)}>{Math.round(seqZoom * 100)}%</button>
+        </div>
       </div>
-      <div class="relative overflow-x-auto" bind:this={seqScroller}>
-        <SequenceViewer data={seqData} width={seqWidth} showComplement={false} showNumbers colorBases={false} />
+      <!-- Measure the SCROLLER's own content width (clientWidth excludes the border + the
+           reserved scrollbar gutter) so the track fits exactly at zoom 1 — no phantom h-scroll. -->
+      <div
+        class="tv-seqzoom relative overflow-auto rounded-md border border-hairline"
+        style:max-height="{SEQ_VIEWPORT_H}px"
+        bind:this={seqScroller}
+        bind:clientWidth={seqContainerW}
+      >
+        <div style:zoom={seqZoom}>
+          <SequenceViewer
+            data={seqData}
+            width={baseSeqWidth}
+            height={SEQ_RENDER_ALL_H}
+            showComplement={false}
+            showNumbers
+            colorBases={false}
+          />
+        </div>
       </div>
     </div>
   {/if}
 </div>
+
+<style>
+  /* The SequenceViewer is given a huge height so its virtual scroller renders EVERY row; collapse
+     its own box back to the content and silence its internal scroll so the single outer `.tv-seqzoom`
+     scroller owns scrolling and CSS `zoom` can scale the whole laid-out track uniformly. */
+  .tv-seqzoom {
+    /* Reserve the vertical-scrollbar gutter so the measured content width — and therefore the
+       track's fit at zoom 1 — stays stable whether or not the locus is tall enough to scroll. */
+    scrollbar-gutter: stable;
+  }
+  .tv-seqzoom :global(.hatch-sequence-viewer) {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* On-system range slider — brand-teal accent (chrome, never a specifier hue). */
+  .tv-seq-zoom {
+    width: 7rem;
+    max-width: 36vw;
+    accent-color: var(--color-brand);
+    cursor: pointer;
+  }
+</style>

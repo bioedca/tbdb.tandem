@@ -90,23 +90,36 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     await expect(arch.locator('g.tv-arch-element')).toHaveCount(2)
   })
 
-  test('the sequence-viewer zoom widens the full-locus track (the only zoom in the figure)', async ({ page }) => {
+  test('the sequence-viewer zoom slider scales the text size, not just the track width', async ({ page }) => {
     await gotoRoute(page, '/locus/T0342')
     // Once the NCBI context loads, the sequence viewer shows the whole locus + carries the zoom.
     await expect(page.getByText('Full locus sequence', { exact: false })).toBeVisible({ timeout: 30_000 })
-    const seqViewer = page.locator('.tv-hatch .overflow-x-auto svg').last()
-    await expect(seqViewer).toBeVisible({ timeout: 30_000 })
+    const seqSvg = page.locator('.tv-hatch .hatch-sequence-viewer svg')
+    await expect(seqSvg).toBeVisible({ timeout: 30_000 })
 
-    const widthOf = () =>
-      seqViewer.evaluate((el) => {
-        const w = Number(el.getAttribute('width'))
-        return Number.isNaN(w) ? el.getBoundingClientRect().width : w
-      })
-    const before = await widthOf()
-    expect(before).toBeGreaterThan(0)
-    // The hatchlings ZoomControls "+" (title="Zoom in") scales the sequence-viewer width; the track
-    // overflow-scrolls. (The diagram above is static — it has no zoom control.)
-    await page.locator('button[title="Zoom in"]').click()
-    await expect.poll(widthOf).toBeGreaterThan(before)
+    // The zoom is a continuous range slider (replacing the old +/− buttons). Its accessible name is
+    // "Sequence text size".
+    const slider = page.getByRole('slider', { name: 'Sequence text size' })
+    await expect(slider).toBeVisible()
+
+    // The discriminating check: the OLD zoom multiplied the SVG *width attribute* (spreading the same
+    // 12px bases sideways). The new zoom scales the *rendered* size via CSS `zoom` — the text gets
+    // bigger — while the width attribute is zoom-invariant.
+    const widthAttr = () => seqSvg.evaluate((el) => Number(el.getAttribute('width')))
+    const renderedW = () => seqSvg.evaluate((el) => Math.round(el.getBoundingClientRect().width))
+    const attrBefore = await widthAttr()
+    const renderedBefore = await renderedW()
+    expect(attrBefore).toBeGreaterThan(0)
+
+    // Crank to the max → the bases get bigger (rendered width grows; the attribute does not).
+    await slider.focus()
+    await slider.press('End')
+    await expect.poll(renderedW).toBeGreaterThan(renderedBefore)
+    expect(await widthAttr()).toBe(attrBefore)
+
+    // Slide to the min → a compact whole-locus overview (text shrinks below the default).
+    await slider.press('Home')
+    await expect.poll(renderedW).toBeLessThan(renderedBefore)
+    expect(await widthAttr()).toBe(attrBefore)
   })
 })
