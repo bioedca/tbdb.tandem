@@ -1099,6 +1099,23 @@ _MEMBER_CSV_LEAD = [
     "func_class", "func_source", "downstream_protein", "downstream_id", "downstream_ec",
     "leader_length",
 ]
+#: NCBI-derived genomic-context columns (PLAN section 9; the ``/locus`` continuous view).
+#: Populated ONLY when a per-locus ``locus_context`` record is supplied (the optional
+#: ``fetch_genomic_context.py`` step) -- else every cell is blank. Genomic-LOCATION naming
+#: only, never order/ancestry words (CLAUDE.md section 6: no polarity). The compact facts
+#: of the proximal regulated (co-oriented, most-5') downstream gene are flattened here; the
+#: full operon stays in the existing ``downstream_*`` columns + per-locus
+#: ``locus_context/<id>.json`` (``downstream_gene_count`` flags multi-gene loci). The bulky
+#: interval ``seq`` is deliberately NOT carried in the CSV -- ``locus_interval_*`` +
+#: ``element_offset`` place each element within it, and it lives in the JSON.
+_GENOMIC_CSV_COLS = [
+    "genomic_resolved",
+    "locus_interval_start", "locus_interval_end",
+    "element_offset",
+    "downstream_gene_name", "downstream_gene_id", "downstream_gene_locus_tag",
+    "downstream_gene_start", "downstream_gene_end", "downstream_gene_strand",
+    "downstream_gene_offset", "downstream_gene_count",
+]
 #: One ``start``/``end`` column pair per stem key (Stem I / II / IIA-B / III / antiterm).
 _STEM_CSV_COLS = [f"stem_{key}_{end}" for key in _STEM_KEYS for end in ("start", "end")]
 
@@ -1112,9 +1129,11 @@ _FEATURE_CSV_FEATS = ("s1_loop", "codon", "discrim", "term")
 _FEATURE_CSV_COLS = [f"{feat}_{end}" for feat in _FEATURE_CSV_FEATS for end in ("start", "end")] + [
     "term_sequence"
 ]
-#: Full members.csv header: lead -> stem spans -> feature windows -> the two deep-link URLs.
+#: Full members.csv header: lead -> genomic context -> stem spans -> feature windows ->
+#: the two deep-link URLs.
 _MEMBER_CSV_HEADER = (
-    _MEMBER_CSV_LEAD + _STEM_CSV_COLS + _FEATURE_CSV_COLS + ["tbdb_url", "ncbi_url"]
+    _MEMBER_CSV_LEAD + _GENOMIC_CSV_COLS + _STEM_CSV_COLS + _FEATURE_CSV_COLS
+    + ["tbdb_url", "ncbi_url"]
 )
 
 
@@ -1135,7 +1154,102 @@ def _csv_window(window: dict, feat: str, length: int) -> tuple[int | None, int |
     return (lo, hi)
 
 
-def _member_csv_row(member: dict, locus: dict) -> list:
+def load_locus_context_dir(context_dir) -> dict[str, dict] | None:
+    """Load ``<dir>/T*.json`` locus_context records into a ``{tandem_id: record}`` map.
+
+    Returns ``None`` when the directory is absent (so members.csv genomic columns stay
+    blank -- a Master-only build carries no genomic context). ``manifest.json`` is skipped
+    by the ``T*`` glob. The records are the per-locus output of
+    :mod:`fetch_genomic_context` (``seq`` / ``interval`` / ``elements`` / ``downstream_genes``).
+    """
+    context_dir = Path(context_dir)
+    if not context_dir.is_dir():
+        return None
+    out: dict[str, dict] = {}
+    for path in sorted(context_dir.glob("T*.json")):
+        rec = json.loads(path.read_text())
+        out[rec["tandem_id"]] = rec
+    return out or None
+
+
+def _gene_genomic_span(gene_offset: int, gene_length: int, locus_strand: str,
+                       interval) -> tuple[int, int]:
+    """The downstream gene's ascending genomic span ``(start, end)``, derived from its
+    transcription-oriented ``offset`` + ``length`` within the locus interval.
+
+    The inverse of :func:`fetch_genomic_context.offset_5p`: on the ``+`` strand index 0 of
+    the oriented seq is the interval ``lo`` (``g5 = lo + offset``); on the ``-`` strand the
+    seq is reverse-complemented so index 0 is the interval ``hi`` (``g5 = hi - offset``).
+    The gene then runs ``length`` bp in the locus's transcription direction. Returns the
+    ascending ``(min, max)`` genomic coordinates (the ``GeneCoords`` / interval convention).
+    """
+    lo, hi = interval[0], interval[1]
+    if locus_strand == "+":
+        g5 = lo + gene_offset
+        other = g5 + (gene_length - 1)
+    else:
+        g5 = hi - gene_offset
+        other = g5 - (gene_length - 1)
+    return (min(g5, other), max(g5, other))
+
+
+def _pick_primary_gene(genes: list[dict], locus_strand: str) -> dict | None:
+    """The primary regulated downstream gene of a locus: the most transcription-proximal
+    (smallest ``offset``) gene CO-ORIENTED with the locus.
+
+    A T-box riboswitch sits in the 5' leader of the mRNA it regulates, so the regulated
+    gene is on the locus's own strand, immediately downstream -- not an opposite-strand
+    genomic neighbour that happened to fall in the interval (e.g. the 4 mixed-strand loci
+    T0108/T0241/T0278/T0352, where the smallest-offset gene is on the opposite strand).
+    Falls back to the proximal gene overall only when none is co-oriented; tie-broken by
+    ``protein_id`` for determinism. ``None`` for an empty list.
+    """
+    if not genes:
+        return None
+    co_oriented = [g for g in genes if g.get("strand") == locus_strand]
+    pool = co_oriented or genes
+    return min(pool, key=lambda g: (g.get("offset", 0), g.get("protein_id") or ""))
+
+
+def _genomic_cells(member: dict, context: dict | None) -> list:
+    """The 12 :data:`_GENOMIC_CSV_COLS` cells for a member.
+
+    All blank when ``context`` is ``None`` (no genomic context supplied). Otherwise sourced
+    from the member's per-locus ``locus_context`` record: the ``resolved`` flag, the genomic
+    ``interval``, this member's ``element`` offset within the oriented seq, and the compact
+    facts of the proximal regulated downstream gene (its genomic span derived via
+    :func:`_gene_genomic_span`). ``downstream_gene_count`` is the operon size.
+    """
+    if context is None:
+        return [None] * len(_GENOMIC_CSV_COLS)
+    interval = context.get("interval") or [None, None]
+    iv_lo, iv_hi = (list(interval) + [None, None])[:2]
+    element_offset = next(
+        (el.get("offset") for el in context.get("elements", [])
+         if el.get("member_id") == member["member_id"]),
+        None,
+    )
+    genes = context.get("downstream_genes") or []
+    gene = _pick_primary_gene(genes, context.get("strand"))
+    g_name = g_id = g_tag = g_strand = g_off = g_start = g_end = None
+    if gene is not None:
+        g_name, g_id, g_tag = gene.get("name"), gene.get("protein_id"), gene.get("locus_tag")
+        g_strand, g_off = gene.get("strand"), gene.get("offset")
+        if iv_lo is not None and iv_hi is not None:
+            g_start, g_end = _gene_genomic_span(
+                gene["offset"], gene["length"], context.get("strand"), [iv_lo, iv_hi]
+            )
+    return [
+        "true" if context.get("resolved") else "false",
+        iv_lo, iv_hi,
+        element_offset,
+        g_name, g_id, g_tag,
+        g_start, g_end, g_strand,
+        g_off, len(genes),
+    ]
+
+
+def _member_csv_row(member: dict, locus: dict, context: dict | None = None) -> list:
     """Flatten one member (+ its locus context) into a members.csv row."""
     spans = {s["key"]: (s["start"], s["end"]) for s in member.get("stems", [])}
     spec = member.get("specifier") or {}
@@ -1164,6 +1278,7 @@ def _member_csv_row(member: dict, locus: dict) -> list:
         "leader_length": len(member.get("fasta_sequence") or ""),
     }
     row = [lead[col] for col in _MEMBER_CSV_LEAD]
+    row.extend(_genomic_cells(member, context))
     for key in _STEM_KEYS:
         lo, hi = spans.get(key, (None, None))
         row.extend([lo, hi])
@@ -1178,20 +1293,26 @@ def _member_csv_row(member: dict, locus: dict) -> list:
 
 
 def write_members_csv(
-    locus_objs: list[dict], members_map: dict[str, dict], out_dir: Path
+    locus_objs: list[dict], members_map: dict[str, dict], out_dir: Path,
+    context_by_locus: dict[str, dict] | None = None,
 ) -> int:
     """Write ``members.csv`` -- the member-level base table with flattened stem spans.
 
     One row per canonical member (members.json order); locus context (accession,
-    strand, organism, phylum) is joined per member from ``locus_objs``. Returns the
+    strand, organism, phylum) is joined per member from ``locus_objs``. When
+    ``context_by_locus`` (a ``{tandem_id: locus_context record}`` map, e.g. from
+    :func:`load_locus_context_dir`) is supplied, the NCBI-derived genomic-context columns
+    (:data:`_GENOMIC_CSV_COLS`) are filled too; otherwise they are left blank. Returns the
     number of data rows written.
     """
     loc_by_member = {mid: loc for loc in locus_objs for mid in loc["member_ids"]}
+    ctx = context_by_locus or {}
     with (out_dir / "members.csv").open("w", encoding="utf-8", newline="") as fh:
         writer = csv.writer(fh, lineterminator="\n")
         writer.writerow(_MEMBER_CSV_HEADER)
         for member_id, member in members_map.items():
-            writer.writerow(_member_csv_row(member, loc_by_member[member_id]))
+            locus = loc_by_member[member_id]
+            writer.writerow(_member_csv_row(member, locus, ctx.get(locus["tandem_id"])))
     return len(members_map)
 
 
@@ -1643,10 +1764,17 @@ def main(argv: list[str] | None = None) -> int:
     _write_json(args.out / "members.json", members_map)
     _write_json(args.out / "identity.json", pairs)
     _write_json(args.out / "summary.json", summary)
-    n_csv = write_members_csv(locus_objs, members_map, args.out)
+    # members.csv carries the NCBI-derived genomic-context columns when a prior
+    # fetch_genomic_context.py run has left locus_context/ in the out dir (the committed
+    # case, --out public/data). On a clean first pass it is absent -> the columns are
+    # blank; re-run build_json.py after fetch_genomic_context.py to fill them.
+    context_by_locus = load_locus_context_dir(args.out / "locus_context")
+    n_csv = write_members_csv(locus_objs, members_map, args.out, context_by_locus)
     print(
         f"wrote loci.json ({len(locus_objs)}) + members.json ({len(members_map)}) "
-        f"+ identity.json ({len(pairs)}) + summary.json + members.csv ({n_csv}) -> {args.out}"
+        f"+ identity.json ({len(pairs)}) + summary.json + members.csv ({n_csv}; "
+        f"genomic context {'filled' if context_by_locus else 'blank -- no locus_context/'}) "
+        f"-> {args.out}"
     )
 
     # S0.6: the Stem-I length-gate + the two tree-build FASTAs (PLAN section 6, 5.2).

@@ -113,13 +113,72 @@ def test_members_csv_stem_spans_match_members_json(members_csv, members):
             assert got == expected.get(key), f"{mid} stem {key}: {got} != {expected.get(key)}"
 
 
-def test_members_csv_is_current(loci, members, tmp_path):
+@pytest.fixture(scope="module")
+def committed_context():
+    """The committed per-locus NCBI genomic context, keyed by tandem_id (or None)."""
+    return bj.load_locus_context_dir(DATA / "locus_context")
+
+
+def test_members_csv_is_current(loci, members, committed_context, tmp_path):
     """The committed members.csv is exactly what build_json.write_members_csv emits
-    from the committed JSON -- guards against a stale hand-edited table."""
-    bj.write_members_csv(loci["loci"], members, tmp_path)
+    from the committed JSON + the committed locus_context -- guards against a stale
+    hand-edited table (incl. the NCBI-derived genomic-context columns)."""
+    bj.write_members_csv(loci["loci"], members, tmp_path, context_by_locus=committed_context)
     regenerated = (tmp_path / "members.csv").read_bytes()
     committed = (DATA / "members.csv").read_bytes()
     assert regenerated == committed, "public/data/members.csv is stale; rerun build_json.py"
+
+
+def _oracle_primary_gene(genes, locus_strand):
+    """INDEPENDENT reimplementation of the proximal-co-oriented primary-gene rule (not
+    bj._pick_primary_gene) -- so the genomic-column check below cannot be tautological."""
+    if not genes:
+        return None
+    co = [g for g in genes if g["strand"] == locus_strand]
+    pool = co or genes
+    return sorted(pool, key=lambda g: (g["offset"], g["protein_id"] or ""))[0]
+
+
+def _oracle_gene_span(gene, locus_strand, interval):
+    """INDEPENDENT inverse-offset genomic span (not bj._gene_genomic_span)."""
+    lo, hi = interval
+    g5 = lo + gene["offset"] if locus_strand == "+" else hi - gene["offset"]
+    other = g5 + (gene["length"] - 1) if locus_strand == "+" else g5 - (gene["length"] - 1)
+    return (min(g5, other), max(g5, other))
+
+
+def test_members_csv_genomic_columns_match_locus_context(members_csv, committed_context):
+    """The NCBI-derived genomic columns are faithful to public/data/locus_context/<id>.json,
+    re-derived by an INDEPENDENT oracle (resolved flag, interval, per-element offset, and the
+    proximal-co-oriented downstream gene incl. the inverse-offset genomic span). This proves
+    the CSV is not tautological AND guards members.csv <-> locus_context staleness (the CSV
+    depends on a separately-generated artifact: a regenerated context with no CSV refill
+    would diverge here)."""
+    assert committed_context, "committed locus_context/ missing"
+    header, rows = members_csv
+    idx = {c: i for i, c in enumerate(header)}
+    for row in rows:
+        tid, mid = row[idx["tandem_id"]], row[idx["member_id"]]
+        ctx = committed_context.get(tid)
+        assert ctx is not None, f"{tid}: no locus_context record"
+        assert row[idx["genomic_resolved"]] == ("true" if ctx["resolved"] else "false")
+        assert row[idx["locus_interval_start"]] == str(ctx["interval"][0])
+        assert row[idx["locus_interval_end"]] == str(ctx["interval"][1])
+        off = next(e["offset"] for e in ctx["elements"] if e["member_id"] == mid)
+        assert row[idx["element_offset"]] == str(off), f"{mid} element_offset"
+        genes = ctx["downstream_genes"]
+        assert row[idx["downstream_gene_count"]] == str(len(genes)), f"{tid} gene count"
+        gene = _oracle_primary_gene(genes, ctx["strand"])
+        if gene is None:
+            assert row[idx["downstream_gene_id"]] == "" and row[idx["downstream_gene_start"]] == ""
+        else:
+            assert row[idx["downstream_gene_id"]] == (gene["protein_id"] or "")
+            assert row[idx["downstream_gene_locus_tag"]] == (gene["locus_tag"] or "")
+            assert row[idx["downstream_gene_strand"]] == (gene["strand"] or "")
+            assert row[idx["downstream_gene_offset"]] == str(gene["offset"])
+            start, end = _oracle_gene_span(gene, ctx["strand"], ctx["interval"])
+            assert row[idx["downstream_gene_start"]] == str(start), f"{tid} gene start"
+            assert row[idx["downstream_gene_end"]] == str(end), f"{tid} gene end"
 
 
 def _frontend_window(window: dict, feat: str, length: int):
