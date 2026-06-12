@@ -130,10 +130,14 @@ describe('toLocusSequenceData — continuous locus track', () => {
     }), 'biosynthesis')
 
     const byId = new Map(data.parts.map((p) => [p.id, p]))
-    expect(byId.get('P.m1')).toMatchObject({ type: 'tbox', start: 0, end: 60, color: aaColor('ILE') })
-    expect(byId.get('P.m2')).toMatchObject({ type: 'tbox', start: 100, end: 160, color: aaColor('LEU') })
+    // element bodies: specifier-tinted + labelled "5′ (1) …" / "3′ (n) …" like the member-sequence view
+    expect(byId.get('P.m1')).toMatchObject({ type: 'tbox', start: 0, end: 60, color: aaColor('ILE'), label: '5′ (1) ILE' })
+    expect(byId.get('P.m2')).toMatchObject({ type: 'tbox', start: 100, end: 160, color: aaColor('LEU'), label: '3′ (2) LEU' })
     expect(byId.get('P.m2:codon')).toMatchObject({ start: 109, end: 112 }) // [10,12] → [9,12) + 100
-    expect(byId.get('P.m1:s1')).toMatchObject({ start: 6, end: 20 })
+    // SPECIFIER ONLY on the multi-element track: the Stem-I / antiterminator / terminator /
+    // discriminator tags are dropped (they stay in the per-element toSequenceData view).
+    expect(byId.has('P.m1:s1')).toBe(false)
+    expect(data.parts.some((p) => ['s1', 'antiterm', 'term', 'discrim'].includes(p.type))).toBe(false)
     const gene = data.parts.find((p) => p.type === 'gene')!
     expect(gene).toMatchObject({ start: 200, end: 350, color: FUNC_CLASS_SHADE.biosynthesis })
     expect(data.translations).toEqual(
@@ -144,12 +148,16 @@ describe('toLocusSequenceData — continuous locus track', () => {
     )
   })
 
-  test('a single-element track at offset 0 reuses toSequenceData feature parts/translations', () => {
+  test('a single-element track keeps only the specifier (codon) tag, sharing toSequenceData geometry', () => {
     const member = m({ id: 'P.m1', ordinal: 1, aa: 'ILE', leader: [1, 60], window: { tbox: [1, 60], codon: [10, 12], s1: [7, 20] } })
     const c = ctx({ seq: member.fasta_sequence + 'GGGG', elements: [{ member_id: 'P.m1', offset: 0, length: member.fasta_sequence.length }] })
     const locus = toLocusSequenceData([member], c, 'biosynthesis')
     const single = toSequenceData(member)
-    expect(locus.parts.filter((p) => p.id.startsWith('P.m1:'))).toEqual(single.parts)
+    // the locus track drops every non-specifier tag, so its per-member feature parts are EXACTLY the
+    // codon subset of the per-element view (same offsets at base 0); the codon translation is unchanged.
+    const trackFeatures = locus.parts.filter((p) => p.id.startsWith('P.m1:'))
+    expect(trackFeatures.map((p) => p.type)).toEqual(['codon'])
+    expect(trackFeatures).toEqual(single.parts.filter((p) => p.type === 'codon'))
     expect(locus.translations).toEqual(single.translations)
   })
 

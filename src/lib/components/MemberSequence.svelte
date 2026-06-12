@@ -28,6 +28,7 @@
     buildSequenceSegments,
     overlayFeatures,
     presentMarkers,
+    ordinalLabel,
     FEATURE_LABEL,
     MARKER_FEATURES,
     type MarkerFeature,
@@ -37,12 +38,6 @@
   let { members }: { members: Member[] } = $props()
 
   const els = $derived([...members].sort((a, b) => a.ordinal - b.ordinal))
-
-  function ordinalLabel(ordinal: number, n: number): string {
-    if (ordinal === 1) return '5′ (1)'
-    if (ordinal === n) return `3′ (${ordinal})`
-    return `mid (${ordinal})`
-  }
 
   /** Inline style for one segment: the stem tint (matching the in-app RNA), with the
    *  conserved motifs (specifier loop / UGGN) deepened + ringed, the codon bolded over

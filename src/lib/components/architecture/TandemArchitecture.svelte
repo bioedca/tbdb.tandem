@@ -141,15 +141,20 @@
 
   {#if seqData}
     <div class="mt-4" bind:clientWidth={seqContainerW}>
-      <div class="mb-1.5 flex items-center justify-between gap-3">
-        <p class="text-small text-muted">
+      <div class="mb-1.5 flex items-end justify-between gap-3">
+        <div class="min-w-0">
           {#if hasLocusTrack}
-            Full locus sequence · all {members.length} elements + downstream gene, to scale
+            <p class="text-base font-semibold text-ink">Full locus sequence</p>
+            <p class="text-caption text-muted">All {members.length} elements + downstream gene, to scale</p>
           {:else}
-            Element {selectedMember?.ordinal} leader sequence
-            {#if selectedMember?.specifier.aa}· specifier <span class="font-mono text-ink">{selectedMember.specifier.aa}</span>{/if}
+            <p class="text-base font-semibold text-ink">Element {selectedMember?.ordinal} leader sequence</p>
+            {#if selectedMember?.specifier.aa}
+              <p class="text-caption text-muted">
+                Specifier <span class="font-mono text-ink">{selectedMember.specifier.aa}</span>
+              </p>
+            {/if}
           {/if}
-        </p>
+        </div>
         <ZoomControls zoom={seqZoom} minZoom={0.5} maxZoom={6} step={0.5} onzoomchange={(z) => (seqZoom = z)} />
       </div>
       <div class="relative overflow-x-auto" bind:this={seqScroller}>

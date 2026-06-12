@@ -11,6 +11,7 @@
   import type { IdentityPair, Member } from '../data/types'
   import { aaColor } from '../color'
   import { sharesLeader } from '../architecture'
+  import { ordinalLabel } from '../sequence'
   import InfoTip from './InfoTip.svelte'
   import TbdbLink from './TbdbLink.svelte'
 
@@ -30,11 +31,6 @@
   }
   function num(value: number | null): string {
     return value === null ? '–' : value.toFixed(1)
-  }
-  function ordinalLabel(ordinal: number, n: number): string {
-    if (ordinal === 1) return '5′ (1)'
-    if (ordinal === n) return `3′ (${ordinal})`
-    return `mid (${ordinal})`
   }
 
   interface PairRow {
