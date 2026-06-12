@@ -227,3 +227,12 @@ export const FEATURE_LABEL: Record<HighlightFeature, string> = {
   term: 'terminator',
   discrim: 'discriminator',
 }
+
+/** A member's position label within its locus, shared so the member-sequence, element-
+ *  comparison and full-locus views read identically: ordinal 1 → "5′ (1)" (most 5′), the
+ *  last → "3′ (n)" (most 3′), any middle element → "mid (k)". `n` is the locus member count. */
+export function ordinalLabel(ordinal: number, n: number): string {
+  if (ordinal === 1) return '5′ (1)'
+  if (ordinal === n) return `3′ (${ordinal})`
+  return `mid (${ordinal})`
+}

@@ -14,7 +14,7 @@ import type { FuncClass, LocusContext, Member } from './data/types'
 import type { Part, SequenceData, Translation } from './vendor/hatchlings'
 import { LINEAR_MARGIN_LEFT, LINEAR_MARGIN_RIGHT } from './vendor/hatchlings/util/layout'
 import { STEM_COLORS, TERMINATOR_COLOR, FUNC_CLASS_SHADE, aaColor } from './color'
-import { featureSpans, FEATURE_LABEL, HIGHLIGHT_FEATURES, type HighlightFeature } from './sequence'
+import { featureSpans, ordinalLabel, FEATURE_LABEL, HIGHLIGHT_FEATURES, type HighlightFeature } from './sequence'
 
 /** Stable id for the synthetic downstream-ORF part (so the overlay can find it). */
 export const DOWNSTREAM_ORF_ID = 'downstream-orf'
@@ -121,14 +121,19 @@ const AA_THREE_TO_ONE: Record<string, string> = {
  * (0 for a single-member view; the element's offset within the locus interval for the continuous
  * locus track). 1-based inclusive leader windows convert to 0-based half-open `[start, end)`. The
  * SINGLE source both `toSequenceData` and `toLocusSequenceData` build from, so the two never drift.
+ * `features` restricts which annotation tags are emitted: the per-element view shows every window,
+ * while the multi-element locus track passes `['codon']` so only the specifier tag rides the track
+ * (Stem-I / antiterminator / terminator / discriminator would be up to ~30 overlapping tags across
+ * six elements). The specifier-codon translation is independent of the subset — it is the specifier.
  */
 function memberFeatureParts(
   member: Member,
   baseOffset: number,
+  features: readonly HighlightFeature[] = HIGHLIGHT_FEATURES,
 ): { parts: Part[]; translations: Translation[] } {
   const spans = featureSpans(member) // Partial<Record<HighlightFeature, [lo, hi]>>, 1-based inclusive
   const parts: Part[] = []
-  for (const name of HIGHLIGHT_FEATURES) {
+  for (const name of features) {
     const span = spans[name]
     if (!span) continue
     const [lo, hi] = span
@@ -186,24 +191,30 @@ export function toLocusSequenceData(
 ): SequenceData {
   const offsetById = new Map(context.elements.map((e) => [e.member_id, e.offset]))
   const sorted = [...members].sort((a, b) => a.ordinal - b.ordinal)
+  const n = sorted.length
   const parts: Part[] = []
   const translations: Translation[] = []
 
   for (const member of sorted) {
     const base = offsetById.get(member.member_id)
     if (base === undefined) continue
-    // the element body (specifier-tinted) — the one place the data hue appears on the track.
+    // the element body (specifier-tinted) — the one place the data hue appears on the track. Labelled
+    // exactly like the member-sequence / element-comparison views ("5′ (1) LYS" … "3′ (n) …") since the
+    // locus track shows every element of the locus at once (up to six).
+    const aaLabel = member.specifier.aa ?? '?'
     parts.push({
       id: member.member_id,
-      name: member.specifier.aa ? `Element ${member.ordinal} · ${member.specifier.aa}` : `Element ${member.ordinal}`,
+      name: `${ordinalLabel(member.ordinal, n)} ${aaLabel}`,
       type: 'tbox',
       start: base,
       end: base + member.fasta_sequence.length,
       strand: 1,
       color: aaColor(member.specifier.aa),
-      label: member.specifier.aa ?? `e${member.ordinal}`,
+      label: `${ordinalLabel(member.ordinal, n)} ${aaLabel}`,
     })
-    const { parts: fParts, translations: fTr } = memberFeatureParts(member, base)
+    // Specifier only on the multi-element track — drop the Stem-I / antiterminator / terminator /
+    // discriminator tags (kept in the per-element view via toSequenceData's full subset).
+    const { parts: fParts, translations: fTr } = memberFeatureParts(member, base, ['codon'])
     parts.push(...fParts)
     translations.push(...fTr)
   }

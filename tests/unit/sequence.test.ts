@@ -11,6 +11,7 @@ import {
   featureByPosition,
   featureSpans,
   markerSpans,
+  ordinalLabel,
   overlayFeatures,
   presentFeatures,
   presentMarkers,
@@ -176,5 +177,25 @@ describe('buildSequenceSegments', () => {
 
   test('an empty leader yields no segments', () => {
     expect(buildSequenceSegments(seqMember('', {}))).toEqual([])
+  })
+})
+
+describe('ordinalLabel', () => {
+  test('marks the 5′-most, the 3′-most, and the middle elements of a locus', () => {
+    // a 3-element locus: ordinal 1 = most 5′, 3 = most 3′, 2 = a middle element
+    expect(ordinalLabel(1, 3)).toBe('5′ (1)')
+    expect(ordinalLabel(2, 3)).toBe('mid (2)')
+    expect(ordinalLabel(3, 3)).toBe('3′ (3)')
+  })
+
+  test('a 2-element locus has only 5′ and 3′ ends (no middle)', () => {
+    expect(ordinalLabel(1, 2)).toBe('5′ (1)')
+    expect(ordinalLabel(2, 2)).toBe('3′ (2)')
+  })
+
+  test('a 6-element locus keeps the four interior elements as "mid (k)"', () => {
+    expect([2, 3, 4, 5].map((k) => ordinalLabel(k, 6))).toEqual(['mid (2)', 'mid (3)', 'mid (4)', 'mid (5)'])
+    expect(ordinalLabel(1, 6)).toBe('5′ (1)')
+    expect(ordinalLabel(6, 6)).toBe('3′ (6)')
   })
 })
