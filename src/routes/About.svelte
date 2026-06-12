@@ -184,14 +184,17 @@
 
   <Card
     title="Reproduce it yourself"
-    subtitle="One script, one input file: regenerate the entire dataset from scratch."
+    subtitle="One script, one input file: regenerate the core dataset offline."
     class="mb-6 break-inside-avoid"
   >
     <div class="text-body space-y-4 leading-relaxed">
       <p>
-        The whole pipeline above is packaged as a single, self-contained Python script. Point it at
-        the public TBDB master table and it regenerates the same loci, elements, pairings, and summary
-        this app loads, then self-verifies the counts on exit.
+        The pipeline above is packaged as a single, self-contained Python script. Point it at the
+        public TBDB master table and it regenerates the same loci, elements, pairings, summary, and
+        member table this app loads, fully offline, then self-verifies the counts on exit. The
+        similarity tree, the 3-D cloud, and the R2DT structure diagrams are heavier, separately
+        generated offline steps (cluster alignment then FastTree, a PCoA embedding, and the R2DT
+        pipeline); they ship committed alongside the data.
       </p>
       <div class="flex flex-wrap items-center gap-3">
         <a
@@ -218,8 +221,10 @@
           <span class="font-medium text-ink">Prefer the finished table?</span> Download the
           member-level base table directly: one row per T-box element, every per-element field plus the
           component-stem spans (Stem&nbsp;I / II / IIA-B / III / antiterminator) the app colours the RNA
-          secondary structure by. It is the same {@render code('members.csv')} the build emits and the
-          script regenerates.
+          secondary structure by, and the NCBI genomic-context columns (the downstream gene's
+          coordinates, the locus interval, and each element's offset within it) that drive the
+          continuous locus view, filled for the 408 of 470 loci whose downstream gene resolves on
+          NCBI. It is the same {@render code('members.csv')} the build emits and the script regenerates.
         </p>
         <a
           href={membersCsvUrl}
@@ -260,6 +265,16 @@ python3 reproduce_tandem_tbox_db.py \
           (above), the tree-input FASTAs, and, with {@render code('--emit-table')}, a readable
           {@render code('tandem_loci.tsv')}.
         </p>
+        <p class="text-small text-muted">
+          The genomic-context columns are blank in that default, offline run. To fill them (and
+          reconstruct the continuous locus view), add {@render code('--genomic-context')}, which
+          fetches each downstream gene's coordinates from NCBI, the script's one networked step:
+        </p>
+        <pre
+          class="overflow-x-auto rounded-md border border-hairline bg-surface px-4 py-3 font-mono text-[0.72rem] leading-relaxed text-ink sm:text-[0.8rem]"><code
+            >NCBI_EMAIL=you@example.org python3 reproduce_tandem_tbox_db.py \
+  --master Master_tboxes.csv --out ./out --genomic-context</code
+          ></pre>
       </div>
       <div class="rounded-md border border-hairline bg-surface px-4 py-3 text-small text-muted">
         <span class="font-medium text-ink">Faithful to the published dataset.</span> The
