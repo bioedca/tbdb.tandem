@@ -1769,6 +1769,26 @@ def main(argv: list[str] | None = None) -> int:
     # case, --out public/data). On a clean first pass it is absent -> the columns are
     # blank; re-run build_json.py after fetch_genomic_context.py to fill them.
     context_by_locus = load_locus_context_dir(args.out / "locus_context")
+    if context_by_locus:
+        # A present-but-PARTIAL locus_context (interrupted fetch / stray --only run) would
+        # silently blank some members.csv genomic cells while the build still reports
+        # "filled" -- fail fast rather than publish a partially reconstructible table
+        # (CLAUDE.md section 9: no silent placeholder data).
+        missing_loci, missing_members = [], []
+        for locus in locus_objs:
+            ctx = context_by_locus.get(locus["tandem_id"])
+            if ctx is None:
+                missing_loci.append(locus["tandem_id"])
+                continue
+            element_ids = {el.get("member_id") for el in ctx.get("elements", [])}
+            missing_members.extend(mid for mid in locus["member_ids"] if mid not in element_ids)
+        if missing_loci or missing_members:
+            raise ValueError(
+                f"locus_context coverage gap: {len(missing_loci)} loci "
+                f"(e.g. {missing_loci[:5]}) + {len(missing_members)} member elements "
+                f"(e.g. {missing_members[:5]}) lack genomic context; re-run "
+                "fetch_genomic_context.py before filling members.csv"
+            )
     n_csv = write_members_csv(locus_objs, members_map, args.out, context_by_locus)
     print(
         f"wrote loci.json ({len(locus_objs)}) + members.json ({len(members_map)}) "

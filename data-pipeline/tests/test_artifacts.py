@@ -170,8 +170,12 @@ def test_members_csv_genomic_columns_match_locus_context(members_csv, committed_
         assert row[idx["downstream_gene_count"]] == str(len(genes)), f"{tid} gene count"
         gene = _oracle_primary_gene(genes, ctx["strand"])
         if gene is None:
-            assert row[idx["downstream_gene_id"]] == "" and row[idx["downstream_gene_start"]] == ""
+            for col in ("downstream_gene_name", "downstream_gene_id", "downstream_gene_locus_tag",
+                        "downstream_gene_strand", "downstream_gene_offset",
+                        "downstream_gene_start", "downstream_gene_end"):
+                assert row[idx[col]] == "", f"{tid} {col} should be blank (no primary gene)"
         else:
+            assert row[idx["downstream_gene_name"]] == (gene.get("name") or "")
             assert row[idx["downstream_gene_id"]] == (gene["protein_id"] or "")
             assert row[idx["downstream_gene_locus_tag"]] == (gene["locus_tag"] or "")
             assert row[idx["downstream_gene_strand"]] == (gene["strand"] or "")
