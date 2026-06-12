@@ -93,7 +93,7 @@
         its Stem&nbsp;I, so each T-box is named for the amino acid it senses. Originally described in
         <em>Bacillus subtilis</em>, T-boxes were the first riboswitch family to be discovered
         (<TbdbLink href="https://doi.org/10.1093/nar/gkaa721">Marchand et al., 2021</TbdbLink>) and are
-        the most widespread RNA-based amino-acid sensors in the Firmicutes
+        the most prominent RNA-based regulatory mechanism known to be employed by members of the Firmicutes
         (<TbdbLink href="https://doi.org/10.1128/MMBR.00026-08">Gutiérrez-Preciado et al., 2009</TbdbLink>).
       </p>
       <p>
