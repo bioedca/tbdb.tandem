@@ -104,6 +104,13 @@ surfaces that caveat. Run **after** the data build + tree artifacts exist.
 
 ## Fetch the per-locus genomic context (NCBI)
 
+This step has two interchangeable entry points: `fetch_genomic_context.py` (the
+maintainer build, reads the **committed** `loci.json` + `members.json`) and the
+self-contained `public/reproduce_tandem_tbox_db.py --genomic-context` (which fetches the
+context for its OWN freshly-detected loci and fills the members.csv genomic columns —
+see that script's header). Both port the same pure resolver/assembly code, so they
+produce the same per-locus records.
+
 `fetch_genomic_context.py` resolves each locus's downstream gene coordinates +
 surrounding interval sequence from NCBI (the source data has the gene name + protein
 id but **no coordinates**), so the `/locus` figure can draw the gene + intergenic to
@@ -123,10 +130,10 @@ qualifier (coords on the same accession as the leader), computes the interval
 `fasta_sequence`. Unresolvable genes degrade gracefully (`resolved:false` → the figure
 draws the schematic ORF). Raw NCBI responses are cached under `data-pipeline/ncbi_cache/`
 (gitignored); `--offline` rebuilds the committed artifact byte-identically from the cache
-(pass `--generated <iso8601>` to pin `meta.generated`). The shipped, network-free
-`public/reproduce_tandem_tbox_db.py` is **untouched** — this is a separate, optional step.
-Run **after** the data build. (No polarity: genomic location + transcription direction
-only.)
+(pass `--generated <iso8601>` to pin `meta.generated`). This is a separate, optional step,
+run **after** the data build; the default network-free reproduction run leaves the
+members.csv genomic columns blank. (No polarity: genomic location + transcription
+direction only.)
 
 ## Build the R2DT structure diagrams
 

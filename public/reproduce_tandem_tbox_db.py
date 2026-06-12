@@ -29,10 +29,13 @@ artifacts the web app loads:
     summary.json    KPI + distribution rollups
     members.csv     949 members as one flat base table -- every per-member field
                     plus the component-stem colour spans (Stem I / II / IIA-B /
-                    III / antiterminator) the web app colours the structure by
+                    III / antiterminator) the web app colours the structure by, and
+                    the NCBI genomic-context columns (blank unless --genomic-context)
     tree_input.fasta        one leader per length-gated member (-> the tree build)
     antiterm_fallback.fasta antiterminator cores of the length-gated-out members
     tandem_loci.tsv         (optional) a human-readable per-locus table
+    locus_context/<id>.json (optional, --genomic-context) per-locus NCBI genomic
+                    context (downstream gene + interval) for the /locus view
 
 Run it and you get a byte-for-byte-faithful copy of the published dataset
 (see "REPRODUCIBILITY" below for the handful of curated edge cases).
@@ -49,6 +52,20 @@ HOW TO RUN
 
 The script self-verifies on exit (470 / 949 / 488, balanced structures, and a
 golden spot-check) and exits non-zero if any invariant is violated.
+
+OPTIONAL -- the per-locus genomic context behind the app's continuous /locus view
+(the downstream gene drawn to scale + the full-locus sequence track). Master alone
+has the gene name + protein id but NO genomic coordinates, so this step efetches
+them from NCBI (the ONLY part of the script that touches the network), writes
+<out>/locus_context/<id>.json, and FILLS the members.csv genomic columns:
+
+    NCBI_EMAIL=you@example.org python3 reproduce_tandem_tbox_db.py \
+        --master /path/to/Master_tboxes.csv --out ./out --genomic-context
+
+Responses are cached under ./ncbi_cache (override with --ncbi-cache); re-run with
+--offline to rebuild from that cache with no network. An optional NCBI_API_KEY
+(or --api-key) raises the rate limit. Without --genomic-context the run stays fully
+offline and the members.csv genomic columns are left blank.
 
 ================================================================================
 THE PIPELINE, STEP BY STEP (the logic behind every number)
@@ -156,9 +173,12 @@ import argparse
 import ast
 import csv
 import json
+import os
 import re
 import sys
-from collections import Counter
+import time
+import xml.etree.ElementTree as ET
+from collections import Counter, namedtuple
 from itertools import combinations
 from math import comb
 from pathlib import Path
@@ -1041,6 +1061,23 @@ _MEMBER_CSV_LEAD = [
     "func_class", "func_source", "downstream_protein", "downstream_id", "downstream_ec",
     "leader_length",
 ]
+#: NCBI-derived genomic-context columns (the ``/locus`` continuous view). Populated ONLY
+#: when a per-locus ``locus_context`` record is supplied (``--genomic-context`` /
+#: ``--locus-context``) -- else every cell is blank, as in a default Master-only run.
+#: Genomic-LOCATION naming only, never order/ancestry words (no polarity). The compact
+#: facts of the proximal regulated (co-oriented, most-5') downstream gene are flattened
+#: here; the full operon stays in the existing ``downstream_*`` columns + per-locus
+#: ``locus_context/<id>.json`` (``downstream_gene_count`` flags multi-gene loci). The bulky
+#: interval ``seq`` is deliberately NOT carried in the CSV -- ``locus_interval_*`` +
+#: ``element_offset`` place each element within it, and it lives in the JSON.
+_GENOMIC_CSV_COLS = [
+    "genomic_resolved",
+    "locus_interval_start", "locus_interval_end",
+    "element_offset",
+    "downstream_gene_name", "downstream_gene_id", "downstream_gene_locus_tag",
+    "downstream_gene_start", "downstream_gene_end", "downstream_gene_strand",
+    "downstream_gene_offset", "downstream_gene_count",
+]
 #: One ``start``/``end`` column pair per stem key (Stem I / II / IIA-B / III / antiterm).
 _STEM_CSV_COLS = [f"stem_{key}_{end}" for key in _STEM_KEYS for end in ("start", "end")]
 
@@ -1052,9 +1089,11 @@ _FEATURE_CSV_FEATS = ("s1_loop", "codon", "discrim", "term")
 _FEATURE_CSV_COLS = [f"{feat}_{end}" for feat in _FEATURE_CSV_FEATS for end in ("start", "end")] + [
     "term_sequence"
 ]
-#: Full members.csv header: lead -> stem spans -> feature windows -> the two deep-link URLs.
+#: Full members.csv header: lead -> genomic context -> stem spans -> feature windows ->
+#: the two deep-link URLs.
 _MEMBER_CSV_HEADER = (
-    _MEMBER_CSV_LEAD + _STEM_CSV_COLS + _FEATURE_CSV_COLS + ["tbdb_url", "ncbi_url"]
+    _MEMBER_CSV_LEAD + _GENOMIC_CSV_COLS + _STEM_CSV_COLS + _FEATURE_CSV_COLS
+    + ["tbdb_url", "ncbi_url"]
 )
 
 
@@ -1074,7 +1113,102 @@ def _csv_window(window: dict, feat: str, length: int):
     return (lo, hi)
 
 
-def _member_csv_row(member: dict, locus: dict) -> list:
+def load_locus_context_dir(context_dir) -> dict | None:
+    """Load ``<dir>/T*.json`` locus_context records into a ``{tandem_id: record}`` map.
+
+    Returns ``None`` when the directory is absent (so members.csv genomic columns stay
+    blank -- a Master-only run carries no genomic context). ``manifest.json`` is skipped by
+    the ``T*`` glob. The records are the per-locus output of the ``--genomic-context`` fetch
+    (``seq`` / ``interval`` / ``elements`` / ``downstream_genes``). NOTE: a context dir must
+    match THIS script's genomic-order tandem_ids -- do not point it at tbdb's published
+    ``locus_context`` (those use the discovery-order numbering; see REPRODUCIBILITY).
+    """
+    context_dir = Path(context_dir)
+    if not context_dir.is_dir():
+        return None
+    out: dict = {}
+    for path in sorted(context_dir.glob("T*.json")):
+        rec = json.loads(path.read_text())
+        out[rec["tandem_id"]] = rec
+    return out or None
+
+
+def _gene_genomic_span(gene_offset: int, gene_length: int, locus_strand: str,
+                       interval) -> tuple:
+    """The downstream gene's ascending genomic span ``(start, end)``, derived from its
+    transcription-oriented ``offset`` + ``length`` within the locus interval.
+
+    The inverse of ``offset_5p``: on the ``+`` strand index 0 of the oriented seq is the
+    interval ``lo`` (``g5 = lo + offset``); on the ``-`` strand the seq is reverse-
+    complemented so index 0 is the interval ``hi`` (``g5 = hi - offset``). The gene then runs
+    ``length`` bp in the locus's transcription direction. Returns ascending ``(min, max)``.
+    """
+    lo, hi = interval[0], interval[1]
+    if locus_strand == "+":
+        g5 = lo + gene_offset
+        other = g5 + (gene_length - 1)
+    else:
+        g5 = hi - gene_offset
+        other = g5 - (gene_length - 1)
+    return (min(g5, other), max(g5, other))
+
+
+def _pick_primary_gene(genes: list, locus_strand: str) -> dict | None:
+    """The primary regulated downstream gene of a locus: the most transcription-proximal
+    (smallest ``offset``) gene CO-ORIENTED with the locus.
+
+    A T-box riboswitch sits in the 5' leader of the mRNA it regulates, so the regulated
+    gene is on the locus's own strand, immediately downstream -- not an opposite-strand
+    genomic neighbour that happened to fall in the interval. Falls back to the proximal gene
+    overall only when none is co-oriented; tie-broken by ``protein_id`` for determinism.
+    ``None`` for an empty list.
+    """
+    if not genes:
+        return None
+    co_oriented = [g for g in genes if g.get("strand") == locus_strand]
+    pool = co_oriented or genes
+    return min(pool, key=lambda g: (g.get("offset", 0), g.get("protein_id") or ""))
+
+
+def _genomic_cells(member: dict, context: dict | None) -> list:
+    """The 12 :data:`_GENOMIC_CSV_COLS` cells for a member.
+
+    All blank when ``context`` is ``None``. Otherwise sourced from the member's per-locus
+    ``locus_context`` record: the ``resolved`` flag, the genomic ``interval``, this member's
+    ``element`` offset within the oriented seq, and the compact facts of the proximal
+    regulated downstream gene (genomic span derived via :func:`_gene_genomic_span`).
+    ``downstream_gene_count`` is the operon size.
+    """
+    if context is None:
+        return [None] * len(_GENOMIC_CSV_COLS)
+    interval = context.get("interval") or [None, None]
+    iv_lo, iv_hi = (list(interval) + [None, None])[:2]
+    element_offset = next(
+        (el.get("offset") for el in context.get("elements", [])
+         if el.get("member_id") == member["member_id"]),
+        None,
+    )
+    genes = context.get("downstream_genes") or []
+    gene = _pick_primary_gene(genes, context.get("strand"))
+    g_name = g_id = g_tag = g_strand = g_off = g_start = g_end = None
+    if gene is not None:
+        g_name, g_id, g_tag = gene.get("name"), gene.get("protein_id"), gene.get("locus_tag")
+        g_strand, g_off = gene.get("strand"), gene.get("offset")
+        if iv_lo is not None and iv_hi is not None:
+            g_start, g_end = _gene_genomic_span(
+                gene["offset"], gene["length"], context.get("strand"), [iv_lo, iv_hi]
+            )
+    return [
+        "true" if context.get("resolved") else "false",
+        iv_lo, iv_hi,
+        element_offset,
+        g_name, g_id, g_tag,
+        g_start, g_end, g_strand,
+        g_off, len(genes),
+    ]
+
+
+def _member_csv_row(member: dict, locus: dict, context: dict | None = None) -> list:
     """Flatten one member (+ its locus context) into a members.csv row."""
     spans = {s["key"]: (s["start"], s["end"]) for s in member.get("stems", [])}
     spec = member.get("specifier") or {}
@@ -1103,6 +1237,7 @@ def _member_csv_row(member: dict, locus: dict) -> list:
         "leader_length": len(member.get("fasta_sequence") or ""),
     }
     row = [lead[col] for col in _MEMBER_CSV_LEAD]
+    row.extend(_genomic_cells(member, context))
     for key in _STEM_KEYS:
         lo, hi = spans.get(key, (None, None))
         row.extend([lo, hi])
@@ -1116,20 +1251,445 @@ def _member_csv_row(member: dict, locus: dict) -> list:
     return row
 
 
-def write_members_csv(locus_objs: list, members_map: dict, out_dir: Path) -> int:
+def write_members_csv(locus_objs: list, members_map: dict, out_dir: Path,
+                      context_by_locus: dict | None = None) -> int:
     """Write members.csv -- the member-level base table with flattened stem spans.
 
     One row per canonical member (members.json order); locus context (accession,
-    strand, organism, phylum) is joined per member from ``locus_objs``. Returns the
-    number of data rows written.
+    strand, organism, phylum) is joined per member from ``locus_objs``. When
+    ``context_by_locus`` (a ``{tandem_id: locus_context record}`` map, e.g. from
+    :func:`load_locus_context_dir` or a fresh ``--genomic-context`` fetch) is supplied, the
+    NCBI-derived genomic-context columns (:data:`_GENOMIC_CSV_COLS`) are filled too;
+    otherwise they are left blank. Returns the number of data rows written.
     """
     loc_by_member = {mid: loc for loc in locus_objs for mid in loc["member_ids"]}
+    ctx = context_by_locus or {}
     with (out_dir / "members.csv").open("w", encoding="utf-8", newline="") as fh:
         writer = csv.writer(fh, lineterminator="\n")
         writer.writerow(_MEMBER_CSV_HEADER)
         for member_id, member in members_map.items():
-            writer.writerow(_member_csv_row(member, loc_by_member[member_id]))
+            locus = loc_by_member[member_id]
+            writer.writerow(_member_csv_row(member, locus, ctx.get(locus["tandem_id"])))
     return len(members_map)
+
+
+# =============================================================================
+# OPTIONAL: --genomic-context (NCBI fetch) -- the per-locus genomic context that
+# fills the members.csv genomic columns + writes locus_context/<id>.json. This is
+# the ONLY part of the script that touches the network, and only under
+# --genomic-context without --offline; Bio.Entrez is imported lazily inside the
+# client so a default Master-only run never needs it. The pure helpers below are a
+# self-contained port of data-pipeline/{ncbi_ids,fetch_genomic_context}.py (the same
+# code that built tbdb's committed context), so the round-trip math is identical.
+# NO POLARITY: genomic location + transcription direction only; nothing reads ancestry.
+# =============================================================================
+
+#: Schema version of the emitted locus_context files.
+CONTEXT_VERSION = 1
+#: Hard ceiling on a stored interval (a mis-resolved far gene trims rather than fetching a megabase).
+MAX_INTERVAL_BP = 20000
+#: Anon NCBI rate limit is 3 req/s; with an API key, 10 req/s. Min seconds between calls.
+RATE_NO_KEY = 1.0 / 3.0
+RATE_KEY = 1.0 / 10.0
+#: Retry budget for transient NCBI HTTP errors.
+MAX_RETRIES = 3
+
+#: NCBI seqid database tags whose *next* pipe field is a sequence accession (lower-cased).
+DB_TAGS = frozenset({"gb", "emb", "dbj", "ref", "tpg", "tpe", "tpd", "pdb", "sp", "pir", "prf", "gi"})
+
+_COMP = str.maketrans("ACGTUacgtuNn", "TGCAAtgcaaNn")
+
+
+def revcomp(seq: str) -> str:
+    """Reverse-complement a DNA/RNA string (U and N pass through sanely)."""
+    return seq.translate(_COMP)[::-1]
+
+
+#: One downstream gene parsed out of a ``downstream_id`` operon token. A namedtuple (not a
+#: dataclass) so the immutable holder needs no module registered in ``sys.modules`` -- the
+#: script is loaded both directly (``__main__``) and via importlib (the test harness).
+DownstreamGeneId = namedtuple("DownstreamGeneId", ["raw", "protein_id", "locus_tag"])
+
+
+def parse_downstream_id(value) -> list:
+    """Parse a ``;``-joined ``downstream_id`` operon string into ordered per-gene ids.
+
+    Reads the field after a known :data:`DB_TAGS` tag as the protein accession and the
+    field after a ``gnl|DB|`` pair as the locus tag (first of each wins). Operon order;
+    blank/unparseable input yields ``[]``.
+    """
+    text = "" if value is None else str(value).strip()
+    if not text:
+        return []
+    out: list = []
+    for raw in (part.strip() for part in text.split(";")):
+        if not raw:
+            continue
+        fields = raw.split("|")
+        protein_id = locus_tag = None
+        i, n = 0, len(fields)
+        while i < n:
+            tag = fields[i].strip().lower()
+            if tag in DB_TAGS and i + 1 < n:
+                acc = fields[i + 1].strip()
+                if acc and protein_id is None:
+                    protein_id = acc
+                i += 2
+                continue
+            if tag == "gnl" and i + 2 < n:
+                lt = fields[i + 2].strip()
+                if lt and locus_tag is None:
+                    locus_tag = lt
+                i += 3
+                continue
+            i += 1
+        out.append(DownstreamGeneId(raw=raw, protein_id=protein_id, locus_tag=locus_tag))
+    return out
+
+
+#: Resolved gene coords: accession + ascending 1-based [start, end] + strand ('+'/'-').
+GeneCoords = namedtuple("GeneCoords", ["accession", "start", "end", "strand"])
+
+
+_SEG_RE = re.compile(r"([A-Za-z0-9_.]+):<?(\d+)\.\.>?(\d+)")
+
+
+def parse_coded_by(text) -> "GeneCoords | None":
+    """Parse a CDS ``/coded_by`` qualifier into ascending genomic coords + strand.
+
+    Handles ``complement(...)``, ``join(...)``, nested ``complement(join(...))``, and
+    ``<``/``>`` partial markers. ``None`` for empty / unrecognised input.
+    """
+    s = "" if text is None else str(text).strip()
+    if not s:
+        return None
+    strand = "+"
+    m = re.match(r"^complement\((.*)\)$", s)
+    if m:
+        strand = "-"
+        s = m.group(1).strip()
+    m = re.match(r"^join\((.*)\)$", s)
+    if m:
+        s = m.group(1).strip()
+    segs = _SEG_RE.findall(s)
+    if not segs:
+        return None
+    acc = segs[0][0]
+    coords = [int(a) for _, a, _ in segs] + [int(b) for _, _, b in segs]
+    return GeneCoords(accession=acc, start=min(coords), end=max(coords), strand=strand)
+
+
+def extract_coded_by(gbxml: str) -> "str | None":
+    """Pull the first CDS ``/coded_by`` qualifier value out of a protein GBSeq XML doc."""
+    if not gbxml or not gbxml.strip():
+        return None
+    try:
+        root = ET.fromstring(gbxml)
+    except ET.ParseError:
+        return None
+    for feat in root.iter("GBFeature"):
+        if feat.findtext("GBFeature_key") != "CDS":
+            continue
+        for qual in feat.iter("GBQualifier"):
+            if qual.findtext("GBQualifier_name") == "coded_by":
+                val = qual.findtext("GBQualifier_value")
+                if val:
+                    return val.strip()
+    return None
+
+
+def parse_fasta_seq(fasta: str) -> str:
+    """Concatenate the sequence lines of a single-record FASTA into one gap-free, upper string."""
+    out: list = []
+    for line in fasta.splitlines():
+        line = line.strip()
+        if not line or line.startswith(">"):
+            continue
+        out.append(line)
+    return "".join(out).upper()
+
+
+#: A genomic interval, ascending 1-based inclusive [lo, hi].
+Interval = namedtuple("Interval", ["lo", "hi"])
+
+
+def compute_interval(member_leaders: list, gene_spans: list, strand: str,
+                     max_bp: int = MAX_INTERVAL_BP) -> tuple:
+    """The genomic interval spanning the most-5' element through the far end of the
+    farthest downstream gene, transcription-direction aware, clamped to ``max_bp``.
+    Returns ``(Interval, clamped)``."""
+    el_coords = [c for ab in member_leaders for c in ab]
+    g_min_el, g_max_el = min(el_coords), max(el_coords)
+    if not gene_spans:
+        return Interval(g_min_el, g_max_el), False
+    gene_lo = min(s for s, _ in gene_spans)
+    gene_hi = max(e for _, e in gene_spans)
+    if strand == "+":
+        lo, hi = g_min_el, max(g_max_el, gene_hi)
+    else:
+        lo, hi = min(g_min_el, gene_lo), g_max_el
+    clamped = False
+    if hi - lo + 1 > max_bp:
+        clamped = True
+        if strand == "+":
+            hi = lo + max_bp - 1
+        else:
+            lo = hi - max_bp + 1
+    return Interval(lo, hi), clamped
+
+
+def orient_seq(genomic_plus_seq: str, strand: str) -> str:
+    """The interval's (+)-strand substring, oriented to transcription-5'->3'."""
+    return genomic_plus_seq if strand == "+" else revcomp(genomic_plus_seq)
+
+
+def offset_5p(g5: int, iv: "Interval", strand: str) -> int:
+    """0-based offset of a genomic-5' coordinate within the transcription-5'->3' seq."""
+    return (g5 - iv.lo) if strand == "+" else (iv.hi - g5)
+
+
+def leader_5p_3p(leader: list, strand: str) -> tuple:
+    """A member's ``coords.leader`` as ``(genomic_5p, genomic_3p)``."""
+    a, b = leader[0], leader[1]
+    if strand == "+":
+        return (min(a, b), max(a, b))
+    return (max(a, b), min(a, b))
+
+
+def element_offset(seq: str, fasta: str, coord_off: int) -> int:
+    """0-based offset of a member's gap-free leader within the oriented interval seq
+    (coord fast-path, content-search fallback for a per-locus coord drift)."""
+    if not seq:
+        return coord_off
+    if 0 <= coord_off and seq[coord_off:coord_off + len(fasta)] == fasta:
+        return coord_off
+    idx = seq.find(fasta)
+    return idx if idx >= 0 else coord_off
+
+
+def resolve_gene(gene: "DownstreamGeneId", fetch_protein) -> "GeneCoords | None":
+    """Resolve one downstream gene's genomic coords via the protein ``/coded_by`` path."""
+    if not gene.protein_id:
+        return None
+    xml = fetch_protein(gene.protein_id)
+    if not xml:
+        return None
+    return parse_coded_by(extract_coded_by(xml))
+
+
+def _gene_name(gene: "DownstreamGeneId", locus: dict) -> "str | None":
+    """A display label for a downstream gene: the locus downstream_gene when there is a
+    single gene, else the locus tag / protein id."""
+    name = locus.get("downstream_gene")
+    if name and len(parse_downstream_id(locus.get("downstream_id"))) == 1:
+        return name
+    return gene.locus_tag or gene.protein_id or name
+
+
+def build_locus_record(locus: dict, members: list, fetch_protein, fetch_interval, *,
+                       max_bp: int = MAX_INTERVAL_BP) -> dict:
+    """Assemble one locus_context record. Pure given the two injected fetchers (so unit
+    tests pass fixture XML/FASTA). Degrades to ``resolved: False`` when no gene resolves or
+    the interval sequence can't be fetched. Mirrors data-pipeline/fetch_genomic_context.py.
+    """
+    tandem_id = locus["tandem_id"]
+    strand = locus["strand"]
+    accession = locus["accession"]
+    members = sorted(members, key=lambda m: m["ordinal"])
+    warnings: list = []
+
+    resolved_genes = []
+    for gene in parse_downstream_id(locus.get("downstream_id")):
+        coords = resolve_gene(gene, fetch_protein)
+        if coords is None:
+            warnings.append(f"gene unresolved: {gene.raw}")
+            continue
+        if coords.accession.split(".", 1)[0] != accession.split(".", 1)[0]:
+            warnings.append(f"gene {gene.protein_id}: coded_by accession {coords.accession} != {accession}")
+            continue
+        resolved_genes.append((gene, coords))
+
+    member_leaders = [tuple(m["coords"]["leader"]) for m in members]
+
+    def _spans(genes):
+        return [(c.start, c.end) for _, c in genes]
+
+    def _drop_outside(genes, interval):
+        kept, dropped = [], []
+        for g, c in genes:
+            (kept if interval.lo <= c.start and c.end <= interval.hi else dropped).append((g, c))
+        return kept, dropped
+
+    iv, _clamped = compute_interval(member_leaders, _spans(resolved_genes), strand, max_bp)
+    resolved_genes, dropped = _drop_outside(resolved_genes, iv)
+    for g, _c in dropped:
+        warnings.append(f"gene outside interval, dropped: {g.protein_id or g.raw}")
+    iv, clamped = compute_interval(member_leaders, _spans(resolved_genes), strand, max_bp)
+    if clamped:
+        warnings.append(f"interval clamped to {max_bp} bp")
+        resolved_genes, dropped2 = _drop_outside(resolved_genes, iv)
+        for g, _c in dropped2:
+            warnings.append(f"gene outside clamped interval, dropped: {g.protein_id or g.raw}")
+
+    raw_fasta = fetch_interval(accession, iv.lo, iv.hi)
+    plus_seq = parse_fasta_seq(raw_fasta) if raw_fasta else ""
+    expected_len = iv.hi - iv.lo + 1
+    resolved = bool(resolved_genes) and len(plus_seq) == expected_len
+    if raw_fasta and len(plus_seq) != expected_len:
+        warnings.append(f"interval seq length {len(plus_seq)} != {expected_len}")
+    seq = orient_seq(plus_seq, strand) if plus_seq else ""
+
+    elements = []
+    for m in members:
+        g5, _g3 = leader_5p_3p(m["coords"]["leader"], strand)
+        fasta = m["fasta_sequence"]
+        coord_off = offset_5p(g5, iv, strand)
+        off = element_offset(seq, fasta, coord_off)
+        if seq and seq[off:off + len(fasta)] != fasta:
+            warnings.append(f"element leader not found in interval: {m['member_id']}")
+        elif seq and off != coord_off:
+            warnings.append(f"element offset corrected to {off} (coords {coord_off}): {m['member_id']}")
+        elements.append({"member_id": m["member_id"], "offset": off, "length": len(fasta)})
+
+    out_genes = []
+    for gene, c in resolved_genes:
+        g5 = c.end if strand == "-" else c.start
+        goff = offset_5p(g5, iv, strand)
+        out_genes.append({
+            "name": _gene_name(gene, locus), "protein_id": gene.protein_id,
+            "locus_tag": gene.locus_tag, "offset": goff, "length": c.end - c.start + 1,
+            "strand": c.strand, "resolution": "coded_by",
+        })
+
+    return {
+        "tandem_id": tandem_id, "accession": accession, "strand": strand,
+        "resolved": resolved, "interval": [iv.lo, iv.hi], "seq": seq,
+        "elements": elements, "downstream_genes": out_genes, "warnings": warnings,
+    }
+
+
+class NcbiClient:
+    """Cached, rate-limited Entrez fetcher. Every raw response is written to ``cache_dir``
+    keyed by the request; ``offline=True`` only ever reads the cache. SECRET HYGIENE: the
+    email / API key are passed to Bio.Entrez only (an in-process attribute) and never written
+    to any cache filename, artifact, or log line -- the fetch-failure log prints only the
+    exception TYPE + cache path, never the exception body (an HTTPError can carry the request
+    URL with ``api_key=...``)."""
+
+    def __init__(self, cache_dir: Path, *, email, api_key, offline):
+        self.cache_dir = cache_dir
+        self.offline = offline
+        self.min_interval = RATE_KEY if api_key else RATE_NO_KEY
+        self._last = 0.0
+        if not offline:
+            from Bio import Entrez  # local import: the pure path never needs biopython
+            self._entrez = Entrez
+            Entrez.email = email or os.environ.get("NCBI_EMAIL", "")
+            if api_key:
+                Entrez.api_key = api_key
+            Entrez.tool = "tbdb.tandem-reproduce-context"
+        (cache_dir / "protein").mkdir(parents=True, exist_ok=True)
+        (cache_dir / "interval").mkdir(parents=True, exist_ok=True)
+
+    def _throttle(self) -> None:
+        dt = time.monotonic() - self._last
+        if dt < self.min_interval:
+            time.sleep(self.min_interval - dt)
+        self._last = time.monotonic()
+
+    def _cached(self, path: Path, fetch):
+        if path.exists():
+            return path.read_text()
+        if self.offline:
+            return None
+        for attempt in range(MAX_RETRIES):
+            try:
+                self._throttle()
+                text = fetch()
+                path.write_text(text)
+                return text
+            except Exception as exc:  # noqa: BLE001 - transient NCBI errors -> backoff
+                if attempt == MAX_RETRIES - 1:
+                    # Secret hygiene: print the exception TYPE only, never its body
+                    # (an Entrez HTTPError can echo the request URL incl. api_key=...).
+                    sys.stderr.write(f"  ! fetch failed ({path.name}): {type(exc).__name__}\n")
+                    return None
+                time.sleep(2.0 ** attempt)
+        return None
+
+    @staticmethod
+    def _read(handle) -> str:
+        data = handle.read()
+        return data.decode("utf-8") if isinstance(data, bytes) else data
+
+    def fetch_protein(self, protein_id: str):
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", protein_id)
+        path = self.cache_dir / "protein" / f"{safe}.xml"
+        return self._cached(
+            path,
+            lambda: self._read(self._entrez.efetch(db="protein", id=protein_id, rettype="gb", retmode="xml")),
+        )
+
+    def fetch_interval(self, accession: str, lo: int, hi: int):
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", accession)
+        path = self.cache_dir / "interval" / f"{safe}_{lo}_{hi}.fasta"
+        return self._cached(
+            path,
+            lambda: self._read(self._entrez.efetch(
+                db="nuccore", id=accession, rettype="fasta", retmode="text",
+                seq_start=str(lo), seq_stop=str(hi),
+            )),
+        )
+
+
+def _write_context_json(path: Path, obj) -> None:
+    """Deterministic, sorted-key JSON for the locus_context files (matches tbdb's format)."""
+    path.write_text(json.dumps(obj, separators=(",", ":"), ensure_ascii=True, sort_keys=True))
+
+
+def _iso_now() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+def generate_genomic_context(locus_objs: list, members_map: dict, out_dir: Path, *,
+                             cache_dir, email, api_key, offline, generated) -> dict:
+    """Fetch (or rebuild from cache) the per-locus genomic context for THIS script's loci,
+    write ``<out>/locus_context/<id>.json`` + ``manifest.json``, and return the
+    ``{tandem_id: record}`` map that fills the members.csv genomic columns.
+
+    The records are built from the script's OWN in-memory loci/members, so the tandem_ids
+    are this script's genomic-order numbering (NOT tbdb's published ids). The NCBI cache is
+    keyed by accession / protein_id, so ``--offline`` reuses any committed cache regardless
+    of numbering. Network touches happen only here, only when ``offline`` is false.
+    """
+    out_ctx = Path(out_dir) / "locus_context"
+    out_ctx.mkdir(parents=True, exist_ok=True)
+    client = NcbiClient(Path(cache_dir), email=email, api_key=api_key, offline=offline)
+    context_by_locus, manifest = {}, {}
+    resolved_count = gene_count = 0
+    for i, locus in enumerate(locus_objs):
+        tid = locus["tandem_id"]
+        members = [members_map[mid] for mid in locus["member_ids"]]
+        rec = build_locus_record(locus, members, client.fetch_protein, client.fetch_interval)
+        _write_context_json(out_ctx / f"{tid}.json", rec)
+        context_by_locus[tid] = rec
+        manifest[tid] = True
+        if rec["resolved"]:
+            resolved_count += 1
+        gene_count += len(rec["downstream_genes"])
+        if (i + 1) % 25 == 0:
+            sys.stderr.write(f"  .. {i + 1}/{len(locus_objs)} loci\n")
+    meta = {
+        "generated": generated or _iso_now(), "version": CONTEXT_VERSION,
+        "source": "ncbi-entrez", "count": len(manifest),
+        "resolved_loci": resolved_count, "fetched_genes": gene_count,
+    }
+    _write_context_json(out_ctx / "manifest.json", {"meta": meta, "loci": manifest})
+    sys.stderr.write(
+        f"wrote {len(manifest)} locus_context files ({resolved_count} resolved, {gene_count} genes)\n"
+    )
+    return context_by_locus
 
 
 def write_table(path: Path, locus_objs: list[dict], members_map: dict[str, dict]) -> None:
@@ -1236,7 +1796,49 @@ def main(argv: list[str] | None = None) -> int:
              "Structure becomes a fake \"...\" instead of null (no-op on the "
              "current source; here only for strict historical reproduction)",
     )
+    # --- optional genomic context (the /locus continuous view) -------------------------
+    parser.add_argument(
+        "--genomic-context", action="store_true",
+        help="ALSO fetch the per-locus NCBI genomic context (downstream-gene coords + the "
+             "interval), write <out>/locus_context/<id>.json, and fill the members.csv "
+             "genomic columns. NETWORK: efetches NCBI (cached); needs --email or NCBI_EMAIL "
+             "unless --offline rebuilds from an existing cache. Default runs stay offline "
+             "and leave those columns blank.",
+    )
+    parser.add_argument(
+        "--locus-context", type=Path, default=None, metavar="DIR",
+        help="instead of fetching, READ an existing locus_context/ dir (one a prior "
+             "--genomic-context run of THIS script wrote) to fill the members.csv genomic "
+             "columns. Mutually exclusive with --genomic-context.",
+    )
+    parser.add_argument(
+        "--ncbi-cache", type=Path, default=Path("ncbi_cache"), metavar="DIR",
+        help="raw NCBI response cache dir for --genomic-context (default: ./ncbi_cache)",
+    )
+    parser.add_argument(
+        "--email", default=os.environ.get("NCBI_EMAIL"),
+        help="NCBI contact email for --genomic-context (or set the NCBI_EMAIL env var)",
+    )
+    parser.add_argument(
+        "--api-key", default=os.environ.get("NCBI_API_KEY"),
+        help="optional NCBI API key for a higher rate limit (or set the NCBI_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--offline", action="store_true",
+        help="with --genomic-context, rebuild from the NCBI cache only (no network)",
+    )
+    parser.add_argument(
+        "--generated", default=None,
+        help="pin meta.generated in the locus_context manifest for a byte-exact rebuild",
+    )
     args = parser.parse_args(argv)
+    if args.genomic_context and args.locus_context is not None:
+        parser.error("--genomic-context and --locus-context are mutually exclusive")
+    if args.genomic_context and not args.offline and not args.email:
+        parser.error(
+            "--genomic-context needs an NCBI contact email: pass --email or set NCBI_EMAIL "
+            "(or use --offline to rebuild from an existing cache)"
+        )
 
     print(f"Reading {args.master} ...")
     master = load_master(args.master)
@@ -1261,7 +1863,28 @@ def main(argv: list[str] | None = None) -> int:
     _write_json(args.out / "members.json", members_map)
     _write_json(args.out / "identity.json", pairs)
     _write_json(args.out / "summary.json", summary)
-    n_members_csv = write_members_csv(locus_objs, members_map, args.out)
+
+    # Optional NCBI genomic context -> fills the members.csv genomic columns + writes
+    # <out>/locus_context/<id>.json. Default: no context, so those columns stay blank
+    # (Master alone has no genomic coordinates). Built from THIS script's own loci, so the
+    # context tandem_ids match the members.csv tandem_ids written here.
+    context_by_locus = None
+    if args.genomic_context:
+        print(
+            "Fetching per-locus NCBI genomic context "
+            f"({'offline cache rebuild' if args.offline else 'network'}) ..."
+        )
+        context_by_locus = generate_genomic_context(
+            locus_objs, members_map, args.out, cache_dir=args.ncbi_cache,
+            email=args.email, api_key=args.api_key, offline=args.offline,
+            generated=args.generated,
+        )
+    elif args.locus_context is not None:
+        context_by_locus = load_locus_context_dir(args.locus_context)
+        if context_by_locus is None:
+            parser.error(f"--locus-context dir not found or empty: {args.locus_context}")
+
+    n_members_csv = write_members_csv(locus_objs, members_map, args.out, context_by_locus)
     main_tips, fallback = write_tree_fastas(members_map, args.out)
     if args.emit_table:
         write_table(args.out / "tandem_loci.tsv", locus_objs, members_map)
@@ -1273,8 +1896,11 @@ def main(argv: list[str] | None = None) -> int:
         f"  identity.json    {len(pairs)} intra-locus pairs\n"
         f"  summary.json     ({summary['confidence']['high']} high / "
         f"{summary['confidence']['low']} low confidence)\n"
-        f"  members.csv      {n_members_csv} members (flat base table incl. stem spans)\n"
-        f"  tree_input.fasta {main_tips} length-gated members (+ {fallback} in the fallback)\n"
+        f"  members.csv      {n_members_csv} members (flat base table incl. stem spans"
+        f"{'; genomic context filled' if context_by_locus else ''})\n"
+        + (f"  locus_context/   {len(context_by_locus)} per-locus genomic-context files\n"
+           if args.genomic_context else "")
+        + f"  tree_input.fasta {main_tips} length-gated members (+ {fallback} in the fallback)\n"
         + (f"  tandem_loci.tsv  {len(locus_objs)} rows\n" if args.emit_table else "")
         + (
             "All invariants passed (470 / 949 / 488, balanced structures, golden CP045927)."
