@@ -266,3 +266,149 @@ def test_phase2_bounded_diff(run_default):
     # row is not a selected member) -- so members.json is also byte-identical.
     if not changed:
         assert _sha256(run_default / "members.json") == shas["members.json"]
+
+
+# ===========================================================================
+# The optional --genomic-context engine (ported from the maintainer module).
+# Pure, no network: dependency-injected fixture fetchers + a faithfulness
+# cross-check against data-pipeline/fetch_genomic_context.py. These run in CI
+# (no Master needed) and guard that the self-contained port did not drift.
+# ===========================================================================
+import fetch_genomic_context as fc  # noqa: E402 - the maintainer module the script ports from
+import ncbi_ids  # noqa: E402
+
+
+def _gbxml(coded_by: str) -> str:
+    return (
+        "<GBSet><GBSeq><GBSeq_feature-table><GBFeature>"
+        "<GBFeature_key>CDS</GBFeature_key><GBFeature_quals><GBQualifier>"
+        f"<GBQualifier_name>coded_by</GBQualifier_name><GBQualifier_value>{coded_by}</GBQualifier_value>"
+        "</GBQualifier></GBFeature_quals></GBFeature></GBSeq_feature-table></GBSeq></GBSet>"
+    )
+
+
+def _plus_fixture():
+    plus = ("ACGT" * 15)[:60]  # genomic (+)-strand interval [101..160]
+    locus = {"tandem_id": "TT01", "accession": "ACC1", "strand": "+",
+             "downstream_id": "gb|PROT1.1|", "downstream_gene": "geneX"}
+    members = [
+        {"member_id": "TT01.m1", "ordinal": 1, "coords": {"leader": [101, 120]}, "fasta_sequence": plus[0:20]},
+        {"member_id": "TT01.m2", "ordinal": 2, "coords": {"leader": [131, 150]}, "fasta_sequence": plus[30:50]},
+    ]
+    return locus, members, {"PROT1.1": _gbxml("ACC1.1:155..160")}, f">ACC1.1:101-160\n{plus}\n"
+
+
+def _minus_fixture():
+    plus = ("GGTTCAAC" * 8)[:60]  # locus on the MINUS strand
+    locus = {"tandem_id": "TT02", "accession": "ACC2", "strand": "-",
+             "downstream_id": "gb|PROT2.1|", "downstream_gene": "geneY"}
+    members = [
+        {"member_id": "TT02.m1", "ordinal": 1, "coords": {"leader": [260, 241]},
+         "fasta_sequence": fc.revcomp(plus[40:60])},
+        {"member_id": "TT02.m2", "ordinal": 2, "coords": {"leader": [240, 221]},
+         "fasta_sequence": fc.revcomp(plus[20:40])},
+    ]
+    return locus, members, {"PROT2.1": _gbxml("complement(ACC2.1:201..210)")}, f">ACC2.1:201-260\n{plus}\n"
+
+
+@pytest.mark.parametrize("fixture", [_plus_fixture, _minus_fixture])
+def test_ported_genomic_engine_matches_maintainer_module(fixture):
+    """The script's PORTED build_locus_record is byte-faithful to the maintainer module
+    data-pipeline/fetch_genomic_context.py for identical inputs, on BOTH strands -- the
+    output dicts carry plain values, so ``==`` compares the full assembly cleanly."""
+    locus, members, proteins, fasta = fixture()
+    fp = lambda pid: proteins.get(pid)        # noqa: E731
+    fi = lambda acc, lo, hi: fasta            # noqa: E731
+    assert repro.build_locus_record(locus, members, fp, fi) == fc.build_locus_record(locus, members, fp, fi)
+
+
+def test_ported_parsers_match_maintainer_module():
+    """The ported pure parsers equal the maintainer module's, value-for-value (the immutable
+    holders differ -- namedtuple here vs dataclass there -- so compare field values)."""
+    dids = "gb|OLE31895.1||gnl|WGS:MNJJ|AUG45_11735;dbj|BAM48243.1|"
+    assert ([(g.raw, g.protein_id, g.locus_tag) for g in repro.parse_downstream_id(dids)]
+            == [(g.raw, g.protein_id, g.locus_tag) for g in ncbi_ids.parse_downstream_id(dids)])
+    for cb in ("ACC1.1:155..160", "complement(ACC2.1:201..210)", "join(A:1..3,A:7..9)", "", "junk"):
+        a, b = repro.parse_coded_by(cb), fc.parse_coded_by(cb)
+        assert (a is None) == (b is None)
+        if a is not None:
+            assert (a.accession, a.start, a.end, a.strand) == (b.accession, b.start, b.end, b.strand)
+    assert repro.extract_coded_by(_gbxml("X:1..6")) == fc.extract_coded_by(_gbxml("X:1..6"))
+    assert repro.parse_fasta_seq(">h\nacgt\nTTT\n") == fc.parse_fasta_seq(">h\nacgt\nTTT\n")
+
+
+def test_genomic_columns_fill_from_context(tmp_path):
+    """write_members_csv fills the genomic columns from a context map: the proximal
+    co-oriented gene + the inverse-offset genomic span, the per-element offset, the
+    interval, the resolved flag, and the operon-size count."""
+    locus, members, proteins, fasta = _plus_fixture()
+    rec = repro.build_locus_record(locus, members, lambda pid: proteins.get(pid),
+                                   lambda a, lo, hi: fasta)
+    locus_obj = {"tandem_id": "TT01", "accession": "ACC1", "strand": "+", "organism": None,
+                 "phylum": None, "member_ids": ["TT01.m1", "TT01.m2"]}
+    mmap = {m["member_id"]: {"member_id": m["member_id"], "tandem_id": "TT01",
+                             "ordinal": m["ordinal"], "fasta_sequence": m["fasta_sequence"],
+                             "coords": {"leader": m["coords"]["leader"], "window": {}},
+                             "stems": [], "specifier": {}, "downstream": {}}
+            for m in members}
+    repro.write_members_csv([locus_obj], mmap, tmp_path, context_by_locus={"TT01": rec})
+    import csv
+    rows = list(csv.reader((tmp_path / "members.csv").open()))
+    idx = {c: i for i, c in enumerate(rows[0])}
+    r1 = rows[1]  # TT01.m1, the most-5' element (offset 0)
+    assert r1[idx["genomic_resolved"]] == "true"
+    assert (r1[idx["locus_interval_start"]], r1[idx["locus_interval_end"]]) == ("101", "160")
+    assert r1[idx["element_offset"]] == "0"
+    assert r1[idx["downstream_gene_id"]] == "PROT1.1"
+    assert r1[idx["downstream_gene_strand"]] == "+"
+    # gene genomic [155..160] recovered from offset 54 + length 6 over interval [101..160]
+    assert (r1[idx["downstream_gene_start"]], r1[idx["downstream_gene_end"]]) == ("155", "160")
+    assert r1[idx["downstream_gene_count"]] == "1"
+    # without a context map every genomic cell is blank (additive columns)
+    repro.write_members_csv([locus_obj], mmap, tmp_path)  # no context_by_locus
+    blank = list(csv.reader((tmp_path / "members.csv").open()))[1]
+    assert all(blank[idx[c]] == "" for c in repro._GENOMIC_CSV_COLS)
+
+
+def test_genomic_fetch_no_credential_leak(tmp_path):
+    """Secret hygiene: an offline NcbiClient touches no network, holds no Entrez handle, and
+    neither a cache path nor a built locus_context record ever carries the email / API key."""
+    client = repro.NcbiClient(tmp_path / "cache", email="secret@example.org",
+                              api_key="SECRETKEY123", offline=True)
+    assert not hasattr(client, "_entrez")           # offline -> biopython never imported/bound
+    assert client.fetch_protein("PROT1.1") is None   # cache miss + offline -> None, no network
+    assert client.fetch_interval("ACC1", 1, 60) is None
+    for root, _dirs, files in os.walk(tmp_path):
+        for name in files:
+            assert "SECRETKEY123" not in name and "secret@example.org" not in name
+    locus, members, proteins, fasta = _plus_fixture()
+    rec = repro.build_locus_record(locus, members, lambda pid: proteins.get(pid),
+                                   lambda a, lo, hi: fasta)
+    blob = json.dumps(rec)
+    assert "SECRETKEY123" not in blob and "secret@example.org" not in blob
+
+
+def test_genomic_context_cli_validation(tmp_path, monkeypatch):
+    """--genomic-context / --locus-context are mutually exclusive, and --genomic-context
+    without --offline requires an email -- both fail fast (before any source CSV is read)."""
+    monkeypatch.delenv("NCBI_EMAIL", raising=False)
+    monkeypatch.delenv("NCBI_API_KEY", raising=False)
+    unread = str(tmp_path / "never_read.csv")  # validation fires before load_master
+    with pytest.raises(SystemExit):
+        repro.main(["--master", unread, "--out", str(tmp_path),
+                    "--genomic-context", "--locus-context", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        repro.main(["--master", unread, "--out", str(tmp_path), "--genomic-context"])  # no email
+
+
+def test_golden_members_csv_genomic_columns_blank():
+    """The golden members.csv (a default, network-free run) carries the 12 genomic columns
+    in its header, all blank -- proving the columns are additive and only fill via
+    --genomic-context / --locus-context."""
+    import csv
+    rows = list(csv.reader((GOLDEN_DIR / "members.csv").open(newline="")))
+    header = rows[0]
+    assert header == repro._MEMBER_CSV_HEADER
+    assert set(repro._GENOMIC_CSV_COLS) <= set(header)
+    gi = [header.index(c) for c in repro._GENOMIC_CSV_COLS]
+    assert all(r[i] == "" for r in rows[1:] for i in gi)
