@@ -305,13 +305,21 @@ python3 reproduce_tandem_tbox_db.py \
         <div>
           <dt class="font-medium text-ink">Some loci have no confident specifier.</dt>
           <dd class="mt-0.5 text-muted">
-            Which amino acid each T-box senses is taken from TBDB's curated specifier calls
-            ({@render code('amino_acid_top')} / {@render code('refine_codon_top')}); the raw per-row
-            {@render code('codon')} field is unreliable and is never used.
+            Which amino acid each T-box senses is read from its specifier, a codon-like trinucleotide
+            in Stem I that base-pairs with the cognate tRNA's anticodon. TBDB does not take that
+            triplet at face value: it tests the candidate reading frames against a real tRNA (anticodon
+            match, acceptor-end pairing, and the downstream gene's function) and keeps only the
+            validated call, {@render code('amino_acid_top')} / {@render code('refine_codon_top')}. The
+            raw per-row {@render code('codon')} field is the unvalidated read, and a one-base frame
+            shift can name a different amino acid entirely, so it is never used.
             {#if unknownLoci != null}<span
-                >For {unknownLoci} of the {s?.counts.loci} loci no specifier could be confidently
-                assigned, so they are shown as “?” and their sensed amino acid is genuinely unknown; any
-                view grouped or filtered by specifier is incomplete for them.</span
+                >Validation cannot always succeed: for {unknownLoci} of the {s?.counts.loci} loci no
+                cognate tRNA could be confidently resolved, so the specifier shows as “?”, genuinely
+                unknown rather than merely uncertain. That is real data loss, not a display choice:
+                those loci carry no sensed amino acid, and the metabolic role it would imply cannot be
+                recovered from sequence alone. Every count, color, and filter keyed on specifier
+                therefore covers only the loci with a resolved call, not all {s?.counts.loci}, so read
+                any specifier-grouped view as near-complete, not exhaustive.</span
               >{/if}
           </dd>
         </div>
