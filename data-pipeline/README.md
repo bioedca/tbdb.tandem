@@ -54,6 +54,15 @@ python3 data-pipeline/build_json.py \
 The build aborts non-zero on any validation gate failure (PLAN §5.4) and prints
 the main-tree tip count emitted for the length-gated `tree_input.fasta`.
 
+`members.csv` also carries the NCBI-derived **genomic-context** columns
+(`genomic_resolved`, `locus_interval_*`, `element_offset`, and the proximal
+regulated `downstream_gene_*` facts that drive the `/locus` continuous view).
+These are filled from `public/data/locus_context/` when it exists, so the table is
+written in **two passes** for a clean rebuild: run `build_json.py` (the columns are
+blank on this first pass), then the genomic-context fetch below, then **re-run
+`build_json.py`** to fill them. The committed `locus_context/` is already present, so
+a normal `--out public/data` build fills the columns in one go.
+
 ## Run the cluster tree build
 
 The similarity tree is built on the lab cluster as a parallel track (PLAN §6,
