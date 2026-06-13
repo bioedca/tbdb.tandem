@@ -59,6 +59,21 @@ export function seqZoomAt(n: number, frameW: number): number {
   return frameW / rowWidthPx(n)
 }
 
+/**
+ * The on-screen→user-space scale for mapping a pointer event onto the SequenceViewer's SVG geometry.
+ * The viewer is rendered inside a CSS-`zoom`ed wrapper (to magnify its fixed-12px glyphs), so a pointer
+ * offset taken against the SVG's `getBoundingClientRect()` is in POST-zoom screen px, while the SVG's
+ * own coordinates (`charWidth`, row Y) are unscaled user units. Dividing that offset by this scale —
+ * the rendered width over the laid-out `svgWidth` (= `rowWidthPx(n)`) — recovers user space, and is
+ * correct under any rendered scaling (CSS zoom, transform, devicePixelRatio). The zoom is uniform, so
+ * the width-derived scale serves both axes. Returns `1` for the first-paint / zero case (no scaling
+ * known yet) so the caller never divides by zero. Used inline by the vendored SequenceViewer's
+ * `svgCoordsFromEvent` — keep the two in sync.
+ */
+export function seqPointerScale(renderedWidthPx: number, svgWidth: number): number {
+  return renderedWidthPx > 0 && svgWidth > 0 ? renderedWidthPx / svgWidth : 1
+}
+
 /** Whether the per-base position ruler is legible at `n` bases per row (its label font, scaled by the
  *  fill zoom, is at or above the legibility floor). Falls back to visible before the frame is measured. */
 export function numbersVisibleAt(n: number, frameW: number): boolean {

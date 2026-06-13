@@ -7,11 +7,12 @@ import { render, screen } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 // The Tandem architecture figure (mounted here) composes the vendored LinearMap (renders fine in
-// jsdom) with the published SequenceViewer + ZoomControls — stub those so this route test stays
-// focused on the deep-link / identity assertions and skips the heavy sequence grid.
-vi.mock('@molbiohive/hatchlings', async () => ({
+// jsdom) with the vendored SequenceViewer — stub the viewer (skips the heavy SVG grid + its rect-
+// dependent pointer math) while keeping the real LinearMap + SelectionState, so this route test
+// stays focused on the deep-link / identity assertions.
+vi.mock('../../src/lib/vendor/hatchlings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/lib/vendor/hatchlings')>()),
   SequenceViewer: (await import('../stubs/SequenceViewerStub.svelte')).default,
-  ZoomControls: (await import('../stubs/ZoomControlsStub.svelte')).default,
 }))
 
 import LocusDetail from '../../src/routes/LocusDetail.svelte'

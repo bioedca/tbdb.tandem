@@ -19,8 +19,7 @@
   // Same prop shape as the retired ArchitectureDiagram so mount sites need only swap the import.
   // Theming: a local .tv-hatch wrapper maps --hatch-* onto the Slate Instrument palette (no global
   // ThemeProvider). The specifier hue appears only on the data arrows + AA chip (chrome⟂data).
-  import { SequenceViewer } from '@molbiohive/hatchlings'
-  import { LinearMap } from '../../vendor/hatchlings'
+  import { LinearMap, SequenceViewer, SelectionState } from '../../vendor/hatchlings'
   import type { FuncClass, FuncSource, LocusContext, Member, Strand } from '../../data/types'
   import { buildArchitecture } from '../../architecture'
   import { toLinearMapProps, toSequenceData, toLocusSequenceData, DOWNSTREAM_ORF_ID } from '../../architectureMap'
@@ -89,6 +88,23 @@
         ? toSequenceData(selectedMember)
         : null,
   )
+
+  // The viewer's selection model: drives a mouse drag / click to a base caret + highlight, and makes
+  // clicking a specifier tag select that element's underlying span (the vendored SequenceViewer only
+  // selects-on-part-click when a selectionState is supplied). Its `sequenceLength` is fixed at
+  // construction, so we rebuild it only when the displayed sequence CHANGES — keyed on the seq string,
+  // not on `seqData` identity (which re-derives on unrelated reactivity like `funcClass`, only the
+  // part colours; keying on the string preserves a live selection across that churn and still resets
+  // when the locus/element actually switches). PR3 reads `selectionState.range` for copy.
+  let selectionState = $state<SelectionState | null>(null)
+  let lastSeq = ''
+  $effect(() => {
+    const seq = seqData?.seq ?? ''
+    if (seq !== lastSeq) {
+      lastSeq = seq
+      selectionState = seq.length > 0 ? new SelectionState(seq.length) : null
+    }
+  })
 
   // Sequence-viewer zoom — the only zoom in the figure (the diagram is a static overview). Zoom is
   // BASES PER ROW (`n`): the viewer wraps at exactly `n` bases in a natural CHAR_CELL_PX cell, then we
@@ -267,6 +283,7 @@
                from SEQ_TRACK_OPTS so the viewer stays in lock-step with the fit predictor. -->
           <SequenceViewer
             data={seqData}
+            selectionState={selectionState ?? undefined}
             width={svgWidth}
             height={SEQ_RENDER_ALL_H}
             charsPerRow={n}
@@ -299,6 +316,12 @@
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
+  }
+  /* The library's in-SVG selection readout (`.selection-bar`) sits inside the CSS-zoomed wrapper, so it
+     would scale with the bases (its 10 px font × the fill zoom). Hide it; the unzoomed selection
+     readout + copy affordances live in the header (PR3). */
+  .tv-seqzoom :global(.selection-bar) {
+    display: none !important;
   }
 
   /* On-system range slider — brand-teal accent (chrome, never a specifier hue). */

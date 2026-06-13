@@ -161,4 +161,87 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     await expect(frame).toHaveAttribute('data-seq-numbers', 'false')
     await expect(tag).toBeVisible()
   })
+
+  test('dragging the sequence selects the bases UNDER the pointer (CSS-zoom-aware mapping)', async ({
+    page,
+  }) => {
+    await gotoRoute(page, '/locus/T0342')
+    await expect(page.getByText('Full locus sequence', { exact: false })).toBeVisible({ timeout: 30_000 })
+    const frame = page.locator('.tv-hatch .tv-seqzoom')
+    await expect(frame).toBeVisible({ timeout: 30_000 })
+    // Max zoom is the regime where the un-zoomed mapping was MOST off (largest scale factor).
+    const slider = page.getByRole('slider', { name: 'Sequence zoom' })
+    await slider.focus()
+    await slider.press('End')
+
+    // A forward-strand base glyph well inside the first row + the rendered scale (rect.width ÷ the SVG
+    // width attribute, which is in unscaled user units).
+    const anchor = await page.evaluate(() => {
+      const svg = document.querySelector('.tv-hatch .hatch-sequence-svg') as SVGSVGElement | null
+      if (!svg) return null
+      const r = svg.getBoundingClientRect()
+      const scale = r.width / Number(svg.getAttribute('width'))
+      const glyphs = Array.from(svg.querySelectorAll('text')).filter((t) =>
+        /^[ACGT]$/.test((t.textContent || '').trim()),
+      )
+      if (glyphs.length < 12) return null
+      const g = glyphs[8].getBoundingClientRect()
+      return { cx: g.left + g.width / 2, cy: g.top + g.height / 2, scale }
+    })
+    expect(anchor, 'a base glyph + scale should be measurable').not.toBeNull()
+    const { cx, cy, scale } = anchor!
+
+    // Drag ~4 bases to the right (screen px = 4 · 10 px cell · scale) → a multi-base selection.
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx + 4 * 10 * scale, cy, { steps: 4 })
+    await page.mouse.up()
+
+    // The selection highlight must land under the pointer where the drag began. The pre-fix mapping
+    // (offset not divided by the CSS zoom) put the selection ~scale× to the right / on a wrong row.
+    const hl = await page.evaluate(() => {
+      const svg = document.querySelector('.tv-hatch .hatch-sequence-svg')
+      if (!svg) return null
+      const rect = Array.from(svg.querySelectorAll('rect')).find((r) =>
+        (r.getAttribute('fill') || '').includes('--hatch-selection-fill'),
+      )
+      if (!rect) return null
+      const b = rect.getBoundingClientRect()
+      return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width }
+    })
+    expect(hl, 'a selection highlight should appear').not.toBeNull()
+    expect(hl!.width).toBeGreaterThan(0)
+    const slack = 10 * scale // a base-cell of tolerance
+    expect(cx).toBeGreaterThanOrEqual(hl!.left - slack)
+    expect(cx).toBeLessThanOrEqual(hl!.right + slack)
+    expect(cy).toBeGreaterThanOrEqual(hl!.top - slack)
+    expect(cy).toBeLessThanOrEqual(hl!.bottom + slack)
+  })
+
+  test("clicking a specifier tag selects that element's sequence", async ({ page }) => {
+    await gotoRoute(page, '/locus/T0342')
+    await expect(page.getByText('Full locus sequence', { exact: false })).toBeVisible({ timeout: 30_000 })
+    const frame = page.locator('.tv-hatch .tv-seqzoom')
+    await expect(frame).toBeVisible({ timeout: 30_000 })
+
+    const hasSelectionHighlight = () =>
+      page.evaluate(() => {
+        const svg = document.querySelector('.tv-hatch .hatch-sequence-svg')
+        return (
+          !!svg &&
+          Array.from(svg.querySelectorAll('rect')).some((r) =>
+            (r.getAttribute('fill') || '').includes('--hatch-selection-fill'),
+          )
+        )
+      })
+
+    // Nothing is selected on load.
+    expect(await hasSelectionHighlight()).toBe(false)
+
+    // Clicking element 1's specifier tag selects that element's underlying span (the vendored viewer
+    // selects-on-part-click only because the host now supplies a SelectionState).
+    const tag = page.locator('.tv-hatch .hatch-sequence-svg').getByText(/\(1\)/).first()
+    await tag.click()
+    await expect.poll(hasSelectionHighlight).toBe(true)
+  })
 })

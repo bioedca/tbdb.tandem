@@ -16,15 +16,19 @@ exposes the root entry, so neither `import { LinearMap } from '@molbiohive/hatch
 import resolves. We use the to-scale linear feature track as the base of the Tandem architecture
 figure, so the component and its internal dependencies are copied here verbatim.
 
-(`SequenceViewer`, `ZoomControls`, and the `Part`/`Translation`/`SequenceData` types **are**
-exported by the package and are consumed normally from `@molbiohive/hatchlings` elsewhere in the app
-— only `LinearMap` is vendored.)
+`SequenceViewer` (and its `SelectionState`) **is** exported by the package, but we vendor it too: the
+full-locus sequence track is magnified by CSS-`zoom`ing the whole SVG (the glyph font is fixed at
+12 px, so it cannot be enlarged any other way), and the upstream viewer's pointer→base mapping reads
+`getBoundingClientRect()` (post-zoom screen px) against unscaled SVG user units — so a click/drag lands
+on the wrong base under zoom. Vendoring lets us patch that one function. The
+`Part`/`Translation`/`SequenceData` types are re-exported from the vendored `types/`.
 
 ## Files
 
 Copied **verbatim** from the tag above:
 
 - `components/linear/LinearFeature.svelte`
+- `components/sequence/SequenceRow.svelte`, `AnnotationTrack.svelte`, `PrimerTrack.svelte`, `TranslationTrack.svelte`
 - `util/coordinates.ts`, `util/colors.ts`, `util/interval-tree.ts`, `util/layout.ts`
 - `types/sequence.ts`, `types/utility.ts`
 - `LICENSE`
@@ -32,9 +36,24 @@ Copied **verbatim** from the tag above:
 Authored for the vendor copy:
 
 - `types/index.ts` — trimmed barrel re-exporting only `sequence` + `utility` (upstream re-exports ~12 modules).
+- `state/selection.svelte.ts` — the upstream `SelectionState` runes class, re-typed from its sibling
+  `.d.ts` (the published file is compiled JS); behaviour is unchanged.
+- `state/index.ts` — re-exports `SelectionState` (mirrors upstream `state/index.js`).
 - `index.ts` — the app-facing barrel.
 
-## The one adapted file — `components/linear/LinearMap.svelte`
+## The adapted files
+
+Each change is marked with a `tbdb.tandem vendor adaptation` comment.
+
+### `components/sequence/SequenceViewer.svelte`
+
+`svgCoordsFromEvent` divides the rect-relative pointer offset by the actual rendered scale
+(`rect.width / svgWidth`, via `seqPointerScale` in `src/lib/locusSeqZoom.ts`) before mapping to a base,
+so a click/drag is correct under the host's CSS `zoom` (and any other rendered scaling). Upstream used
+the raw offset, which over-counts by the zoom factor. No other change; rendering is byte-identical, and
+`tests/component/SequenceFitGeometry.test.ts` still locks the layout against the published component.
+
+### `components/linear/LinearMap.svelte`
 
 Changes from upstream, each marked with a `tbdb.tandem vendor adaptation` comment:
 

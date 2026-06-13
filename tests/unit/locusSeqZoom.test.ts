@@ -13,6 +13,7 @@ import {
   basesPerRowBounds,
   defaultBasesPerRow,
   seqZoomAt,
+  seqPointerScale,
   numbersVisibleAt,
   CHAR_CELL_PX,
   SEQ_PAD,
@@ -149,6 +150,33 @@ describe('seqZoomAt / numbersVisibleAt (low-zoom ruler thinning)', () => {
 
   test('falls back to visible before the frame is measured', () => {
     expect(numbersVisibleAt(60, 0)).toBe(true)
+  })
+})
+
+describe('seqPointerScale (zoom-aware pointer→user-space mapping)', () => {
+  // The viewer is CSS-`zoom`ed, so a pointer offset measured against the rendered SVG rect is in
+  // post-zoom px while the SVG geometry is in user units. seqPointerScale recovers the factor to
+  // divide the offset by. It is the contract the vendored SequenceViewer's svgCoordsFromEvent uses
+  // inline — this locks the math (incl. the divide-by-zero guard) without needing a laid-out DOM.
+  test('is the rendered width over the laid-out svgWidth', () => {
+    // A 60 bp/row row lays out at rowWidthPx(60) = 624; rendered ~4× wider (zoomed to fill the frame).
+    expect(seqPointerScale(624, 624)).toBeCloseTo(1, 6) // unscaled
+    expect(seqPointerScale(1248, 624)).toBeCloseTo(2, 6) // 2× zoom
+    expect(seqPointerScale(rowWidthPx(60), rowWidthPx(60))).toBeCloseTo(1, 6)
+  })
+
+  test('un-zooms an offset back to user space', () => {
+    // At 3× rendered scale, a click 300 px from the rendered left edge is base-cell 100 (=300/3) in
+    // user units; the geometry then maps that via the user-unit charWidth.
+    const svgWidth = rowWidthPx(60)
+    const scale = seqPointerScale(svgWidth * 3, svgWidth)
+    expect(300 / scale).toBeCloseTo(100, 6)
+  })
+
+  test('guards the first-paint / zero case (returns 1, never divides by zero)', () => {
+    expect(seqPointerScale(0, 624)).toBe(1) // rect not laid out yet
+    expect(seqPointerScale(624, 0)).toBe(1) // no svg width
+    expect(seqPointerScale(0, 0)).toBe(1)
   })
 })
 
