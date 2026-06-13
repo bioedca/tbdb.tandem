@@ -32,8 +32,10 @@ describe('TandemArchitecture', () => {
     // the RNA-structure anatomy is retired — no Stem I / codon / antiterm / term / discrim glyphs
     expect(container.querySelector('[data-feature]')).toBeNull()
     expect(container.querySelector('.tv-arch-stem1, .tv-arch-term, .tv-arch-antiterm, .tv-arch-discrim')).toBeNull()
-    // each element keeps its specifier AA chip…
-    expect(els[0].querySelector('.tv-arch-aa-chip .tv-arch-aa')?.textContent?.trim()).toBe('ILE')
+    // each element keeps its specifier AA chip, labelled with its OWN specifier…
+    expect(els.map((e) => e.querySelector('.tv-arch-aa-chip .tv-arch-aa')?.textContent?.trim())).toEqual(
+      els.map((e) => e.getAttribute('data-aa') ?? '?'),
+    )
     // …and the body capsule is the LinearMap feature arrow now — no .tv-arch-body in the overlay
     expect(container.querySelector('.tv-arch-body')).toBeNull()
   })
