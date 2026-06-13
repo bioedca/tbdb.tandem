@@ -98,9 +98,7 @@
       </p>
       <p>
         A <strong class="font-medium text-ink">tandem</strong> locus stacks two or more complete T-box
-        elements in the same leader, all regulating the same downstream gene or operon. Tandem copies
-        extend the switch's regulatory range (each element must independently capture an uncharged tRNA
-        to permit read-through) and are expected to give tighter control than a single T-box. Such
+        elements in the same leader, all regulating the same downstream gene or operon. Such
         arrangements were systematically surveyed across bacterial genomes by
         <TbdbLink href="https://doi.org/10.1261/rna.819308">Vitreschak et al., 2008</TbdbLink>
         and catalogued in the T-box review of
@@ -311,10 +309,7 @@ python3 reproduce_tandem_tbox_db.py \
           <dt class="font-medium text-ink">Tandem co-regulation is inferred, not measured.</dt>
           <dd class="mt-0.5 text-muted">
             Tandem grouping and shared regulation are read from genomic context: neighboring elements that
-            share a downstream gene, a specifier amino acid, or overlapping leaders. Direct experimental
-            evidence that stacked elements act together exists for only a handful of loci, so the tighter,
-            additive control these arrangements suggest is an expectation here, not a per-locus
-            measurement.
+            share a downstream gene, a specifier amino acid, or overlapping leaders.
           </dd>
         </div>
         <div>
@@ -330,11 +325,9 @@ python3 reproduce_tandem_tbox_db.py \
             {#if unknownLoci != null}<span
                 >Validation cannot always succeed: for {unknownLoci} of the {s?.counts.loci} loci no
                 cognate tRNA could be confidently resolved, so the specifier shows as “?”, genuinely
-                unknown rather than merely uncertain. That is real data loss, not a display choice:
-                those loci carry no sensed amino acid, and the metabolic role it would imply cannot be
-                recovered from sequence alone. Every count, color, and filter keyed on specifier
-                therefore covers only the loci with a resolved call, not all {s?.counts.loci}, so read
-                any specifier-grouped view as near-complete, not exhaustive.</span
+                unknown rather than merely uncertain. That is real data loss: the metabolic role
+                cannot be recovered from sequence alone. Every count, color, and filter keyed on
+                specifier therefore covers only the loci with a resolved call, not all {s?.counts.loci}.</span
               >{/if}
           </dd>
         </div>
@@ -357,13 +350,6 @@ python3 reproduce_tandem_tbox_db.py \
           <dd class="mt-0.5 text-muted">
             {#if s}{s.confidence.low} of {s.counts.loci}{:else}The low-confidence{/if} loci are badged,
             never silently dropped. Filters can hide them.
-          </dd>
-        </div>
-        <div>
-          <dt class="font-medium text-ink">Contamination is dropped first.</dt>
-          <dd class="mt-0.5 text-muted">
-            The 24 confirmed non-bacterial (eukaryotic) rows removed in step 1 of the build never reach a
-            view.
           </dd>
         </div>
       </dl>
