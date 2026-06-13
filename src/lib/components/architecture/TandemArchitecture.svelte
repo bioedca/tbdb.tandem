@@ -118,6 +118,131 @@
     }
   })
 
+  // ── Selection → copy (read-only; copy-out only) ───────────────────────────────────────────────────
+  // The vendored SequenceViewer owns the in-track selection (drag / click / tag click). We surface it
+  // as an unzoomed readout and let the reader copy it: bare bases via Ctrl/Cmd+C or the right-click
+  // menu, or a FASTA record via the menu. `range` is half-open [start, end) into `seqData.seq`.
+  const selRange = $derived.by(() => {
+    const r = selectionState?.range
+    if (!r || !seqData) return null
+    const start = Math.min(r.start, r.end)
+    const end = Math.max(r.start, r.end)
+    return end > start ? { start, end } : null
+  })
+  const selSeq = $derived(
+    selRange && seqData ? seqData.seq.slice(selRange.start, selRange.end).toUpperCase() : '',
+  )
+
+  // A label for the FASTA header. Coordinates are 1-based positions WITHIN the displayed track (the
+  // NCBI interval for the whole-locus view, or the element leader) — not genomic coordinates.
+  const seqSourceLabel = $derived(
+    hasLocusTrack && context
+      ? `${context.tandem_id} ${context.accession}`
+      : selectedMember
+        ? `${selectedMember.member_id} leader`
+        : 'sequence',
+  )
+  function toFasta(start: number, end: number, bases: string): string {
+    const header = `>${seqSourceLabel} | ${start + 1}-${end} (${bases.length} nt)`
+    const wrapped = bases.match(/.{1,60}/g)?.join('\n') ?? bases
+    return `${header}\n${wrapped}\n`
+  }
+
+  let copied = $state(false)
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined
+  function flashCopied() {
+    copied = true
+    clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => (copied = false), 1300)
+  }
+  $effect(() => () => clearTimeout(copiedTimer))
+
+  async function writeClipboard(text: string): Promise<boolean> {
+    if (!text) return false
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        return true
+      }
+    } catch {
+      /* secure-context / permission failure — fall through to the legacy path */
+    }
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      return ok
+    } catch {
+      return false
+    }
+  }
+  async function copyBases() {
+    closeMenu()
+    if (selRange && (await writeClipboard(selSeq))) flashCopied()
+  }
+  async function copyFasta() {
+    closeMenu()
+    if (selRange && (await writeClipboard(toFasta(selRange.start, selRange.end, selSeq)))) flashCopied()
+  }
+  function selectAllSeq() {
+    closeMenu()
+    selectionState?.selectAll()
+  }
+
+  // ── Right-click context menu (Copy bases · Copy as FASTA · Select all) ─────────────────────────────
+  // Rendered OUTSIDE the CSS-zoomed wrapper (position:fixed) so it isn't scaled; dismissed on
+  // outside-click / scroll / Escape.
+  let menu = $state<{ x: number; y: number } | null>(null)
+  let menuEl: HTMLDivElement | undefined = $state()
+  function openMenu(e: MouseEvent) {
+    e.preventDefault()
+    // Keep the small menu on-screen near the right/bottom edges.
+    menu = {
+      x: Math.min(e.clientX, window.innerWidth - 176),
+      y: Math.min(e.clientY, window.innerHeight - 128),
+    }
+  }
+  function closeMenu() {
+    menu = null
+  }
+  $effect(() => {
+    if (!menu) return
+    ;(menuEl?.querySelector('button:not([disabled])') as HTMLElement | null)?.focus()
+    const onDocPointer = (ev: PointerEvent) => {
+      if (menuEl && !menuEl.contains(ev.target as Node)) closeMenu()
+    }
+    const onScroll = () => closeMenu()
+    document.addEventListener('pointerdown', onDocPointer, true)
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('pointerdown', onDocPointer, true)
+      window.removeEventListener('scroll', onScroll, true)
+    }
+  })
+
+  // ── Keyboard, when the sequence window is focused ──────────────────────────────────────────────────
+  function onSeqKeydown(e: KeyboardEvent) {
+    const mod = e.ctrlKey || e.metaKey
+    if (mod && (e.key === 'c' || e.key === 'C')) {
+      if (selRange) {
+        e.preventDefault()
+        void copyBases()
+      }
+    } else if (mod && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault()
+      selectionState?.selectAll()
+    } else if (e.key === 'Escape') {
+      if (menu) closeMenu()
+      else selectionState?.clearSelection()
+    }
+  }
+
   // Sequence-viewer zoom — the only zoom in the figure (the diagram is a static overview). Zoom is
   // BASES PER ROW (`n`): the viewer wraps at exactly `n` bases in a natural CHAR_CELL_PX cell, then we
   // CSS-`zoom` the whole track by `frameWidth / rowWidthPx(n)` so a row fills the fixed-width frame
@@ -274,40 +399,66 @@
         <!-- Bases-per-row zoom: slid right = fewer bases / bigger text (max zoom 60 bp across), left
              = the whole locus fits the window. The slider is reversed (its value is the bp-per-row
              mirrored about the range) so rightward always reads as "zoom in". -->
-        <div class="flex shrink-0 items-center gap-2">
-          <span class="text-caption text-muted">Zoom</span>
-          <input
-            type="range"
-            class="tv-seq-zoom"
-            min={bounds.lo}
-            max={bounds.hi}
-            step="1"
-            value={bounds.lo + bounds.hi - n}
-            oninput={(e) =>
-              (basesPerRow = Math.min(
-                Math.max(bounds.lo + bounds.hi - e.currentTarget.valueAsNumber, bounds.lo),
-                bounds.hi,
-              ))}
-            disabled={bounds.hi <= bounds.lo}
-            aria-label="Sequence zoom"
-          />
-          <button
-            type="button"
-            class="min-w-[5.5ch] text-caption tabular-nums text-muted hover:text-ink"
-            title="Reset zoom"
-            onclick={() => (basesPerRow = defaultBasesPerRow(bounds))}>{n} bp/row</button>
+        <div class="flex shrink-0 items-center gap-3">
+          <!-- Unzoomed selection readout (the viewer's own GC/Tm bar is hidden — it would be scaled
+               by the CSS zoom). Shows the 1-based position range + length; Copy copies the bases. -->
+          {#if selRange}
+            <div class="flex items-center gap-1.5" data-sel-range="{selRange.start}-{selRange.end}">
+              <span class="text-caption tabular-nums text-muted">
+                {selRange.start + 1}–{selRange.end} · {selRange.end - selRange.start} nt
+              </span>
+              <button
+                type="button"
+                class="rounded px-1.5 py-0.5 text-caption font-medium text-brand hover:bg-brand-subtle"
+                title="Copy bases (Ctrl/Cmd+C) · right-click the sequence for FASTA"
+                onclick={copyBases}>{copied ? 'Copied ✓' : 'Copy'}</button>
+            </div>
+          {/if}
+          <div class="flex items-center gap-2">
+            <span class="text-caption text-muted">Zoom</span>
+            <input
+              type="range"
+              class="tv-seq-zoom"
+              min={bounds.lo}
+              max={bounds.hi}
+              step="1"
+              value={bounds.lo + bounds.hi - n}
+              oninput={(e) =>
+                (basesPerRow = Math.min(
+                  Math.max(bounds.lo + bounds.hi - e.currentTarget.valueAsNumber, bounds.lo),
+                  bounds.hi,
+                ))}
+              disabled={bounds.hi <= bounds.lo}
+              aria-label="Sequence zoom"
+            />
+            <button
+              type="button"
+              class="min-w-[5.5ch] text-caption tabular-nums text-muted hover:text-ink"
+              title="Reset zoom"
+              onclick={() => (basesPerRow = defaultBasesPerRow(bounds))}>{n} bp/row</button>
+          </div>
         </div>
       </div>
       <!-- Fixed-width window: a row is laid out at the natural `svgWidth` then CSS-zoomed to fill the
            frame exactly, so there is never horizontal whitespace or scroll (overflow-x hidden). The
            window height tracks the viewport; taller content scrolls vertically inside it. clientWidth
            excludes the border + reserved scrollbar gutter, so it is the true fill width. -->
+      <!-- Focusable so Ctrl/Cmd+C lands after a mouse selection (focused on mousedown); right-click
+           opens the copy menu. The selection lives in the vendored viewer's SelectionState. -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
       <div
         class="tv-seqzoom relative rounded-md border border-hairline"
         style:max-height="{frameH}px"
         bind:this={seqScroller}
         bind:clientWidth={seqContainerW}
         data-seq-numbers={showSeqNumbers}
+        data-sel-range={selRange ? `${selRange.start}-${selRange.end}` : ''}
+        role="group"
+        tabindex="0"
+        aria-label="Locus sequence — drag to select bases; Ctrl/Cmd+C copies, right-click for more"
+        onmousedown={() => seqScroller?.focus({ preventScroll: true })}
+        onkeydown={onSeqKeydown}
+        oncontextmenu={openMenu}
       >
         <div style:zoom={seqZoom}>
           <!-- showNumbers is the live `showSeqNumbers` (ruler drops at low zoom); the other flags come
@@ -326,6 +477,39 @@
           />
         </div>
       </div>
+
+      {#if menu}
+        <!-- Right-click copy menu — OUTSIDE .tv-seqzoom (position:fixed) so the CSS zoom never scales it. -->
+        <div
+          bind:this={menuEl}
+          class="tv-seqmenu rounded-md border border-hairline bg-surface py-1 shadow-lg"
+          role="menu"
+          tabindex="-1"
+          style:left="{menu.x}px"
+          style:top="{menu.y}px"
+          onkeydown={(e) => {
+            if (e.key === 'Escape') closeMenu()
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            class="block w-full px-3 py-1 text-left text-sm text-ink hover:bg-surface-subtle disabled:cursor-default disabled:text-muted disabled:hover:bg-transparent"
+            disabled={!selRange}
+            onclick={copyBases}>Copy bases</button>
+          <button
+            type="button"
+            role="menuitem"
+            class="block w-full px-3 py-1 text-left text-sm text-ink hover:bg-surface-subtle disabled:cursor-default disabled:text-muted disabled:hover:bg-transparent"
+            disabled={!selRange}
+            onclick={copyFasta}>Copy as FASTA</button>
+          <button
+            type="button"
+            role="menuitem"
+            class="block w-full px-3 py-1 text-left text-sm text-ink hover:bg-surface-subtle"
+            onclick={selectAllSeq}>Select all</button>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -353,6 +537,18 @@
      readout + copy affordances live in the header (PR3). */
   .tv-seqzoom :global(.selection-bar) {
     display: none !important;
+  }
+  /* Focusable selection region — show the focus ring on keyboard focus only (not on mouse-drag). */
+  .tv-seqzoom:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  /* Right-click copy menu — fixed to the viewport (positioned from the pointer), above the figure. */
+  .tv-seqmenu {
+    position: fixed;
+    z-index: 50;
+    min-width: 10rem;
   }
 
   /* On-system range slider — brand-teal accent (chrome, never a specifier hue). */

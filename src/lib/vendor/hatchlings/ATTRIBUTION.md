@@ -53,6 +53,8 @@ Each change is marked with a `tbdb.tandem vendor adaptation` comment.
    Upstream used the raw offset, which over-counts by the zoom factor.
 2. An `$effect` teardown removes the drag `mousemove`/`mouseup` window listeners on unmount, so they
    can't leak if the component is destroyed mid-drag (the same hardening as adaptation #4 on LinearMap).
+3. `handleMouseDown` ignores non-primary buttons (`if (e.button !== 0) return`), so a right/middle
+   click no longer clears the selection — the host opens a copy menu on right-click that acts on it.
 
 Rendering is byte-identical, so `tests/component/SequenceFitGeometry.test.ts` still locks the layout
 against the published component.

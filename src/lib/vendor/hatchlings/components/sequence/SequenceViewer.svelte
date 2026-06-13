@@ -263,6 +263,10 @@
 	});
 
 	function handleMouseDown(e: MouseEvent) {
+		// tbdb.tandem vendor adaptation: only the primary (left) button starts a selection — a right- or
+		// middle-click must NOT clear an existing selection (the host opens a copy menu on right-click
+		// that acts on the current selection).
+		if (e.button !== 0) return;
 		const coords = svgCoordsFromEvent(e);
 		if (!coords) return;
 		const bp = bpFromSvgCoords(coords.x, coords.y);
