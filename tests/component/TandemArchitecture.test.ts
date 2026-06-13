@@ -38,12 +38,21 @@ describe('TandemArchitecture', () => {
     expect(container.querySelector('.tv-arch-body')).toBeNull()
   })
 
-  test('two-tone: each LinearMap element arrow is filled by its OWN specifier; the ORF is func chrome', () => {
+  test('two-tone: each LinearMap element arrow is filled by its OWN specifier; the gene is func chrome', () => {
+    const members = MEMBERS_BY_LOCUS.get('T0002')!
+    // A resolved context draws the gene TO SCALE (chrome) — the only way a gene arrow appears now.
+    const context = {
+      tandem_id: 'T0002', accession: 'ACC', strand: '+' as const, resolved: true,
+      interval: [1, 1000] as [number, number], seq: 'A'.repeat(1000),
+      elements: members.map((m, i) => ({ member_id: m.member_id, offset: i * 200, length: m.fasta_sequence.length })),
+      downstream_genes: [{ name: 'ilvD', protein_id: 'P1', locus_tag: null, offset: 600, length: 300, strand: '+' as const, resolution: 'coded_by' }],
+      warnings: [],
+    }
     const { container } = render(TandemArchitecture, {
-      props: { members: MEMBERS_BY_LOCUS.get('T0002')!, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD' },
+      props: { members, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD', context },
     })
     const fills = [...container.querySelectorAll('.linear-feature path')].map((p) => p.getAttribute('fill'))
-    // forward features in parts order: element 1 (ILE), element 2 (LEU), downstream ORF.
+    // forward features in parts order: element 1 (ILE), element 2 (LEU), downstream gene.
     expect(fills[0]).toBe(aaColor('ILE'))
     expect(fills[1]).toBe(aaColor('LEU'))
     expect(fills[0]).not.toBe(fills[1])
@@ -84,7 +93,7 @@ describe('TandemArchitecture', () => {
     expect(Number(codonLine.getAttribute('x1'))).toBeCloseTo(expectedX, 1)
   })
 
-  test('without context: a per-element SequenceViewer + the schematic-scale figure', () => {
+  test('without context (still loading): a per-element SequenceViewer, no gene, no banner', () => {
     const members = MEMBERS_BY_LOCUS.get('T0002')!
     const { container } = render(TandemArchitecture, {
       props: { members, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD' },
@@ -92,7 +101,36 @@ describe('TandemArchitecture', () => {
     const seq = container.querySelector('[data-seqviewer]')
     expect(seq).toBeTruthy()
     expect(Number(seq!.getAttribute('data-seqlen'))).toBe(members[0].fasta_sequence.length)
-    expect(container.querySelector('figure.tv-arch')!.getAttribute('data-arch-scale')).toBe('schematic')
+    // No NCBI context yet → no gene drawn AND no banner (null context = still fetching, not "missing").
+    expect(container.querySelector('figure.tv-arch')!.getAttribute('data-arch-scale')).toBe('no-gene')
+    expect(container.querySelector('.tv-arch-no-gene')).toBeNull()
+  })
+
+  test('unresolved context: T-boxes only + the "gene could not be found" banner', () => {
+    const members = MEMBERS_BY_LOCUS.get('T0002')!
+    const seq = 'A'.repeat(800)
+    // resolved:false, no downstream genes → the locus whose gene can't be placed on the leader.
+    const context = {
+      tandem_id: 'T0002', accession: 'ACC', strand: '+' as const, resolved: false,
+      interval: [1, 800] as [number, number], seq,
+      elements: members.map((m, i) => ({ member_id: m.member_id, offset: i * 200, length: m.fasta_sequence.length })),
+      downstream_genes: [],
+      warnings: ['gene unresolved: (blank)'],
+    }
+    const { container } = render(TandemArchitecture, {
+      props: { members, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD', context },
+    })
+    // The figure is in the no-gene state and the banner is shown…
+    expect(container.querySelector('figure.tv-arch')!.getAttribute('data-arch-scale')).toBe('no-gene')
+    const banner = container.querySelector('.tv-arch-no-gene')
+    expect(banner).toBeTruthy()
+    expect(banner!.textContent).toContain('could not be found')
+    // …no gene arrow is drawn (one LinearMap feature per part = members only, no extra gene), but
+    // every T-box overlay element still is.
+    expect(container.querySelectorAll('.linear-feature')).toHaveLength(members.length)
+    expect(container.querySelectorAll('.tv-arch-element')).toHaveLength(members.length)
+    // The full-locus sequence track still renders (the elements, just no gene).
+    expect(container.querySelector('[data-seqviewer]')).toBeTruthy()
   })
 
   test('with context: the SequenceViewer shows the whole-locus track (all elements) + the figure is to scale', () => {
