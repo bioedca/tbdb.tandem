@@ -1,16 +1,18 @@
 // Component: the hatchlings-based Tandem architecture figure (PLAN §9①, §10.3). The vendored
 // LinearMap renders for real (its math uses the width prop, no getBBox — jsdom-safe); only the
-// published SequenceViewer / ZoomControls are stubbed. Pins the accuracy oracles carried onto the
-// RNA-glyph overlay: per-element [data-feature] set + data-aa, the two-tone specifier tint on the
-// element arrows, the Transcriptional-hairpin vs Translational-anti-SD split, the explicit overlap
-// marker, the shared bp→x projection (overlay glyph x == linearMapBpToX), and the on-click sequence
-// detail. The body capsule is the LinearMap arrow now, so .tv-arch-body must be ABSENT.
+// vendored SequenceViewer is stubbed (the real one would draw the full SVG grid, and its pointer
+// math needs a laid-out rect jsdom can't give). The real SelectionState is kept so the host's
+// `new SelectionState(...)` wiring runs. Pins the accuracy oracles carried onto the RNA-glyph
+// overlay: per-element [data-feature] set + data-aa, the two-tone specifier tint on the element
+// arrows, the Transcriptional-hairpin vs Translational-anti-SD split, the explicit overlap marker,
+// the shared bp→x projection (overlay glyph x == linearMapBpToX), and the on-click sequence detail.
+// The body capsule is the LinearMap arrow now, so .tv-arch-body must be ABSENT.
 import { render } from '@testing-library/svelte'
 import { describe, expect, test, vi } from 'vitest'
 
-vi.mock('@molbiohive/hatchlings', async () => ({
+vi.mock('../../src/lib/vendor/hatchlings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/lib/vendor/hatchlings')>()),
   SequenceViewer: (await import('../stubs/SequenceViewerStub.svelte')).default,
-  ZoomControls: (await import('../stubs/ZoomControlsStub.svelte')).default,
 }))
 
 import TandemArchitecture from '../../src/lib/components/architecture/TandemArchitecture.svelte'
@@ -116,6 +118,8 @@ describe('TandemArchitecture', () => {
     // above the 60-bp max-zoom floor, drawn in the natural 10-px cell that the CSS zoom scales up.
     expect(Number(sv.getAttribute('data-charsperrow'))).toBeGreaterThanOrEqual(60)
     expect(Number(sv.getAttribute('data-charwidth'))).toBe(10)
+    // The host supplies a SelectionState so a drag selects bases and a tag click selects its span.
+    expect(sv.getAttribute('data-has-selection-state')).toBe('true')
   })
 
   test('the bases-per-row slider zooms in to the 60-bp max-zoom floor', async () => {
