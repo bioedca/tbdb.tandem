@@ -47,6 +47,25 @@ export const MIN_BASES_PER_ROW = 20
 /** Where the slider opens: a readable mid-level density, clamped into the locus's [lo, hi]. */
 export const DEFAULT_BASES_PER_ROW = 60
 
+/** The library's fixed base-glyph font and ruler-label font (SequenceRow font-size 12 / FONT_SECONDARY 8). */
+export const BASE_GLYPH_PX = 12
+export const RULER_LABEL_PX = 8
+/** Below this rendered px the position-ruler labels are too small/crowded to read, so they are dropped
+ *  (the specifier tags stay — they are annotation parts, not the ruler). Tuned to the ruler-label font. */
+export const NUMBERS_MIN_LABEL_PX = 7
+
+/** The CSS-zoom factor applied to the laid-out track at `n` bases per row in a `frameW`-wide frame. */
+export function seqZoomAt(n: number, frameW: number): number {
+  return frameW / rowWidthPx(n)
+}
+
+/** Whether the per-base position ruler is legible at `n` bases per row (its label font, scaled by the
+ *  fill zoom, is at or above the legibility floor). Falls back to visible before the frame is measured. */
+export function numbersVisibleAt(n: number, frameW: number): boolean {
+  if (frameW <= 0) return true
+  return RULER_LABEL_PX * seqZoomAt(n, frameW) >= NUMBERS_MIN_LABEL_PX
+}
+
 /** Minimal structural shape of a hatchlings SequenceData we need for the geometry. */
 export interface SeqGeometryInput {
   seq: string
@@ -117,11 +136,26 @@ export function renderedHeightPx(data: SeqGeometryInput, n: number, frameW: numb
   return predictContentHeightPx(data, n, opts) * (frameW / rowWidthPx(n))
 }
 
+/** Fit/bounds accept `showNumbers: 'auto'` — resolve the ruler per `n` (it hides at low zoom, which
+ *  shortens rows), so the fit is tight to what is actually drawn rather than assuming numbers are on. */
+export interface FitTrackOpts {
+  showNumbers?: boolean | 'auto'
+  showComplement?: boolean
+  showTranslations?: boolean
+}
+
+/** Resolve a (possibly `'auto'`) showNumbers to the concrete boolean for `n` bases per row. */
+function resolveOpts(opts: FitTrackOpts, n: number, frameW: number): RowTrackOpts {
+  const showNumbers = opts.showNumbers === 'auto' ? numbersVisibleAt(n, frameW) : opts.showNumbers
+  return { showNumbers, showComplement: opts.showComplement, showTranslations: opts.showTranslations }
+}
+
 /**
  * The min-zoom bound: the fewest bases-per-row (largest text) at which the WHOLE locus still fits the
  * window height with no scroll. Rendered height shrinks monotonically as `n` grows (fewer, smaller
  * rows), so we scan up from MIN_BASES_PER_ROW and return the first `n` that fits; capped at the full
- * sequence length (one row). A small `safety` margin biases toward a guaranteed fit.
+ * sequence length (one row). A small `safety` margin biases toward a guaranteed fit. With
+ * `showNumbers: 'auto'` the ruler's per-`n` visibility is folded into the height so the fit is exact.
  *
  * Best-effort fallback: if even one row (`n === seqLen`) exceeds the budget — only when the window is
  * extremely short — we still return `seqLen`. That is the densest, smallest the track can be, so the
@@ -131,14 +165,14 @@ export function fitBasesPerRow(
   data: SeqGeometryInput,
   frameW: number,
   frameH: number,
-  opts: RowTrackOpts = {},
+  opts: FitTrackOpts = {},
   safety = 4,
 ): number {
   const seqLen = data.seq.length
   if (seqLen === 0 || frameW <= 0 || frameH <= 0) return MIN_BASES_PER_ROW
   const budget = Math.max(0, frameH - safety)
   for (let n = MIN_BASES_PER_ROW; n < seqLen; n++) {
-    if (renderedHeightPx(data, n, frameW, opts) <= budget) return n
+    if (renderedHeightPx(data, n, frameW, resolveOpts(opts, n, frameW)) <= budget) return n
   }
   return seqLen
 }
@@ -155,7 +189,7 @@ export function basesPerRowBounds(
   data: SeqGeometryInput,
   frameW: number,
   frameH: number,
-  opts: RowTrackOpts = {},
+  opts: FitTrackOpts = {},
 ): BasesPerRowBounds {
   const seqLen = data.seq.length
   const lo = Math.min(MIN_BASES_PER_ROW, Math.max(1, seqLen))
