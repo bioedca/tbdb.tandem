@@ -8,6 +8,7 @@ import { render, screen } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import About from '../../src/routes/About.svelte'
 import { NO_POLARITY_BANNER_TEXT } from '../../src/lib/components/NoPolarityBanner.svelte'
+import { SOURCE_TABLE_SHA256_SHORT } from '../../src/lib/build-info'
 import { seedStore, resetStore } from '../helpers'
 
 beforeEach(seedStore)
@@ -63,6 +64,15 @@ describe('About', () => {
     expect(hrefs).toContain('https://tbdb.io')
     expect(hrefs).toContain('https://doi.org/10.1093/nar/gkaa721')
     expect(hrefs).toContain('https://tbdb.io/citing.html')
+  })
+
+  test('carries the build + source provenance stamp', () => {
+    const { container } = render(About)
+    const text = container.textContent ?? ''
+    expect(text).toContain('This build:')
+    // The frozen source-table identifiers always render (build sha may be 'dev').
+    expect(text).toContain('23,535')
+    expect(text).toContain(SOURCE_TABLE_SHA256_SHORT)
   })
 
   test('links to the in-app similarity map via SPA hash routing', () => {

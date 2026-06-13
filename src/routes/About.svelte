@@ -15,6 +15,13 @@
   import PageHeader from '../lib/components/PageHeader.svelte'
   import TbdbLink from '../lib/components/TbdbLink.svelte'
   import NoPolarityBanner from '../lib/components/NoPolarityBanner.svelte'
+  import {
+    buildSha,
+    buildCommitDay,
+    isReleaseBuild,
+    SOURCE_TABLE_ROWS,
+    SOURCE_TABLE_SHA256_SHORT,
+  } from '../lib/build-info'
 
   const s = $derived(store.summary)
   // Read the contextual figures off the live distributions so the prose never
@@ -489,6 +496,16 @@ python3 reproduce_tandem_tbox_db.py \
         For citation guidance see <TbdbLink href="https://tbdb.io/citing.html"
           >tbdb.io/citing.html</TbdbLink
         >.
+      </p>
+      <!-- Build + source stamp (audit follow-up): which deployment, from which source commit,
+           and the exact frozen source table behind every count. The commit SHA/date come from
+           src/lib/build-info.ts (vite-injected); the source identifiers are static. This card
+           is not in any visual baseline, and nothing here touches the deterministic footer. -->
+      <p class="border-t border-hairline pt-3 text-caption text-muted">
+        <span class="font-medium text-ink">This build:</span>
+        {#if isReleaseBuild}commit {@render code(buildSha)}{#if buildCommitDay}, {buildCommitDay}{/if}{:else}local
+          build{/if}. Derived from the TBDB master table ({SOURCE_TABLE_ROWS.toLocaleString('en-US')}
+        rows; SHA-256 {@render code(SOURCE_TABLE_SHA256_SHORT)}).
       </p>
     </div>
   </Card>
