@@ -11,7 +11,9 @@ import { execSync } from 'node:child_process'
 // preferred since the deploy checkout is shallow but always carries it.
 function gitOutput(cmd: string): string {
   try {
-    return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] })
+    // timeout so a stalled git (e.g. a credential prompt) can never hang the build;
+    // on timeout execSync throws and we degrade to '' like any other git failure.
+    return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 })
       .toString()
       .trim()
   } catch {
