@@ -47,11 +47,15 @@ Each change is marked with a `tbdb.tandem vendor adaptation` comment.
 
 ### `components/sequence/SequenceViewer.svelte`
 
-`svgCoordsFromEvent` divides the rect-relative pointer offset by the actual rendered scale
-(`rect.width / svgWidth`, via `seqPointerScale` in `src/lib/locusSeqZoom.ts`) before mapping to a base,
-so a click/drag is correct under the host's CSS `zoom` (and any other rendered scaling). Upstream used
-the raw offset, which over-counts by the zoom factor. No other change; rendering is byte-identical, and
-`tests/component/SequenceFitGeometry.test.ts` still locks the layout against the published component.
+1. `svgCoordsFromEvent` divides the rect-relative pointer offset by the actual rendered scale
+   (`rect.width / svgWidth`, via `seqPointerScale` in `src/lib/locusSeqZoom.ts`) before mapping to a
+   base, so a click/drag is correct under the host's CSS `zoom` (and any other rendered scaling).
+   Upstream used the raw offset, which over-counts by the zoom factor.
+2. An `$effect` teardown removes the drag `mousemove`/`mouseup` window listeners on unmount, so they
+   can't leak if the component is destroyed mid-drag (the same hardening as adaptation #4 on LinearMap).
+
+Rendering is byte-identical, so `tests/component/SequenceFitGeometry.test.ts` still locks the layout
+against the published component.
 
 ### `components/linear/LinearMap.svelte`
 

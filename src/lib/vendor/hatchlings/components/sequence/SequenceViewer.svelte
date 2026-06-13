@@ -253,6 +253,15 @@
 		return { x: (e.clientX - rect.left) / scale, y: (e.clientY - rect.top) / scale };
 	}
 
+	// tbdb.tandem vendor adaptation: the drag attaches window mousemove/mouseup listeners on mousedown
+	// and removes them on mouseup — but if the component unmounts MID-drag they would leak (and fire
+	// against stale state). Remove them on teardown too (removeEventListener is a no-op if unattached).
+	// Mirrors the same hardening on the vendored LinearMap.
+	$effect(() => () => {
+		window.removeEventListener('mousemove', handleWindowMouseMove);
+		window.removeEventListener('mouseup', handleWindowMouseUp);
+	});
+
 	function handleMouseDown(e: MouseEvent) {
 		const coords = svgCoordsFromEvent(e);
 		if (!coords) return;
