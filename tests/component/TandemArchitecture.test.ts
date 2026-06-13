@@ -142,4 +142,40 @@ describe('TandemArchitecture', () => {
     await Promise.resolve()
     expect(Number(sv().getAttribute('data-charsperrow'))).toBe(20)
   })
+
+  test('per-base numbers drop at min zoom but the specifier tags stay', async () => {
+    const members = MEMBERS_BY_LOCUS.get('T0002')!
+    const seq = 'A'.repeat(2000)
+    const context = {
+      tandem_id: 'T0002', accession: 'ACC', strand: '+' as const, resolved: true,
+      interval: [1, 2000] as [number, number], seq,
+      elements: members.map((m, i) => ({ member_id: m.member_id, offset: i * 200, length: m.fasta_sequence.length })),
+      downstream_genes: [],
+      warnings: [],
+    }
+    const { container } = render(TandemArchitecture, {
+      props: { members, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD', context },
+    })
+    const frame = () => container.querySelector('.tv-seqzoom')!
+    const sv = () => container.querySelector('[data-seqviewer]')!
+    const slider = container.querySelector('input[type="range"]') as HTMLInputElement
+    // The specifier tags ride the track as annotation parts → present at every zoom.
+    const partCount = Number(sv().getAttribute('data-partcount'))
+    expect(partCount).toBeGreaterThan(members.length)
+
+    // Max zoom (slider max → 20 bp/row, big text): the position ruler is shown.
+    slider.value = slider.max
+    slider.dispatchEvent(new Event('input', { bubbles: true }))
+    await Promise.resolve()
+    expect(frame().getAttribute('data-seq-numbers')).toBe('true')
+    expect(sv().getAttribute('data-shownumbers')).toBe('true')
+
+    // Min zoom (slider min → fit-whole, tiny text): the ruler drops, tags unchanged.
+    slider.value = slider.min
+    slider.dispatchEvent(new Event('input', { bubbles: true }))
+    await Promise.resolve()
+    expect(frame().getAttribute('data-seq-numbers')).toBe('false')
+    expect(sv().getAttribute('data-shownumbers')).toBe('false')
+    expect(Number(sv().getAttribute('data-partcount'))).toBe(partCount)
+  })
 })

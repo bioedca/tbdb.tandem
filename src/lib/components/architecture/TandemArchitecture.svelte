@@ -29,6 +29,7 @@
     rowWidthPx,
     basesPerRowBounds,
     defaultBasesPerRow,
+    numbersVisibleAt,
     CHAR_CELL_PX,
     type BasesPerRowBounds,
   } from '../../locusSeqZoom'
@@ -120,10 +121,11 @@
   // back to BASE_WIDTH only until the container is first measured (jsdom / first paint).
   const frameW = $derived(Math.round(seqContainerW || BASE_WIDTH))
 
-  // The track-feature flags that drive row heights, kept in ONE place so the content-height predictor
-  // (fit math) and the SequenceViewer props below cannot drift — if they disagree, the "whole locus
-  // fits" bound would be wrong. Numbers + the specifier-codon translation on, no complement strand.
-  const SEQ_TRACK_OPTS = { showNumbers: true, showComplement: false, showTranslations: true } as const
+  // The track-feature flags that drive row heights. The position ruler is `'auto'`: it hides once the
+  // bases shrink past legibility (low zoom), so the fit math folds that per-`n` visibility in — keeping
+  // the predictor and the SequenceViewer in lock-step (their disagreement would mis-size the fit bound).
+  // The specifier-codon translation is always on; no complement strand.
+  const SEQ_TRACK_OPTS = { showNumbers: 'auto', showComplement: false, showTranslations: true } as const
 
   // [max-zoom, fit-whole] bases-per-row range for this locus in this frame (recomputes on resize).
   const bounds: BasesPerRowBounds = $derived(
@@ -146,6 +148,9 @@
   // Deterministic from `n` (matches the library's svgWidth); the CSS zoom fills the frame from here.
   const svgWidth = $derived(rowWidthPx(n))
   const seqZoom = $derived(frameW / svgWidth)
+  // Drop the per-base position ruler once it would be too small to read (zoomed out); the specifier
+  // tags stay (they are annotation parts, not the ruler). Matches the 'auto' in the fit math above.
+  const showSeqNumbers = $derived(numbersVisibleAt(n, frameW))
 
   function handlePartClick(part: Part) {
     // gene parts (the proximal one keeps DOWNSTREAM_ORF_ID, operon genes are suffixed) aren't elements.
@@ -255,9 +260,11 @@
         style:max-height="{frameH}px"
         bind:this={seqScroller}
         bind:clientWidth={seqContainerW}
+        data-seq-numbers={showSeqNumbers}
       >
         <div style:zoom={seqZoom}>
-          <!-- Feature flags come from SEQ_TRACK_OPTS so they stay in lock-step with the fit predictor. -->
+          <!-- showNumbers is the live `showSeqNumbers` (ruler drops at low zoom); the other flags come
+               from SEQ_TRACK_OPTS so the viewer stays in lock-step with the fit predictor. -->
           <SequenceViewer
             data={seqData}
             width={svgWidth}
@@ -265,7 +272,7 @@
             charsPerRow={n}
             charWidth={CHAR_CELL_PX}
             showComplement={SEQ_TRACK_OPTS.showComplement}
-            showNumbers={SEQ_TRACK_OPTS.showNumbers}
+            showNumbers={showSeqNumbers}
             showTranslations={SEQ_TRACK_OPTS.showTranslations}
             colorBases={false}
           />

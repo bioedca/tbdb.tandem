@@ -12,10 +12,14 @@ import {
   fitBasesPerRow,
   basesPerRowBounds,
   defaultBasesPerRow,
+  seqZoomAt,
+  numbersVisibleAt,
   CHAR_CELL_PX,
   SEQ_PAD,
   MIN_BASES_PER_ROW,
   DEFAULT_BASES_PER_ROW,
+  RULER_LABEL_PX,
+  NUMBERS_MIN_LABEL_PX,
   type SeqGeometryInput,
 } from '../../src/lib/locusSeqZoom'
 
@@ -119,5 +123,54 @@ describe('defaultBasesPerRow', () => {
   })
   test('clamps to lo when the range has collapsed', () => {
     expect(defaultBasesPerRow({ lo: 20, hi: 20 })).toBe(20)
+  })
+})
+
+describe('seqZoomAt / numbersVisibleAt (low-zoom ruler thinning)', () => {
+  test('seqZoomAt is the fill factor frameW / rowWidthPx(n)', () => {
+    expect(seqZoomAt(20, rowWidthPx(20))).toBeCloseTo(1, 6)
+    expect(seqZoomAt(60, 2 * rowWidthPx(60))).toBeCloseTo(2, 6)
+  })
+
+  test('numbers stay at high zoom (large bases) and drop at low zoom (tiny bases)', () => {
+    const frameW = 900
+    expect(numbersVisibleAt(20, frameW)).toBe(true) // 20 bp/row → big text
+    expect(numbersVisibleAt(200, frameW)).toBe(false) // 200 bp/row → ruler labels illegible
+  })
+
+  test('the threshold is exactly the ruler-label legibility floor', () => {
+    const frameW = 900
+    // visible ⇔ RULER_LABEL_PX · seqZoom ≥ NUMBERS_MIN_LABEL_PX ⇔ seqZoom ≥ floor ratio
+    const ratio = NUMBERS_MIN_LABEL_PX / RULER_LABEL_PX
+    for (const n of [20, 40, 60, 90, 120, 160, 220]) {
+      expect(numbersVisibleAt(n, frameW)).toBe(seqZoomAt(n, frameW) >= ratio)
+    }
+  })
+
+  test('falls back to visible before the frame is measured', () => {
+    expect(numbersVisibleAt(60, 0)).toBe(true)
+  })
+})
+
+describe("fitBasesPerRow with showNumbers: 'auto'", () => {
+  const locus: SeqGeometryInput = {
+    seq: 'A'.repeat(2000),
+    parts: [span(100, 350), span(900, 1150)],
+    translations: [span(120, 123), span(920, 923)],
+  }
+  const frameW = 900
+  const frameH = 520
+
+  test('auto fits at fewer (or equal) bases per row than forcing numbers on', () => {
+    // Auto hides the ruler at low zoom, shortening rows, so the whole locus fits with larger text.
+    const hiTrue = basesPerRowBounds(locus, frameW, frameH, { showNumbers: true }).hi
+    const hiAuto = basesPerRowBounds(locus, frameW, frameH, { showNumbers: 'auto' }).hi
+    expect(hiAuto).toBeLessThanOrEqual(hiTrue)
+  })
+
+  test('the auto fit value genuinely fits once its own ruler visibility is applied', () => {
+    const hiAuto = fitBasesPerRow(locus, frameW, frameH, { showNumbers: 'auto' })
+    const showAtFit = numbersVisibleAt(hiAuto, frameW)
+    expect(renderedHeightPx(locus, hiAuto, frameW, { showNumbers: showAtFit })).toBeLessThanOrEqual(frameH)
   })
 })

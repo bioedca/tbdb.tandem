@@ -140,4 +140,25 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     expect(bOut.scrollW).toBeLessThanOrEqual(bOut.clientW + 1)
     expect(bOut.scrollH).toBeLessThanOrEqual(bOut.clientH + 8)
   })
+
+  test('per-base numbers drop at min zoom but the specifier tags stay', async ({ page }) => {
+    await gotoRoute(page, '/locus/T0342')
+    await expect(page.getByText('Full locus sequence', { exact: false })).toBeVisible({ timeout: 30_000 })
+    const frame = page.locator('.tv-hatch .tv-seqzoom')
+    await expect(frame).toBeVisible({ timeout: 30_000 })
+    const slider = page.getByRole('slider', { name: 'Sequence zoom' })
+    // The specifier element tags are annotation parts on the track → present at every zoom.
+    const tag = page.locator('.tv-hatch .hatch-sequence-svg').getByText(/\(1\)/).first()
+
+    // Max zoom (End → 20 bp/row, large text): the position ruler is shown.
+    await slider.focus()
+    await slider.press('End')
+    await expect(frame).toHaveAttribute('data-seq-numbers', 'true')
+    await expect(tag).toBeVisible()
+
+    // Min zoom (Home → fit-whole, tiny text): the ruler is dropped, but the tags remain.
+    await slider.press('Home')
+    await expect(frame).toHaveAttribute('data-seq-numbers', 'false')
+    await expect(tag).toBeVisible()
+  })
 })
