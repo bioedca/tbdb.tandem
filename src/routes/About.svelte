@@ -3,7 +3,7 @@
   // Master_tboxes.csv → loci pipeline), the self-contained Python script that
   // reproduces it (public/reproduce_tandem_tbox_db.py), the data caveats, the
   // no-polarity disclaimer for the similarity map, the offline structure/tree
-  // builds, and the TBDB provenance + citation (CC-BY).
+  // builds, and the TBDB provenance + citation.
   //
   // NO-POLARITY (a ship gate): nothing here may imply evolutionary direction —
   // no ancestral / redeployed / abandoned / gained / lost language. The figures
@@ -91,8 +91,9 @@
         <strong class="font-medium text-ink">on</strong>; otherwise a <em>terminator</em> hairpin forms
         and the gene stays off. Which tRNA a T-box reads is fixed by a codon-like <em>specifier</em> in
         its Stem&nbsp;I, so each T-box is named for the amino acid it senses. Originally described in
-        <em>Bacillus subtilis</em>, T-boxes were the first riboswitch family to be discovered
-        (<TbdbLink href="https://doi.org/10.1093/nar/gkaa721">Marchand et al., 2021</TbdbLink>) and are
+        <em>Bacillus subtilis</em>, T-boxes were the first <em>classical</em> riboswitch family to be
+        discovered, predating the metabolite-binding riboswitches
+        (<TbdbLink href="https://doi.org/10.1093/nar/gkaa721">Marchand et al., 2021</TbdbLink>), and are
         the most prominent RNA-based regulatory mechanism known to be employed by members of the Firmicutes
         (<TbdbLink href="https://doi.org/10.1128/MMBR.00026-08">Gutiérrez-Preciado et al., 2009</TbdbLink>).
       </p>
@@ -291,13 +292,17 @@ python3 reproduce_tandem_tbox_db.py \
     <div class="text-body leading-relaxed">
       <dl class="space-y-4">
         <div>
-          <dt class="font-medium text-ink">Detection finds canonical T-boxes and misses divergent ones.</dt>
+          <dt class="font-medium text-ink">Detection finds canonical T-boxes and can miss divergent or double ones.</dt>
           <dd class="mt-0.5 text-muted">
             The source catalogue is built by covariance-model homology search against the Rfam T-box model
             (<TbdbLink href="https://rfam.org/family/RF00230">RF00230</TbdbLink>, with a separate model for
             the translational class). That reliably recovers canonical, well-conserved elements but can
-            miss highly divergent or degenerate ones, so the loci shown here, and any tandem inferred from
-            neighboring elements, are bounded by what the model can recognize.
+            miss highly divergent or degenerate ones. The model also represents only a single
+            antiterminator at a time, so genuinely double or partially-double leaders, the very
+            arrangements this resource is about, can be truncated to one element or have the boundary
+            between stacked elements mislabeled upstream, meaning some real tandems are missed before they
+            ever reach this app. The loci shown here, and any tandem inferred from neighboring elements,
+            are bounded by what the model can recognize.
           </dd>
         </div>
         <div>
@@ -330,9 +335,9 @@ python3 reproduce_tandem_tbox_db.py \
           <dt class="font-medium text-ink">The taxonomy mirrors the source, not this subset.</dt>
           <dd class="mt-0.5 text-muted">
             {#if firmicutes != null}{firmicutes} of {s?.counts.loci}{:else}Most{/if} loci are Firmicutes
-            (Bacillota), but that skew is a property of T-box biology and of the whole TBDB, not an effect
-            of restricting to tandem loci: this subset has the same makeup as the complete T-box
-            collection. T-boxes are not exclusive to Firmicutes; the {s ? s.counts.non_firmicutes : 16}
+            (Bacillota), but that skew is not an effect of restricting to tandem loci: the whole TBDB is
+            itself overwhelmingly Firmicutes, so the dominance reflects T-box biology rather than this
+            subset. T-boxes are not exclusive to Firmicutes; the {s ? s.counts.non_firmicutes : 16}
             non-Firmicutes loci here span {nonFirmicutesPhyla}, but they are far fewer. Specifier, not
             phylum, is therefore the primary color axis, and those loci have a dedicated filter. Any
             taxonomic reading also carries genome-sequencing sampling bias, since sequenced genomes
@@ -446,9 +451,11 @@ python3 reproduce_tandem_tbox_db.py \
   <Card title="Provenance &amp; citation" class="mb-6 break-inside-avoid">
     <div class="text-body space-y-3 leading-relaxed">
       <p>
-        All data derive from <TbdbLink href="https://tbdb.io">TBDB (tbdb.io)</TbdbLink>, used under
-        the CC-BY license. tbdb.tandem adds only the tandem-level views and layout; the underlying
-        annotations are TBDB's.
+        All data derive from <TbdbLink href="https://tbdb.io">TBDB (tbdb.io)</TbdbLink>, which is free to
+        access and download. tbdb.tandem adds only the tandem-level views and layout; the underlying
+        annotations are TBDB's. The TBDB paper is open-access under
+        <TbdbLink href="https://creativecommons.org/licenses/by/4.0/">CC&nbsp;BY&nbsp;4.0</TbdbLink>;
+        please attribute the data with the citation below.
       </p>
       <p>
         If you use this resource, please cite the TBDB database paper (the data source) together with

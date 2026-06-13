@@ -105,7 +105,7 @@
           rel="noopener noreferrer"
           class="text-chrome-fg underline decoration-chrome-fg/40 underline-offset-2 hover:text-white"
         >
-          TBDB (CC-BY)
+          TBDB
         </a>
       </span>
     </div>
