@@ -1,13 +1,13 @@
 <script lang="ts">
-  // The "minor SVG elements on top of the LinearMap" (PLAN §9①): the RNA-structure anatomy
-  // drawn over the hatchlings LinearMap feature track. LinearMap draws each element body as a
-  // to-scale tinted arrow + the backbone + 5′/3′ caps; this transparent overlay adds, per element,
-  // Stem I (ladder + loop), the specifier codon tick + AA chip, the antiterminator bulge, the
-  // terminator hairpin (or anti-SD sequestrator), and the discriminator — all reusing the SAME
-  // ArchitectureElementGlyph component (so the data-feature/data-aa/term-hairpin-vs-sd accuracy
-  // hooks are identical to the standalone figure), plus the explicit inter-element spacer / overlap
-  // markers and a scale bar. It shares LinearMap's bp→x projection so glyphs stay pixel-aligned,
-  // and is pointer-events:none so clicks fall through to the clickable LinearMap arrows.
+  // The "minor SVG elements on top of the LinearMap" (PLAN §9①): the calm chrome drawn over the
+  // hatchlings LinearMap feature track. LinearMap draws each element body as a to-scale tinted
+  // arrow + the backbone + 5′/3′ caps; this transparent overlay adds, per element, the specifier
+  // amino-acid chip + the ordinal tag (via ArchitectureElementGlyph), plus the explicit inter-
+  // element spacer / overlap markers and a scale bar. The RNA-structure anatomy (Stem I, the
+  // specifier-codon tick, the antiterminator bulge, the terminator hairpin / anti-SD, the
+  // discriminator) is no longer drawn — the figure is an operon overview and that detail lives in
+  // the R2DT secondary-structure viewer. It shares LinearMap's bp→x projection so the chips stay
+  // pixel-aligned, and is pointer-events:none so clicks fall through to the clickable arrows.
   import type { ArchitectureModel, ElementLayout, FeatureBox } from '../../architecture'
   import { aaColor } from '../../color'
   import { neutral } from '../../design/tokens'
@@ -36,8 +36,6 @@
     height: number
   } = $props()
 
-  const MIN_W = 2.5
-
   // LinearMap (single forward lane, showTicks=false) puts the feature-arrow band exactly
   // `ARROW_TO_BACKBONE` above the backbone: fwdFeatureZoneH (1·(FEATURE_H+LANE_GAP)+ZONE_GAP = 21)
   // + RULER_TICK_UP (4). We derive the glyph bands from the BOUND backboneY so the overlay tracks
@@ -46,35 +44,22 @@
   const FEATURE_H = 14
 
   const bbY = $derived(padTop + backboneY) // backbone Y in overlay coords
-  // The specifier stack reads top→bottom as one clean chain — AA chip ▸ Stem-I loop ▸ codon tick on
-  // the body — so the lanes are spaced to keep those three clear of each other (and the terminator
-  // hairpin, which rises into the same band but at the 3′ x). yAntiterm is the alt-fold lane in the
-  // 11px gap between the body bottom and the backbone.
+  // The AA chip sits just above the element body (`yAa`), joined to the specifier position on the
+  // body by a short connector — no Stem-I loop / codon tick between them any more, so the lane is a
+  // single clean step above the arrow rather than a tall three-rung stack.
   const dims: ArchitectureGlyphDims = $derived.by(() => {
     const yBodyT = padTop + backboneY - ARROW_TO_BACKBONE
-    return {
-      yBodyT,
-      bodyH: FEATURE_H,
-      yBodyB: yBodyT + FEATURE_H,
-      yBodyMid: yBodyT + FEATURE_H / 2,
-      yLoop: yBodyT - 32,
-      yAa: yBodyT - 62,
-      loopR: 8.5,
-      yAntiterm: yBodyT + FEATURE_H + 1,
-    }
+    return { yBodyT, yBodyB: yBodyT + FEATURE_H, yAa: yBodyT - 30 }
   })
   const yGapLabel = $derived(bbY + 13)
 
-  // Per-element AA-chip x, anchored over the specifier (the Stem-I loop, or the codon when a member
-  // lacks the loop window) and spread just enough that two close elements' chips never overlap. The
-  // codon TICK stays at its true bp position — only the label chip shifts (a short connector bridges
-  // them), so the bp→x alignment the tests pin is untouched. CHIP_MIN_SEP ≈ chip width (26) + gap.
+  // Per-element AA-chip x, anchored over the specifier (the codon position) and spread just enough
+  // that two close elements' chips never overlap. The connector's foot stays at the true codon bp
+  // position — only the label chip shifts — so the bp→x alignment the tests pin is untouched.
+  // CHIP_MIN_SEP ≈ chip width (26) + gap.
   const CHIP_MIN_SEP = 32
   const specifierXs = $derived(
-    model.elements.map((el) => {
-      const f = el.features.s1_loop ?? el.features.codon
-      return f ? centre(f) : null
-    }),
+    model.elements.map((el) => (el.features.codon ? centre(el.features.codon) : null)),
   )
   const chipXs = $derived.by(() => {
     const present = specifierXs
@@ -92,10 +77,6 @@
   })
 
   const bpToX = $derived((bp: number) => linearMapBpToX(bp, size, width))
-  function band(box: FeatureBox): Band {
-    const a = bpToX(box.start)
-    return { x: a, w: Math.max(bpToX(box.end) - a, MIN_W) }
-  }
   function centre(box: FeatureBox): number {
     return (bpToX(box.start) + bpToX(box.end)) / 2
   }
@@ -122,7 +103,7 @@
   width={width}
   {height}
   role="img"
-  aria-label="Tandem architecture: {model.elements.length} T-box elements, biological 5′ to 3′, {model.strand} strand; Stem I, specifier codon, antiterminator and terminator drawn to scale over the element track."
+  aria-label="Tandem architecture: {model.elements.length} T-box elements, biological 5′ to 3′, {model.strand} strand; each element labelled with its specifier amino acid, to scale over the element track."
 >
   <!-- Inter-element spacers along the backbone: a dashed bp gap, or an explicit overlap/nest
        marker (~6% of loci; never shown silently as a clean tandem gap — PLAN §6). -->
@@ -153,27 +134,20 @@
     {/if}
   {/each}
 
-  <!-- Per-element RNA anatomy (body drawn by the LinearMap arrow → showBody=false). -->
+  <!-- Per-element chrome: the specifier AA chip + ordinal (the body is the LinearMap arrow). -->
   {#each model.elements as el, i (el.member.member_id)}
     <ArchitectureElementGlyph
       {el}
       tint={aaColor(el.aa)}
       body={bodyBand(el)}
-      s1={el.features.s1 ? band(el.features.s1) : null}
-      s1LoopX={el.features.s1_loop ? centre(el.features.s1_loop) : null}
-      antiterm={el.features.antiterm ? band(el.features.antiterm) : null}
-      termX={el.features.term ? centre(el.features.term) : null}
-      discrimX={el.features.discrim ? centre(el.features.discrim) : null}
       codonX={el.features.codon ? centre(el.features.codon) : null}
       aaChipX={chipXs[i]}
       {dims}
-      showBody={false}
-      s1Stroke="#ffffff"
     />
   {/each}
 
   <!-- Scale bar (the to-scale reference; LinearMap's own tick ruler is suppressed to keep the
-       sub-backbone band clear for the antiterminator + spacer labels). -->
+       sub-backbone band clear for the spacer labels). -->
   <g class="tv-arch-scale">
     <line x1={bpToX(0)} y1={yScale} x2={bpToX(0) + scaleW} y2={yScale} stroke={neutral.muted} stroke-width="1.4" />
     <line x1={bpToX(0)} y1={yScale - 3} x2={bpToX(0)} y2={yScale + 3} stroke={neutral.muted} stroke-width="1.4" />

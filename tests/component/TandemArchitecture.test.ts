@@ -2,11 +2,11 @@
 // LinearMap renders for real (its math uses the width prop, no getBBox — jsdom-safe); only the
 // vendored SequenceViewer is stubbed (the real one would draw the full SVG grid, and its pointer
 // math needs a laid-out rect jsdom can't give). The real SelectionState is kept so the host's
-// `new SelectionState(...)` wiring runs. Pins the accuracy oracles carried onto the RNA-glyph
-// overlay: per-element [data-feature] set + data-aa, the two-tone specifier tint on the element
-// arrows, the Transcriptional-hairpin vs Translational-anti-SD split, the explicit overlap marker,
-// the shared bp→x projection (overlay glyph x == linearMapBpToX), and the on-click sequence detail.
-// The body capsule is the LinearMap arrow now, so .tv-arch-body must be ABSENT.
+// `new SelectionState(...)` wiring runs. Pins the accuracy oracles carried onto the overlay: the
+// per-element data-aa, the specifier AA chip (the RNA-structure anatomy marks were retired — that
+// detail lives in the R2DT viewer), the two-tone specifier tint on the element arrows, the explicit
+// overlap marker, the shared bp→x projection (chip connector foot x == linearMapBpToX), and the
+// on-click sequence detail. The body capsule is the LinearMap arrow now, so .tv-arch-body absent.
 import { render } from '@testing-library/svelte'
 import { describe, expect, test, vi } from 'vitest'
 
@@ -21,20 +21,22 @@ import { toLinearMapProps, linearMapBpToX } from '../../src/lib/architectureMap'
 import { aaColor, FUNC_CLASS_SHADE } from '../../src/lib/color'
 import { MEMBERS_BY_LOCUS } from '../fixtures'
 
-const featureSet = (el: Element) =>
-  new Set([...el.querySelectorAll('[data-feature]')].map((n) => n.getAttribute('data-feature')))
-
 describe('TandemArchitecture', () => {
-  test('renders one overlay element per member in 5′→3′ order, with no body rect (LinearMap draws it)', () => {
+  test('renders one overlay element per member in 5′→3′ order; no anatomy marks, no body rect', () => {
     const { container } = render(TandemArchitecture, {
       props: { members: MEMBERS_BY_LOCUS.get('T0002')!, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD' },
     })
     const els = [...container.querySelectorAll('.tv-arch-element')]
     expect(els).toHaveLength(2)
     expect(els.map((e) => e.getAttribute('data-ordinal'))).toEqual(['1', '2'])
-    // every present feature window draws its glyph
-    expect(featureSet(els[0])).toEqual(new Set(['s1', 's1_loop', 'codon', 'antiterm', 'term', 'discrim']))
-    // the body capsule is the LinearMap feature arrow now — no .tv-arch-body in the overlay
+    // the RNA-structure anatomy is retired — no Stem I / codon / antiterm / term / discrim glyphs
+    expect(container.querySelector('[data-feature]')).toBeNull()
+    expect(container.querySelector('.tv-arch-stem1, .tv-arch-term, .tv-arch-antiterm, .tv-arch-discrim')).toBeNull()
+    // each element keeps its specifier AA chip, labelled with its OWN specifier…
+    expect(els.map((e) => e.querySelector('.tv-arch-aa-chip .tv-arch-aa')?.textContent?.trim())).toEqual(
+      els.map((e) => e.getAttribute('data-aa') ?? '?'),
+    )
+    // …and the body capsule is the LinearMap feature arrow now — no .tv-arch-body in the overlay
     expect(container.querySelector('.tv-arch-body')).toBeNull()
   })
 
@@ -61,14 +63,6 @@ describe('TandemArchitecture', () => {
     expect([...container.querySelectorAll('.tv-arch-element')].map((e) => e.getAttribute('data-aa'))).toEqual(['ILE', 'LEU'])
   })
 
-  test('a Translational locus draws the anti-SD sequestrator, not a terminator hairpin', () => {
-    const { container } = render(TandemArchitecture, {
-      props: { members: MEMBERS_BY_LOCUS.get('T0004')!, strand: '+', funcClass: 'unknown' },
-    })
-    expect(container.querySelector('.tv-arch-term-sd')).toBeTruthy()
-    expect(container.querySelector('.tv-arch-term-hairpin')).toBeNull()
-  })
-
   test('overlapping element bodies render an explicit overlap marker (never a silent gap)', () => {
     // The T0002 fixture members share a leader window → their bodies overlap (gap < 0).
     const { container } = render(TandemArchitecture, {
@@ -79,7 +73,7 @@ describe('TandemArchitecture', () => {
     expect(Number(overlap!.getAttribute('data-overlap'))).toBeGreaterThan(0)
   })
 
-  test('overlay glyphs share the LinearMap bp→x projection (codon tick aligns to the strip)', () => {
+  test('the AA-chip connector foot shares the LinearMap bp→x projection (specifier position)', () => {
     const members = MEMBERS_BY_LOCUS.get('T0002')!
     const model = buildArchitecture(members, '+')
     const { size } = toLinearMapProps(model, 'biosynthesis', 'ilvD')
@@ -89,8 +83,10 @@ describe('TandemArchitecture', () => {
     const width = Number(container.querySelector('.tv-arch-overlay')!.getAttribute('width'))
     const codon = model.elements[0].features.codon!
     const expectedX = linearMapBpToX((codon.start + codon.end) / 2, size, width)
-    const codonLine = container.querySelector('.tv-arch-element [data-feature="codon"] line')!
-    expect(Number(codonLine.getAttribute('x1'))).toBeCloseTo(expectedX, 1)
+    // The chip label is collision-spread, but its connector's FOOT (x2) stays pinned to the true
+    // codon bp position — the alignment oracle (the codon tick that used to mark it is retired).
+    const connector = container.querySelector('.tv-arch-element .tv-arch-aa-connector')!
+    expect(Number(connector.getAttribute('x2'))).toBeCloseTo(expectedX, 1)
   })
 
   test('without context (still loading): a per-element SequenceViewer, no gene, no banner', () => {

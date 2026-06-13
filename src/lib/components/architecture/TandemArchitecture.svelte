@@ -4,8 +4,9 @@
   //     T-box element body + a downstream-gene arrow, on a backbone with 5′/3′ caps, hover
   //     tooltips and click-to-select. The diagram is STATIC (fits the container width); it carries
   //     no zoom — the figure is an overview and the zoomable detail lives in the sequence viewer.
-  //   • ArchitectureOverlay adds the RNA-structure anatomy on top (Stem I, specifier codon,
-  //     antiterminator, terminator hairpin / anti-SD, discriminator) sharing LinearMap's bp→x;
+  //   • ArchitectureOverlay adds the calm chrome on top (the specifier amino-acid chip + ordinal
+  //     per element, the inter-element spacers, the scale bar) sharing LinearMap's bp→x; the
+  //     RNA-structure anatomy lives in the R2DT secondary-structure viewer, not here;
   //   • the published SequenceViewer shows the locus nucleotides + annotations — when the NCBI
   //     `context` is present it is the WHOLE locus as one continuous track (all elements + the
   //     downstream gene); without it, the selected element's leader (click an arrow to switch).
@@ -71,12 +72,12 @@
   // static overview, so vertical bands are fixed px and the figure simply fits its card. MIN_TRACK
   // keeps the dense figure legible on narrow phones (it scrolls instead). BASE_WIDTH is the fallback
   // before the container is measured (jsdom / first paint). PAD_TOP reserves headroom above the
-  // LinearMap arrow band for the tall, now-roomier glyphs (AA chip / Stem I loop / terminator
-  // hairpin); FIG_HEIGHT clears the antiterminator lane + the scale bar below the backbone.
+  // LinearMap arrow band for the specifier AA chip; FIG_HEIGHT clears the ordinal tags + the scale
+  // bar below the backbone. (The figure is now a calm operon overview — no RNA-anatomy lanes.)
   const BASE_WIDTH = 920
   const MIN_TRACK = 560
-  const PAD_TOP = 72
-  const FIG_HEIGHT = 156
+  const PAD_TOP = 48
+  const FIG_HEIGHT = 132
   let containerW = $state(0) // measured container width (0 until laid out → BASE_WIDTH fallback)
   const width = $derived(Math.round(Math.max(containerW || BASE_WIDTH, MIN_TRACK)))
 
