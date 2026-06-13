@@ -147,18 +147,18 @@
         <li>
           <strong class="font-medium text-ink">Orient each T-box.</strong> Strand comes from the
           coordinate order; each element's genomic 5′ anchor (the {@render code('core5')} position) is
-          projected so elements can be placed along the leader.
+          then computed, so elements can be ordered along the transcript.
         </li>
         <li>
           <strong class="font-medium text-ink">Cluster nearby elements.</strong> Within each
-          {@render code('(accession, strand)')}, elements that sit within 600&nbsp;bp are chained into one
-          candidate window (single-linkage: the chaining is transitive).
+          {@render code('(accession, strand)')}, neighboring elements within 600&nbsp;bp of each other are
+          chained into one candidate window (single-linkage, so the chaining is transitive).
         </li>
         <li>
           <strong class="font-medium text-ink">Collapse redundant annotations.</strong> The same
-          physical T-box is often annotated by several pipelines; elements within 60&nbsp;bp are one
-          physical element, and the best representative row is kept (complete &gt; has a called codon &gt;
-          carries a TBDB id &gt; lowest E-value).
+          physical T-box is often annotated by several pipelines; annotations within 60&nbsp;bp of each
+          other are collapsed to one physical element, and the single best representative row is kept
+          (complete &gt; has a called codon &gt; carries a TBDB id &gt; lowest E-value).
         </li>
         <li>
           <strong class="font-medium text-ink">Keep the tandems.</strong> A window with ≥2 physical
@@ -170,8 +170,8 @@
           <strong class="font-medium text-ink">Order &amp; derive.</strong> Elements are numbered
           5′→3′; each specifier is read from {@render code('amino_acid_top')} /
           {@render code('refine_codon_top')}, the Stem I WUSS structure is converted to dot-bracket,
-          the downstream function is classified (EC number, then annotation-text evidence), and every
-          intra-locus pairwise %-identity is aligned.
+          the downstream function is classified (EC number first, then annotation-text evidence), and
+          each intra-locus element pair is aligned to a percent identity.
         </li>
       </ol>
       <p class="text-small text-muted">
