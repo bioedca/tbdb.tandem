@@ -8,7 +8,7 @@ import { render, screen } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import About from '../../src/routes/About.svelte'
 import { NO_POLARITY_BANNER_TEXT } from '../../src/lib/components/NoPolarityBanner.svelte'
-import { SOURCE_TABLE_SHA256_SHORT } from '../../src/lib/build-info'
+import { appVersion, SOURCE_TABLE_SHA256_SHORT } from '../../src/lib/build-info'
 import { seedStore, resetStore } from '../helpers'
 
 beforeEach(seedStore)
@@ -70,6 +70,9 @@ describe('About', () => {
     const { container } = render(About)
     const text = container.textContent ?? ''
     expect(text).toContain('This build:')
+    // The release version leads the stamp (the '0.0.0' fallback under vitest; the
+    // real version in the deployed build, which the e2e asserts).
+    expect(text).toContain(`tbdb.tandem v${appVersion}`)
     // The frozen source-table identifiers always render (build sha may be 'dev').
     expect(text).toContain('23,535')
     expect(text).toContain(SOURCE_TABLE_SHA256_SHORT)

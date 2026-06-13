@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 
 // Build-time provenance stamp (audit follow-up): the build's commit + its date
 // are injected as compile-time string constants and surfaced on the /about page,
@@ -23,6 +24,11 @@ function gitOutput(cmd: string): string {
 const buildSha = (process.env.GITHUB_SHA || gitOutput('git rev-parse HEAD')).slice(0, 7)
 const buildCommitDate = gitOutput('git show -s --format=%cI HEAD')
 
+// The release version is the single source of truth in package.json (read here
+// rather than process.env.npm_package_version so it resolves no matter how vite
+// is invoked); it is the leading identifier on the /about build stamp.
+const appVersion: string = JSON.parse(readFileSync('package.json', 'utf8')).version
+
 // Base path (PLAN §7.4): served under /tbdb.tandem/ on GitHub Pages
 // (set in the Actions runner), '/' for local dev/preview. All runtime asset and
 // data fetches go through import.meta.env.BASE_URL so both paths resolve.
@@ -30,6 +36,7 @@ export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/tbdb.tandem/' : '/',
   // Compile-time constants for the /about build stamp (src/lib/build-info.ts).
   define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
     __BUILD_SHA__: JSON.stringify(buildSha),
     __BUILD_COMMIT_DATE__: JSON.stringify(buildCommitDate),
   },
