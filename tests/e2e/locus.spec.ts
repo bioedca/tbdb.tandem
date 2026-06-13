@@ -121,7 +121,7 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     expect(Math.abs((await renderedW()) - b0.clientW)).toBeLessThanOrEqual(3)
     expect(b0.scrollW).toBeLessThanOrEqual(b0.clientW + 1)
 
-    // Max zoom (End → 20 bp/row): fewer bases per row ⇒ the width attribute SHRINKS, the rendered row
+    // Max zoom (End → 60 bp/row): fewer bases per row ⇒ the width attribute SHRINKS, the rendered row
     // still fills the frame (no h-overflow), and the content grows taller (vertical scroll).
     await slider.focus()
     await slider.press('End')
@@ -150,7 +150,7 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     // The specifier element tags are annotation parts on the track → present at every zoom.
     const tag = page.locator('.tv-hatch .hatch-sequence-svg').getByText(/\(1\)/).first()
 
-    // Max zoom (End → 20 bp/row, large text): the position ruler is shown.
+    // Max zoom (End → 60 bp/row, large text): the position ruler is shown.
     await slider.focus()
     await slider.press('End')
     await expect(frame).toHaveAttribute('data-seq-numbers', 'true')

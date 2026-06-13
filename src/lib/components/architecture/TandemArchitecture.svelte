@@ -13,7 +13,7 @@
   //     viewer wraps at exactly `n` bases (`charsPerRow`) drawn in a natural cell, and we CSS-`zoom`
   //     the whole track by `frameWidth / rowWidthPx(n)` so a row ALWAYS fills the fixed-width frame
   //     edge-to-edge — no horizontal whitespace or scroll. Fewer bases ⇒ bigger text (max zoom =
-  //     20 bp across); more bases ⇒ the whole locus fits the window height (min zoom). Content grows
+  //     60 bp across); more bases ⇒ the whole locus fits the window height (min zoom). Content grows
   //     only vertically and scrolls inside a fixed window whose height tracks the viewport. The
   //     fit/fill geometry math lives in `locusSeqZoom`.
   // Same prop shape as the retired ArchitectureDiagram so mount sites need only swap the import.
@@ -94,7 +94,7 @@
   // BASES PER ROW (`n`): the viewer wraps at exactly `n` bases in a natural CHAR_CELL_PX cell, then we
   // CSS-`zoom` the whole track by `frameWidth / rowWidthPx(n)` so a row fills the fixed-width frame
   // exactly — no horizontal whitespace/scroll, text grows as `n` shrinks. `n` runs from `bounds.lo`
-  // (20 bp across, max zoom) to `bounds.hi` (the whole locus fits the window height, min zoom),
+  // (60 bp across, max zoom) to `bounds.hi` (the whole locus fits the window height, min zoom),
   // computed in locusSeqZoom from the frame size + the laid-out content height.
   // Far taller than any locus track: the SequenceViewer's virtual scroller renders only the rows
   // within `height`, so this forces every row out (its box is then collapsed to content by CSS).
@@ -129,7 +129,7 @@
 
   // [max-zoom, fit-whole] bases-per-row range for this locus in this frame (recomputes on resize).
   const bounds: BasesPerRowBounds = $derived(
-    seqData ? basesPerRowBounds(seqData, frameW, frameH, SEQ_TRACK_OPTS) : { lo: 20, hi: 20 },
+    seqData ? basesPerRowBounds(seqData, frameW, frameH, SEQ_TRACK_OPTS) : { lo: 60, hi: 60 },
   )
   // The zoom value: bases per row. `null` until the user moves the slider → tracks the default, which
   // itself follows the locus (a short leader opens already whole). Kept inside [lo, hi] on resize.
@@ -224,7 +224,7 @@
             {/if}
           {/if}
         </div>
-        <!-- Bases-per-row zoom: slid right = fewer bases / bigger text (max zoom 20 bp across), left
+        <!-- Bases-per-row zoom: slid right = fewer bases / bigger text (max zoom 60 bp across), left
              = the whole locus fits the window. The slider is reversed (its value is the bp-per-row
              mirrored about the range) so rightward always reads as "zoom in". -->
         <div class="flex shrink-0 items-center gap-2">
