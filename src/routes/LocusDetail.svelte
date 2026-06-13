@@ -39,7 +39,7 @@
 
   // Lazily pull this locus's NCBI genomic context (downstream gene + interval sequence) for
   // the to-scale gene + full-locus sequence track. Absent / fetch-failed → null → the figure
-  // degrades to the schematic ORF + the per-element sequence view (mirrors the r2dt load).
+  // shows the per-element leader view with no gene and no banner (mirrors the r2dt load).
   let locusContext = $state<LocusContext | null>(null)
   $effect(() => {
     const current = id
@@ -50,7 +50,7 @@
       })
       .catch(() => {
         // defensive: loadLocusContext resolves null on failure, but never leave a rejection
-        // unhandled — staying null is the correct (schematic) fallback either way.
+        // unhandled — staying null (no gene, no banner) is the correct fallback either way.
       })
   })
 

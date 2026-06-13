@@ -16,16 +16,10 @@ import { LINEAR_MARGIN_LEFT, LINEAR_MARGIN_RIGHT } from './vendor/hatchlings/uti
 import { STEM_COLORS, TERMINATOR_COLOR, FUNC_CLASS_SHADE, aaColor } from './color'
 import { featureSpans, ordinalLabel, FEATURE_LABEL, HIGHLIGHT_FEATURES, type HighlightFeature } from './sequence'
 
-/** Stable id for the synthetic downstream-ORF part (so the overlay can find it). */
+/** Stable id for the downstream-gene part (so the overlay/click handling can find it). */
 export const DOWNSTREAM_ORF_ID = 'downstream-orf'
 
-/** The downstream ORF is schematic (NOT to scale): a constant fraction of the leader axis placed
- *  3′ of the whole leader, past a `//` break the overlay draws. Fractions keep it a roughly
- *  constant share of the figure width at any span; the minimums protect tiny spans. */
-const ORF_GAP_FRAC = 0.04
-const ORF_SPAN_FRAC = 0.18
-const ORF_GAP_MIN = 8
-const ORF_SPAN_MIN = 40
+/** Right-margin padding past the 3′-most drawn feature, so the figure never runs to the edge. */
 const AXIS_PAD_FRAC = 0.02
 const AXIS_PAD_MIN = 4
 
@@ -39,10 +33,12 @@ export function linearMapBpToX(bp: number, size: number, width: number): number 
 
 /**
  * Architecture model → LinearMap props: one feature arrow per T-box element body (tinted by its
- * own specifier), plus the downstream gene(s). When the model carries real NCBI `genes` they are
- * drawn TO SCALE (chrome-coloured, co-orientation honoured); otherwise a single SCHEMATIC ORF is
- * appended 3′ of the leader (the original behaviour). All on a single forward lane (the strip is
- * rendered with `noStack`), bio-axis bp passed through unchanged.
+ * own specifier), plus the downstream gene(s) when NCBI resolved them. The genes are drawn TO
+ * SCALE (chrome-coloured, co-orientation honoured); when the locus's gene could NOT be located on
+ * the leader's molecule, NO gene arrow is drawn — the figure shows the T-box elements alone and
+ * `TandemArchitecture` surfaces a "downstream gene could not be found" banner (there is no
+ * schematic-ORF fallback). All on a single forward lane (the strip is rendered with `noStack`),
+ * bio-axis bp passed through unchanged.
  */
 export function toLinearMapProps(
   model: ArchitectureModel,
@@ -50,6 +46,7 @@ export function toLinearMapProps(
   downstreamGene: string | null,
 ): { size: number; parts: Part[] } {
   const span = Math.max(model.span, 1)
+  const pad = Math.max(AXIS_PAD_MIN, Math.round(span * AXIS_PAD_FRAC))
 
   const parts: Part[] = model.elements.map((el) => ({
     id: el.member.member_id,
@@ -79,26 +76,11 @@ export function toLinearMapProps(
       })
     })
     const maxGeneEnd = Math.max(model.threePrimeEnd, ...model.genes.map((g) => g.end))
-    const size = maxGeneEnd + Math.max(AXIS_PAD_MIN, Math.round(span * AXIS_PAD_FRAC))
-    return { size, parts }
+    return { size: maxGeneEnd + pad, parts }
   }
 
-  // Schematic ORF: 3′ of the whole leader (anchor at the leader 3′ end = `span`, ≥ any body end).
-  const orfStart = span + Math.max(ORF_GAP_MIN, Math.round(span * ORF_GAP_FRAC))
-  const orfEnd = orfStart + Math.max(ORF_SPAN_MIN, Math.round(span * ORF_SPAN_FRAC))
-  parts.push({
-    id: DOWNSTREAM_ORF_ID,
-    name: downstreamGene ?? funcClass,
-    type: 'gene',
-    start: orfStart,
-    end: orfEnd,
-    strand: 1,
-    color: FUNC_CLASS_SHADE[funcClass], // chrome, never a specifier hue
-    label: downstreamGene ?? funcClass,
-  })
-
-  const size = orfEnd + Math.max(AXIS_PAD_MIN, Math.round(span * AXIS_PAD_FRAC))
-  return { size, parts }
+  // Gene unresolved: the elements alone (no schematic ORF). The axis spans just the leaders.
+  return { size: Math.max(model.threePrimeEnd, span) + pad, parts }
 }
 
 /** Palette for the per-feature annotation arrows in the sequence view (codon handled separately). */

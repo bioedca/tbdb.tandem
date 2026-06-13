@@ -88,13 +88,14 @@ export interface ArchitectureModel {
   elements: ElementLayout[]
   /** Spacers between consecutive elements (length = elements.length − 1). */
   spacers: SpacerLayout[]
-  /** Bio coordinate of the 3′-most element body end (anchor for the downstream ORF). */
+  /** Bio coordinate of the 3′-most element body end. */
   threePrimeEnd: number
   /** Downstream operon genes drawn TO SCALE (real NCBI coords), proximal-first; present
    *  only when a `LocusContext` with resolved genes was supplied. The context's interval
    *  shares the element bio frame (both anchored at the 5′-most genome coord), so a gene's
-   *  0-based seq `offset` is directly its bio coordinate. Absent → the downstream gene is
-   *  drawn schematically (see `toLinearMapProps`). */
+   *  0-based seq `offset` is directly its bio coordinate. Absent → no gene is drawn (the
+   *  figure shows the elements alone + a "gene could not be found" banner; see
+   *  `toLinearMapProps`), never a schematic stand-in. */
   genes?: GeneLayout[]
   /** True iff the figure was built from real NCBI context (≥1 gene to scale). */
   toScale: boolean
@@ -128,7 +129,8 @@ export function leaderLength(member: Member): number {
  * at the same 5′-most genome coordinate as the element bio axis, so a gene's 0-based seq
  * `offset` is directly its bio coordinate (no reconciliation needed). With no context (or
  * an unresolved one) the model is byte-identical to the 2-arg call — `genes` is absent and
- * `toScale` is false, so `toLinearMapProps` falls back to the schematic ORF.
+ * `toScale` is false, so `toLinearMapProps` draws no gene (the figure shows the elements
+ * alone + the "gene could not be found" banner).
  */
 export function buildArchitecture(
   members: Member[],
@@ -190,8 +192,8 @@ export function buildArchitecture(
   // Downstream operon genes to scale (real NCBI coords), when context resolved them. A
   // gene's 0-based seq offset is its bio coordinate (same frame as the elements); we keep
   // only genes that lie within the fetched interval (the pipeline already guarantees this,
-  // but guard defensively so a malformed context degrades to schematic rather than drawing
-  // off-axis).
+  // but guard defensively so a malformed context yields no gene — the elements alone + the
+  // banner — rather than drawing off-axis).
   let genes: GeneLayout[] | undefined
   let toScale = false
   if (context && context.resolved && context.seq.length > 0 && context.downstream_genes.length > 0) {

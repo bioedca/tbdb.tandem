@@ -48,13 +48,24 @@
     funcClass: FuncClass
     funcSource?: FuncSource
     downstreamGene?: string | null
-    /** NCBI genomic context (downstream gene + interval sequence). Present → the gene is drawn to
-     *  scale and the sequence viewer shows the whole locus; null → schematic ORF + per-element view. */
+    /** NCBI genomic context (downstream gene + interval sequence). Resolved → the gene is drawn to
+     *  scale and the sequence viewer shows the whole locus; present-but-unresolved → no gene is
+     *  drawn (the elements alone + the "gene could not be found" banner); null → still fetching, so
+     *  no gene and no banner (the per-element leader view), never a schematic stand-in. */
     context?: LocusContext | null
   } = $props()
 
   const model = $derived(buildArchitecture(members, strand, context))
   const map = $derived(toLinearMapProps(model, funcClass, downstreamGene))
+
+  // Gene resolution drives the figure: a gene arrow + "+ downstream gene" sub-label appear only
+  // when NCBI placed the gene to scale on the leader's molecule. When the context has LOADED but
+  // no gene resolved (the loci whose annotation can't be located on the leader's molecule) the
+  // figure shows the T-box elements alone and a muted banner says so — there is no schematic-ORF
+  // fallback. Gating on `context` being present keeps the banner from flashing during the async
+  // context load (null → still fetching, not "not found").
+  const geneResolved = $derived(model.toScale)
+  const geneMissing = $derived(!!context && !geneResolved)
 
   // Geometry. The track fills the container width (responsive); it does NOT zoom — the diagram is a
   // static overview, so vertical bands are fixed px and the figure simply fits its card. MIN_TRACK
@@ -198,7 +209,7 @@
     </p>
   </div>
 
-  <figure class="tv-arch w-full" data-arch-scale={model.toScale ? 'to-scale' : 'schematic'}>
+  <figure class="tv-arch w-full" data-arch-scale={geneResolved ? 'to-scale' : 'no-gene'}>
     <div class="relative overflow-x-auto">
       <div class="relative" style:width="{width}px" style:height="{FIG_HEIGHT}px">
         <div style:position="absolute" style:top="{PAD_TOP}px" style:left="0">
@@ -219,6 +230,23 @@
       </div>
     </div>
 
+    <!-- Gene-unresolved note: the source table named a downstream gene (or none), but NCBI could not
+         place it on the leader's molecule, so no gene is drawn (no schematic stand-in). Muted, not an
+         alarm — it is an expected outcome for ~13% of loci. -->
+    {#if geneMissing}
+      <p
+        class="tv-arch-no-gene mt-3 flex items-center gap-2 rounded-md border border-hairline bg-surface-subtle px-3 py-2 text-caption text-muted"
+        role="note"
+      >
+        <svg viewBox="0 0 16 16" class="size-3.5 shrink-0" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" />
+          <line x1="8" y1="7" x2="8" y2="11.25" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+          <circle cx="8" cy="4.75" r="0.85" fill="currentColor" />
+        </svg>
+        <span>Downstream gene could not be found for this locus.</span>
+      </p>
+    {/if}
+
     <figcaption class="mt-3 rounded-md border border-hairline bg-surface-subtle px-3 py-2.5">
       <ArchitectureLegend />
     </figcaption>
@@ -230,7 +258,9 @@
         <div class="min-w-0">
           {#if hasLocusTrack}
             <p class="text-base font-semibold text-ink">Full locus sequence</p>
-            <p class="text-caption text-muted">All {members.length} elements + downstream gene, to scale</p>
+            <p class="text-caption text-muted">
+              All {members.length} elements{geneResolved ? ' + downstream gene' : ''}, to scale
+            </p>
           {:else}
             <p class="text-base font-semibold text-ink">Element {selectedMember?.ordinal} leader sequence</p>
             {#if selectedMember?.specifier.aa}

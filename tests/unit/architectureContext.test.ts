@@ -1,8 +1,8 @@
 // Unit: the NCBI-genomic-context path through the model + adapters — the downstream gene
 // drawn TO SCALE (buildArchitecture + toLinearMapProps) and the WHOLE locus as one continuous
-// SequenceViewer track (toLocusSequenceData). The schematic fallback (no context) is covered by
-// the existing architectureMap tests; here we pin the to-scale + continuous-track behaviour and a
-// real round-trip against the committed public/data/locus_context artifact.
+// SequenceViewer track (toLocusSequenceData). The no-gene path (no context / unresolved gene) is
+// covered by the existing architectureMap tests; here we pin the to-scale + continuous-track
+// behaviour and a real round-trip against the committed public/data/locus_context artifact.
 import { describe, expect, test } from 'vitest'
 import { buildArchitecture } from '../../src/lib/architecture'
 import { toLinearMapProps, toSequenceData, toLocusSequenceData, DOWNSTREAM_ORF_ID } from '../../src/lib/architectureMap'
@@ -77,7 +77,7 @@ describe('buildArchitecture — with locus context', () => {
     ])
   })
 
-  test('an unresolved context falls back to schematic', () => {
+  test('an unresolved context resolves no gene (not to scale, no genes)', () => {
     const model = buildArchitecture(members, '+', ctx({ resolved: false, downstream_genes: [] }))
     expect(model.genes).toBeUndefined()
     expect(model.toScale).toBe(false)
@@ -88,7 +88,7 @@ describe('buildArchitecture — with locus context', () => {
       seq: 'C'.repeat(100),
       downstream_genes: [{ name: 'bad', protein_id: 'X', locus_tag: null, offset: 90, length: 50, strand: '+', resolution: 'coded_by' }],
     }))
-    expect(model.toScale).toBe(false) // the only gene was out of range → schematic
+    expect(model.toScale).toBe(false) // the only gene was out of range → no gene drawn
   })
 })
 
@@ -108,12 +108,11 @@ describe('toLinearMapProps — to-scale downstream gene', () => {
     expect(parts[0]).toMatchObject({ id: 'P.m1', color: aaColor('TRP') }) // element keeps its tint
   })
 
-  test('schematic fallback unchanged when the model has no genes', () => {
+  test('no gene part when the model has no resolved gene (no schematic ORF)', () => {
     const model = buildArchitecture(members, '+')
     const { parts } = toLinearMapProps(model, 'biosynthesis', 'lysW')
-    const orf = parts.find((p) => p.id === DOWNSTREAM_ORF_ID)!
-    expect(orf).toMatchObject({ type: 'gene', color: FUNC_CLASS_SHADE.biosynthesis })
-    expect(orf.start).toBeGreaterThan(model.span) // schematic ORF sits past the leader span
+    expect(parts.some((p) => p.type === 'gene')).toBe(false)
+    expect(parts.some((p) => p.id === DOWNSTREAM_ORF_ID)).toBe(false)
   })
 })
 

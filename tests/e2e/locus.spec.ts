@@ -245,3 +245,22 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     await expect.poll(hasSelectionHighlight).toBe(true)
   })
 })
+
+// An unresolved-gene locus: the source named a downstream gene (protein yybC) but NCBI could not
+// place it on the leader's molecule, so the figure draws the T-boxes alone + a "gene not found"
+// banner (no schematic-ORF stand-in). T0043 is one of the ~13% of loci in this state.
+test.describe('LocusDetail (/locus/T0043 — unresolved downstream gene)', () => {
+  test('shows the T-boxes + "gene could not be found" banner, no gene arrow', async ({ page }) => {
+    await gotoRoute(page, '/locus/T0043')
+    const arch = page.locator('figure.tv-arch')
+    await expect(arch.locator('svg.tv-arch-overlay')).toBeVisible({ timeout: 30_000 })
+
+    // Once the NCBI context loads, the figure settles into the no-gene state and surfaces the banner.
+    await expect(arch).toHaveAttribute('data-arch-scale', 'no-gene', { timeout: 30_000 })
+    await expect(arch.locator('.tv-arch-no-gene')).toContainText('could not be found')
+    // The T-box elements still render (two for this pair)…
+    await expect(arch.locator('g.tv-arch-element')).toHaveCount(2)
+    // …and NO gene arrow is drawn: one LinearMap feature per part = the two elements only.
+    await expect(arch.locator('.linear-feature')).toHaveCount(2)
+  })
+})

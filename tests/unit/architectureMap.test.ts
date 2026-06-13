@@ -1,10 +1,10 @@
 // Unit: the pure adapters from the architecture model / a member to the hatchlings LinearMap and
-// SequenceViewer data shapes. Pins the two-tone element tint, the schematic downstream ORF, and the
-// 1-based→0-based offset conversion for the sequence view (the load-bearing bit, see architectureMap.ts).
+// SequenceViewer data shapes. Pins the two-tone element tint, the no-gene path (no schematic ORF),
+// and the 1-based→0-based offset conversion for the sequence view (see architectureMap.ts).
 import { describe, expect, test } from 'vitest'
 import { buildArchitecture } from '../../src/lib/architecture'
 import { toLinearMapProps, toSequenceData, DOWNSTREAM_ORF_ID } from '../../src/lib/architectureMap'
-import { aaColor, FUNC_CLASS_SHADE, STEM_COLORS, TERMINATOR_COLOR } from '../../src/lib/color'
+import { aaColor, STEM_COLORS, TERMINATOR_COLOR } from '../../src/lib/color'
 import type { FeatureName, Member, Span } from '../../src/lib/data/types'
 import { makeMember, MEMBERS_BY_LOCUS } from '../fixtures'
 
@@ -33,8 +33,9 @@ describe('toLinearMapProps', () => {
   const model = buildArchitecture(members, '+')
 
   test('one element body part per member, passed through on a single forward lane', () => {
+    // No NCBI context → no resolved gene → element bodies only (no schematic ORF appended).
     const { parts } = toLinearMapProps(model, 'biosynthesis', 'ilvD')
-    expect(parts).toHaveLength(model.elements.length + 1) // + downstream ORF
+    expect(parts).toHaveLength(model.elements.length)
     model.elements.forEach((el, i) => {
       expect(parts[i]).toMatchObject({
         id: el.member.member_id,
@@ -53,23 +54,13 @@ describe('toLinearMapProps', () => {
     expect(colors[0]).not.toBe(colors[1])
   })
 
-  test('trailing downstream-ORF part is schematic chrome, 3′ of the leader', () => {
+  test('no gene part is drawn when the model has no resolved gene (no schematic ORF fallback)', () => {
     const { size, parts } = toLinearMapProps(model, 'biosynthesis', 'ilvD')
-    const orf = parts.at(-1)!
-    expect(orf.id).toBe(DOWNSTREAM_ORF_ID)
-    expect(orf.type).toBe('gene')
-    expect(orf.label).toBe('ilvD')
-    expect(orf.color).toBe(FUNC_CLASS_SHADE.biosynthesis)
-    expect(orf.start).toBeGreaterThan(model.span) // past the leader 3′ end
-    expect(orf.end).toBeLessThan(size)
-    expect(size).toBeGreaterThan(model.span)
-  })
-
-  test('ORF label/name/colour fall back to the func class when no downstream gene', () => {
-    const orf = toLinearMapProps(model, 'unknown', null).parts.at(-1)!
-    expect(orf.label).toBe('unknown')
-    expect(orf.name).toBe('unknown')
-    expect(orf.color).toBe(FUNC_CLASS_SHADE.unknown)
+    // The unresolved-gene loci show their T-boxes alone; the banner lives in the component.
+    expect(parts.some((p) => p.type === 'gene')).toBe(false)
+    expect(parts.some((p) => p.id === DOWNSTREAM_ORF_ID)).toBe(false)
+    // The axis still spans the leaders (a little right padding past the 3′-most body).
+    expect(size).toBeGreaterThanOrEqual(model.threePrimeEnd)
   })
 })
 
