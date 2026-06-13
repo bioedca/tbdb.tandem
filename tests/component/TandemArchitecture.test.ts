@@ -113,12 +113,12 @@ describe('TandemArchitecture', () => {
     expect(Number(sv.getAttribute('data-partcount'))).toBeGreaterThan(members.length)
     expect(container.querySelector('figure.tv-arch')!.getAttribute('data-arch-scale')).toBe('to-scale')
     // The fill-width zoom model drives the viewer by bases-per-row: charsPerRow is a real count at or
-    // above the 20-bp max-zoom floor, drawn in the natural 10-px cell that the CSS zoom scales up.
-    expect(Number(sv.getAttribute('data-charsperrow'))).toBeGreaterThanOrEqual(20)
+    // above the 60-bp max-zoom floor, drawn in the natural 10-px cell that the CSS zoom scales up.
+    expect(Number(sv.getAttribute('data-charsperrow'))).toBeGreaterThanOrEqual(60)
     expect(Number(sv.getAttribute('data-charwidth'))).toBe(10)
   })
 
-  test('the bases-per-row slider zooms in to the 20-bp max-zoom floor', async () => {
+  test('the bases-per-row slider zooms in to the 60-bp max-zoom floor', async () => {
     const members = MEMBERS_BY_LOCUS.get('T0002')!
     const seq = 'A'.repeat(1500)
     const context = {
@@ -133,14 +133,14 @@ describe('TandemArchitecture', () => {
     })
     const sv = () => container.querySelector('[data-seqviewer]')!
     const slider = container.querySelector('input[type="range"]') as HTMLInputElement
-    expect(Number(sv().getAttribute('data-charsperrow'))).toBeGreaterThanOrEqual(20)
+    expect(Number(sv().getAttribute('data-charsperrow'))).toBeGreaterThanOrEqual(60)
 
     // The slider value is the bp-per-row MIRRORED about [lo, hi] (so rightward reads as "zoom in"),
-    // hence its max maps to the 20-bp max-zoom floor.
+    // hence its max maps to the 60-bp max-zoom floor.
     slider.value = slider.max
     slider.dispatchEvent(new Event('input', { bubbles: true }))
     await Promise.resolve()
-    expect(Number(sv().getAttribute('data-charsperrow'))).toBe(20)
+    expect(Number(sv().getAttribute('data-charsperrow'))).toBe(60)
   })
 
   test('per-base numbers drop at min zoom but the specifier tags stay', async () => {
@@ -163,7 +163,7 @@ describe('TandemArchitecture', () => {
     const partCount = Number(sv().getAttribute('data-partcount'))
     expect(partCount).toBeGreaterThan(members.length)
 
-    // Max zoom (slider max → 20 bp/row, big text): the position ruler is shown.
+    // Max zoom (slider max → 60 bp/row, big text): the position ruler is shown.
     slider.value = slider.max
     slider.dispatchEvent(new Event('input', { bubbles: true }))
     await Promise.resolve()

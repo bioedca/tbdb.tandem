@@ -93,16 +93,16 @@ describe('fitBasesPerRow / basesPerRowBounds', () => {
     expect(fitBasesPerRow(locus, frameW, 320)).toBeGreaterThan(fitBasesPerRow(locus, frameW, 720))
   })
 
-  test('bounds.lo is the 20-bp max-zoom floor; hi is the fit value', () => {
+  test('bounds.lo is the 60-bp max-zoom floor; hi is the fit value', () => {
     const b = basesPerRowBounds(locus, frameW, frameH)
     expect(b.lo).toBe(MIN_BASES_PER_ROW)
     expect(b.hi).toBe(fitBasesPerRow(locus, frameW, frameH))
     expect(b.hi).toBeGreaterThanOrEqual(b.lo)
   })
 
-  test('a tiny sequence that already fits whole at 20 bp collapses the range (hi == lo)', () => {
-    // At max zoom (20 bp/row) the text is large (~4×), so only a very short sequence fits the window
-    // outright; a normal leader (≥ ~100 nt) stays zoomable. 24 nt is small enough to collapse.
+  test('a tiny sequence shorter than the max-zoom floor collapses the range (hi == lo)', () => {
+    // A sequence shorter than the 60 bp/row max-zoom floor is clamped to its own length (lo = seqLen),
+    // so there is nothing to zoom out to; a normal leader (≥ ~100 nt) stays zoomable. 24 nt collapses.
     const tiny: SeqGeometryInput = { seq: 'A'.repeat(24), parts: [span(0, 24)], translations: [] }
     const b = basesPerRowBounds(tiny, frameW, frameH)
     expect(b.hi).toBe(b.lo) // whole sequence visible at max zoom; nothing to zoom out to

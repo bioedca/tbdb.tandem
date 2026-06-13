@@ -42,10 +42,10 @@ export const SVG_TOP = 8
  *  wide) sits comfortably in a 10 px cell; CSS-zoom then scales the whole grid uniformly, so this
  *  ratio — and the monospace look — holds at every zoom level. */
 export const CHAR_CELL_PX = 10
-/** Max zoom: the fewest bases shown across a row (≈ "see 20 bp horizontally"). */
-export const MIN_BASES_PER_ROW = 20
+/** Max zoom: the fewest bases shown across a row (≈ "see 60 bp horizontally"). */
+export const MIN_BASES_PER_ROW = 60
 /** Where the slider opens: a readable mid-level density, clamped into the locus's [lo, hi]. */
-export const DEFAULT_BASES_PER_ROW = 60
+export const DEFAULT_BASES_PER_ROW = 100
 
 /** The library's fixed base-glyph font and ruler-label font (SequenceRow font-size 12 / FONT_SECONDARY 8). */
 export const BASE_GLYPH_PX = 12
