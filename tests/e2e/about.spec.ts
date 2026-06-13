@@ -39,5 +39,10 @@ test.describe('About (/about)', () => {
     await expect(page.locator('a[href="https://tbdb.io"]')).toBeVisible()
     await expect(page.locator('a[href="https://doi.org/10.1093/nar/gkaa721"]').first()).toBeVisible()
     await expect(page.locator('a[href="https://tbdb.io/citing.html"]').first()).toBeVisible()
+
+    // The build + source provenance stamp (audit follow-up): the production build
+    // is git-stamped, so it shows a commit and the frozen source-table identifiers.
+    await expect(page.getByText(/This build: commit/)).toBeVisible()
+    await expect(page.getByText(/Derived from the TBDB master table/)).toBeVisible()
   })
 })
