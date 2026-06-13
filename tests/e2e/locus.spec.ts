@@ -244,6 +244,74 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     await tag.click()
     await expect.poll(hasSelectionHighlight).toBe(true)
   })
+
+  test('copy: Ctrl/Cmd+C copies the selected bases; right-click → Copy as FASTA copies a FASTA record', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await gotoRoute(page, '/locus/T0342')
+    await expect(page.getByText('Full locus sequence', { exact: false })).toBeVisible({ timeout: 30_000 })
+    const scroller = page.locator('.tv-hatch .tv-seqzoom')
+    await expect(scroller).toBeVisible({ timeout: 30_000 })
+
+    // Selecting element 1's codon via its tag also focuses the region (so Ctrl/Cmd+C lands).
+    await page.locator('.tv-hatch .hatch-sequence-svg').getByText(/\(1\)/).first().click()
+    await expect(scroller).toHaveAttribute('data-sel-range', /^\d+-\d+$/)
+    const range = (await scroller.getAttribute('data-sel-range'))!
+    const [s, e] = range.split('-').map(Number)
+    const len = e - s
+    expect(len).toBeGreaterThan(0)
+
+    // Keyboard copy → bare uppercase bases of exactly the selected length.
+    await page.keyboard.press('Control+c')
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/^[ACGT]+$/)
+    const bases = await page.evaluate(() => navigator.clipboard.readText())
+    expect(bases.length).toBe(len)
+
+    // Right-clicking the sequence must NOT clear the selection (only the primary button selects); it
+    // opens the copy menu, whose "Copy as FASTA" writes a FASTA record carrying the same bases.
+    await scroller.click({ button: 'right', position: { x: 48, y: 48 } })
+    const menu = page.getByRole('menu')
+    await expect(menu).toBeVisible()
+    await menu.getByRole('menuitem', { name: 'Copy as FASTA' }).click()
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/^>/)
+    const fasta = await page.evaluate(() => navigator.clipboard.readText())
+    // The right-click did not disturb the selection: the FASTA body (unwrapped) is exactly the bases
+    // copied a moment ago via the keyboard.
+    const fastaBody = fasta.trimEnd().split('\n').slice(1).join('')
+    expect(fastaBody).toBe(bases)
+  })
+
+  test('copy: right-click → Select all selects the whole track and Copy as FASTA wraps it at 60 cols', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await gotoRoute(page, '/locus/T0342')
+    await expect(page.getByText('Full locus sequence', { exact: false })).toBeVisible({ timeout: 30_000 })
+    const scroller = page.locator('.tv-hatch .tv-seqzoom')
+    await expect(scroller).toBeVisible({ timeout: 30_000 })
+
+    // Select all via the menu → the whole displayed interval is selected.
+    await scroller.click({ button: 'right', position: { x: 48, y: 48 } })
+    await page.getByRole('menuitem', { name: 'Select all' }).click()
+    await expect(scroller).toHaveAttribute('data-sel-range', /^0-\d+$/)
+    const total = Number((await scroller.getAttribute('data-sel-range'))!.split('-')[1])
+    expect(total).toBeGreaterThan(60) // the whole-locus interval is long
+
+    // Copy as FASTA → a header line + the bases wrapped at ≤ 60 cols/line, totalling the full length.
+    await scroller.click({ button: 'right', position: { x: 48, y: 48 } })
+    await page.getByRole('menuitem', { name: 'Copy as FASTA' }).click()
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/^>/)
+    const lines = (await page.evaluate(() => navigator.clipboard.readText())).trimEnd().split('\n')
+    expect(lines[0].startsWith('>')).toBe(true)
+    expect(lines.length).toBeGreaterThan(2) // wrapped into multiple lines
+    const body = lines.slice(1)
+    expect(body.every((l) => /^[ACGT]+$/.test(l))).toBe(true)
+    expect(body.every((l) => l.length <= 60)).toBe(true)
+    expect(body.join('').length).toBe(total)
+  })
 })
 
 // An unresolved-gene locus: the source named a downstream gene (protein yybC) but NCBI could not
