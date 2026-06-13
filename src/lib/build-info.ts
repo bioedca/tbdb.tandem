@@ -5,8 +5,13 @@
 // replaces them textually in dev, test, and production; the `typeof` guards keep
 // this module safe — with a clean fallback — in any context where they are not
 // (e.g. a non-Vite tool importing it), since `typeof <undeclared>` never throws.
+declare const __APP_VERSION__: string
 declare const __BUILD_SHA__: string
 declare const __BUILD_COMMIT_DATE__: string
+
+/** Release version (semver) from package.json; `'0.0.0'` if not injected. */
+export const appVersion: string =
+  typeof __APP_VERSION__ === 'string' && __APP_VERSION__ ? __APP_VERSION__ : '0.0.0'
 
 /** Short commit SHA of the build, or `'dev'` when git was unavailable. */
 export const buildSha: string =

@@ -4,6 +4,7 @@
 // and pin the exact frozen master table every count is derived from.
 import { describe, expect, test } from 'vitest'
 import {
+  appVersion,
   buildSha,
   buildCommitDate,
   buildCommitDay,
@@ -14,6 +15,13 @@ import {
 } from '../../src/lib/build-info'
 
 describe('build-info', () => {
+  test('appVersion is a valid semver string', () => {
+    // The production build injects package.json's version via vite `define` (the
+    // deployed /about shows the real release, e.g. '1.0.0'); vitest does not apply
+    // `define`, so here it is the '0.0.0' fallback. Either way it is valid semver.
+    expect(appVersion).toMatch(/^\d+\.\d+\.\d+(?:[-+].+)?$/)
+  })
+
   test('source-table identifiers pin the frozen TBDB master table', () => {
     // The verified Master_tboxes.csv: 23,535 rows, this exact SHA-256.
     expect(SOURCE_TABLE_ROWS).toBe(23535)
