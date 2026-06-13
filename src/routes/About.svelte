@@ -443,8 +443,7 @@ python3 reproduce_tandem_tbox_db.py \
         and committed as small per-locus files. Like the structure and tree builds this runs as a separate,
         cached step (not the master-only reproduction script), so the app stays fully static. The gene
         resolves for most loci; where its annotation can't be located on the leader's molecule, the figure
-        draws the gene schematically instead. The interval is oriented in the direction of transcription;
-        no ancestry is read or implied.
+        draws the gene schematically instead.
       </p>
     </div>
   </Card>
