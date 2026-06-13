@@ -263,8 +263,9 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     const len = e - s
     expect(len).toBeGreaterThan(0)
 
-    // Keyboard copy → bare uppercase bases of exactly the selected length.
-    await page.keyboard.press('Control+c')
+    // Keyboard copy → bare uppercase bases of exactly the selected length. ControlOrMeta maps to
+    // Control on Win/Linux and Meta (⌘) on macOS — matching the handler's ctrlKey || metaKey check.
+    await page.keyboard.press('ControlOrMeta+c')
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/^[ACGT]+$/)
     const bases = await page.evaluate(() => navigator.clipboard.readText())
     expect(bases.length).toBe(len)
