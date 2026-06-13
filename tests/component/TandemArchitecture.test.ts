@@ -112,5 +112,34 @@ describe('TandemArchitecture', () => {
     expect(Number(sv.getAttribute('data-seqlen'))).toBe(seq.length)
     expect(Number(sv.getAttribute('data-partcount'))).toBeGreaterThan(members.length)
     expect(container.querySelector('figure.tv-arch')!.getAttribute('data-arch-scale')).toBe('to-scale')
+    // The fill-width zoom model drives the viewer by bases-per-row: charsPerRow is a real count at or
+    // above the 20-bp max-zoom floor, drawn in the natural 10-px cell that the CSS zoom scales up.
+    expect(Number(sv.getAttribute('data-charsperrow'))).toBeGreaterThanOrEqual(20)
+    expect(Number(sv.getAttribute('data-charwidth'))).toBe(10)
+  })
+
+  test('the bases-per-row slider zooms in to the 20-bp max-zoom floor', async () => {
+    const members = MEMBERS_BY_LOCUS.get('T0002')!
+    const seq = 'A'.repeat(1500)
+    const context = {
+      tandem_id: 'T0002', accession: 'ACC', strand: '+' as const, resolved: true,
+      interval: [1, 1500] as [number, number], seq,
+      elements: members.map((m, i) => ({ member_id: m.member_id, offset: i * 200, length: m.fasta_sequence.length })),
+      downstream_genes: [],
+      warnings: [],
+    }
+    const { container } = render(TandemArchitecture, {
+      props: { members, strand: '+', funcClass: 'biosynthesis', downstreamGene: 'ilvD', context },
+    })
+    const sv = () => container.querySelector('[data-seqviewer]')!
+    const slider = container.querySelector('input[type="range"]') as HTMLInputElement
+    expect(Number(sv().getAttribute('data-charsperrow'))).toBeGreaterThanOrEqual(20)
+
+    // The slider value is the bp-per-row MIRRORED about [lo, hi] (so rightward reads as "zoom in"),
+    // hence its max maps to the 20-bp max-zoom floor.
+    slider.value = slider.max
+    slider.dispatchEvent(new Event('input', { bubbles: true }))
+    await Promise.resolve()
+    expect(Number(sv().getAttribute('data-charsperrow'))).toBe(20)
   })
 })

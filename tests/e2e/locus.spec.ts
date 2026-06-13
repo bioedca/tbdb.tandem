@@ -90,36 +90,54 @@ test.describe('LocusDetail (/locus/T0342)', () => {
     await expect(arch.locator('g.tv-arch-element')).toHaveCount(2)
   })
 
-  test('the sequence-viewer zoom slider scales the text size, not just the track width', async ({ page }) => {
+  test('the sequence zoom fills the frame width (no h-scroll) and grows only vertically', async ({ page }) => {
     await gotoRoute(page, '/locus/T0342')
     // Once the NCBI context loads, the sequence viewer shows the whole locus + carries the zoom.
     await expect(page.getByText('Full locus sequence', { exact: false })).toBeVisible({ timeout: 30_000 })
-    const seqSvg = page.locator('.tv-hatch .hatch-sequence-viewer svg')
+    const seqSvg = page.locator('.tv-hatch .hatch-sequence-svg')
     await expect(seqSvg).toBeVisible({ timeout: 30_000 })
+    const frame = page.locator('.tv-hatch .tv-seqzoom')
 
-    // The zoom is a continuous range slider (replacing the old +/− buttons). Its accessible name is
-    // "Sequence text size".
-    const slider = page.getByRole('slider', { name: 'Sequence text size' })
-    await expect(slider).toBeVisible()
-
-    // The discriminating check: the OLD zoom multiplied the SVG *width attribute* (spreading the same
-    // 12px bases sideways). The new zoom scales the *rendered* size via CSS `zoom` — the text gets
-    // bigger — while the width attribute is zoom-invariant.
+    // Zoom is BASES PER ROW: the viewer wraps at exactly `n` bases (so the SVG *width attribute* =
+    // svgWidth(n) CHANGES with zoom), then CSS-`zoom` scales it to fill the frame, so the *rendered*
+    // row width stays ≈ the frame width at every zoom and the frame never scrolls horizontally.
     const widthAttr = () => seqSvg.evaluate((el) => Number(el.getAttribute('width')))
     const renderedW = () => seqSvg.evaluate((el) => Math.round(el.getBoundingClientRect().width))
-    const attrBefore = await widthAttr()
-    const renderedBefore = await renderedW()
-    expect(attrBefore).toBeGreaterThan(0)
+    const box = () =>
+      frame.evaluate((el) => ({
+        clientW: el.clientWidth,
+        scrollW: el.scrollWidth,
+        clientH: el.clientHeight,
+        scrollH: el.scrollHeight,
+      }))
 
-    // Crank to the max → the bases get bigger (rendered width grows; the attribute does not).
+    const slider = page.getByRole('slider', { name: 'Sequence zoom' })
+    await expect(slider).toBeVisible()
+
+    // Default (mid-level): the row fills the frame width and there is no horizontal scroll.
+    const attrDefault = await widthAttr()
+    const b0 = await box()
+    expect(attrDefault).toBeGreaterThan(0)
+    expect(Math.abs((await renderedW()) - b0.clientW)).toBeLessThanOrEqual(3)
+    expect(b0.scrollW).toBeLessThanOrEqual(b0.clientW + 1)
+
+    // Max zoom (End → 20 bp/row): fewer bases per row ⇒ the width attribute SHRINKS, the rendered row
+    // still fills the frame (no h-overflow), and the content grows taller (vertical scroll).
     await slider.focus()
     await slider.press('End')
-    await expect.poll(renderedW).toBeGreaterThan(renderedBefore)
-    expect(await widthAttr()).toBe(attrBefore)
+    await expect.poll(widthAttr).toBeLessThan(attrDefault)
+    const bIn = await box()
+    expect(Math.abs((await renderedW()) - bIn.clientW)).toBeLessThanOrEqual(3)
+    expect(bIn.scrollW).toBeLessThanOrEqual(bIn.clientW + 1)
+    expect(bIn.scrollH).toBeGreaterThan(b0.scrollH)
 
-    // Slide to the min → a compact whole-locus overview (text shrinks below the default).
+    // Min zoom (Home → fit-whole): more bases per row ⇒ the width attribute GROWS past the default,
+    // the row still fills the frame, and the whole locus fits the window (no meaningful vertical scroll).
     await slider.press('Home')
-    await expect.poll(renderedW).toBeLessThan(renderedBefore)
-    expect(await widthAttr()).toBe(attrBefore)
+    await expect.poll(widthAttr).toBeGreaterThan(attrDefault)
+    const bOut = await box()
+    expect(Math.abs((await renderedW()) - bOut.clientW)).toBeLessThanOrEqual(3)
+    expect(bOut.scrollW).toBeLessThanOrEqual(bOut.clientW + 1)
+    expect(bOut.scrollH).toBeLessThanOrEqual(bOut.clientH + 8)
   })
 })

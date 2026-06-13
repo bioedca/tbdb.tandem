@@ -9,10 +9,13 @@
   //   • the published SequenceViewer shows the locus nucleotides + annotations — when the NCBI
   //     `context` is present it is the WHOLE locus as one continuous track (all elements + the
   //     downstream gene); without it, the selected element's leader (click an arrow to switch).
-  //     The ONLY zoom in the figure lives here, on the sequence viewer: a continuous slider that
-  //     scales the on-screen TEXT SIZE (the library's glyph font is fixed, so we scale the rendered
-  //     track with CSS `zoom`) — slid down it fits more of the locus as an overview, slid up it
-  //     enlarges the bases for reading. The track wraps to the container; one scroller owns scroll.
+  //     The ONLY zoom in the figure lives here, on the sequence viewer. Zoom = BASES PER ROW: the
+  //     viewer wraps at exactly `n` bases (`charsPerRow`) drawn in a natural cell, and we CSS-`zoom`
+  //     the whole track by `frameWidth / rowWidthPx(n)` so a row ALWAYS fills the fixed-width frame
+  //     edge-to-edge — no horizontal whitespace or scroll. Fewer bases ⇒ bigger text (max zoom =
+  //     20 bp across); more bases ⇒ the whole locus fits the window height (min zoom). Content grows
+  //     only vertically and scrolls inside a fixed window whose height tracks the viewport. The
+  //     fit/fill geometry math lives in `locusSeqZoom`.
   // Same prop shape as the retired ArchitectureDiagram so mount sites need only swap the import.
   // Theming: a local .tv-hatch wrapper maps --hatch-* onto the Slate Instrument palette (no global
   // ThemeProvider). The specifier hue appears only on the data arrows + AA chip (chrome⟂data).
@@ -22,6 +25,13 @@
   import { buildArchitecture } from '../../architecture'
   import { toLinearMapProps, toSequenceData, toLocusSequenceData, DOWNSTREAM_ORF_ID } from '../../architectureMap'
   import type { Part } from '../../vendor/hatchlings'
+  import {
+    rowWidthPx,
+    basesPerRowBounds,
+    defaultBasesPerRow,
+    CHAR_CELL_PX,
+    type BasesPerRowBounds,
+  } from '../../locusSeqZoom'
   import ArchitectureOverlay from './ArchitectureOverlay.svelte'
   import ArchitectureLegend from './ArchitectureLegend.svelte'
 
@@ -54,7 +64,6 @@
   // hairpin); FIG_HEIGHT clears the antiterminator lane + the scale bar below the backbone.
   const BASE_WIDTH = 920
   const MIN_TRACK = 560
-  const MIN_SEQ_TRACK = 560
   const PAD_TOP = 72
   const FIG_HEIGHT = 156
   let containerW = $state(0) // measured container width (0 until laid out → BASE_WIDTH fallback)
@@ -80,27 +89,63 @@
         : null,
   )
 
-  // Sequence-viewer zoom — the only zoom in the figure (the diagram is a static overview). The
-  // hatchlings glyph font is fixed in the library, so widening the viewer only spreads the same-size
-  // bases sideways; to actually resize the text we scale the rendered track with CSS `zoom`. The
-  // slider runs from SEQ_ZOOM_MIN (a compact whole-locus overview) up to SEQ_ZOOM_MAX (large,
-  // readable bases). The viewer is laid out ONCE at the container width (so wrapping is stable) and
-  // given a height tall enough to render every row; the CSS below collapses its own scroll so the
-  // single outer scroller — sized correctly because CSS `zoom` scales the layout box — owns scroll.
-  const SEQ_ZOOM_MIN = 0.5
-  const SEQ_ZOOM_MAX = 3
-  const SEQ_ZOOM_STEP = 0.05
+  // Sequence-viewer zoom — the only zoom in the figure (the diagram is a static overview). Zoom is
+  // BASES PER ROW (`n`): the viewer wraps at exactly `n` bases in a natural CHAR_CELL_PX cell, then we
+  // CSS-`zoom` the whole track by `frameWidth / rowWidthPx(n)` so a row fills the fixed-width frame
+  // exactly — no horizontal whitespace/scroll, text grows as `n` shrinks. `n` runs from `bounds.lo`
+  // (20 bp across, max zoom) to `bounds.hi` (the whole locus fits the window height, min zoom),
+  // computed in locusSeqZoom from the frame size + the laid-out content height.
   // Far taller than any locus track: the SequenceViewer's virtual scroller renders only the rows
   // within `height`, so this forces every row out (its box is then collapsed to content by CSS).
   const SEQ_RENDER_ALL_H = 50000
-  // The visible window before the outer scroller takes over (kept modest so a long locus scrolls
-  // rather than pushing the rest of the page far down).
-  const SEQ_VIEWPORT_H = 440
-  let seqZoom = $state(1)
+  // The window's on-screen height tracks the viewport (responsive) — clamped so it stays a usable
+  // window on small laptops and doesn't dominate tall monitors. Content beyond it scrolls vertically.
+  const SEQ_FRAME_MIN_H = 320
+  const SEQ_FRAME_MAX_H = 720
+  let viewportH = $state(0)
+  $effect(() => {
+    const update = () => (viewportH = window.innerHeight)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  })
+  const frameH = $derived(
+    Math.round(Math.min(Math.max((viewportH || 900) * 0.58, SEQ_FRAME_MIN_H), SEQ_FRAME_MAX_H)),
+  )
+
   let seqContainerW = $state(0)
   let seqScroller: HTMLDivElement | undefined = $state()
-  // Base (unzoomed) wrap width — fit the container; CSS `zoom` rescales from here.
-  const baseSeqWidth = $derived(Math.round(Math.max(seqContainerW || BASE_WIDTH, MIN_SEQ_TRACK)))
+  // The fill width is the scroller's ACTUAL measured content width (no minimum floor) — on a phone
+  // the row must fill the real frame, not a wider floored track that would overflow and clip. Falls
+  // back to BASE_WIDTH only until the container is first measured (jsdom / first paint).
+  const frameW = $derived(Math.round(seqContainerW || BASE_WIDTH))
+
+  // The track-feature flags that drive row heights, kept in ONE place so the content-height predictor
+  // (fit math) and the SequenceViewer props below cannot drift — if they disagree, the "whole locus
+  // fits" bound would be wrong. Numbers + the specifier-codon translation on, no complement strand.
+  const SEQ_TRACK_OPTS = { showNumbers: true, showComplement: false, showTranslations: true } as const
+
+  // [max-zoom, fit-whole] bases-per-row range for this locus in this frame (recomputes on resize).
+  const bounds: BasesPerRowBounds = $derived(
+    seqData ? basesPerRowBounds(seqData, frameW, frameH, SEQ_TRACK_OPTS) : { lo: 20, hi: 20 },
+  )
+  // The zoom value: bases per row. `null` until the user moves the slider → tracks the default, which
+  // itself follows the locus (a short leader opens already whole). Kept inside [lo, hi] on resize.
+  let basesPerRow = $state<number | null>(null)
+  const n = $derived(
+    basesPerRow === null
+      ? defaultBasesPerRow(bounds)
+      : Math.min(Math.max(basesPerRow, bounds.lo), bounds.hi),
+  )
+  $effect(() => {
+    if (basesPerRow !== null) {
+      const clamped = Math.min(Math.max(basesPerRow, bounds.lo), bounds.hi)
+      if (clamped !== basesPerRow) basesPerRow = clamped
+    }
+  })
+  // Deterministic from `n` (matches the library's svgWidth); the CSS zoom fills the frame from here.
+  const svgWidth = $derived(rowWidthPx(n))
+  const seqZoom = $derived(frameW / svgWidth)
 
   function handlePartClick(part: Part) {
     // gene parts (the proximal one keeps DOWNSTREAM_ORF_ID, operon genes are suffixed) aren't elements.
@@ -174,40 +219,54 @@
             {/if}
           {/if}
         </div>
-        <!-- Continuous text-size zoom: slid left = compact whole-locus overview, right = larger bases. -->
+        <!-- Bases-per-row zoom: slid right = fewer bases / bigger text (max zoom 20 bp across), left
+             = the whole locus fits the window. The slider is reversed (its value is the bp-per-row
+             mirrored about the range) so rightward always reads as "zoom in". -->
         <div class="flex shrink-0 items-center gap-2">
           <span class="text-caption text-muted">Zoom</span>
           <input
             type="range"
             class="tv-seq-zoom"
-            min={SEQ_ZOOM_MIN}
-            max={SEQ_ZOOM_MAX}
-            step={SEQ_ZOOM_STEP}
-            bind:value={seqZoom}
-            aria-label="Sequence text size"
+            min={bounds.lo}
+            max={bounds.hi}
+            step="1"
+            value={bounds.lo + bounds.hi - n}
+            oninput={(e) =>
+              (basesPerRow = Math.min(
+                Math.max(bounds.lo + bounds.hi - e.currentTarget.valueAsNumber, bounds.lo),
+                bounds.hi,
+              ))}
+            disabled={bounds.hi <= bounds.lo}
+            aria-label="Sequence zoom"
           />
           <button
             type="button"
-            class="min-w-[3.5ch] text-caption tabular-nums text-muted hover:text-ink"
+            class="min-w-[5.5ch] text-caption tabular-nums text-muted hover:text-ink"
             title="Reset zoom"
-            onclick={() => (seqZoom = 1)}>{Math.round(seqZoom * 100)}%</button>
+            onclick={() => (basesPerRow = defaultBasesPerRow(bounds))}>{n} bp/row</button>
         </div>
       </div>
-      <!-- Measure the SCROLLER's own content width (clientWidth excludes the border + the
-           reserved scrollbar gutter) so the track fits exactly at zoom 1 — no phantom h-scroll. -->
+      <!-- Fixed-width window: a row is laid out at the natural `svgWidth` then CSS-zoomed to fill the
+           frame exactly, so there is never horizontal whitespace or scroll (overflow-x hidden). The
+           window height tracks the viewport; taller content scrolls vertically inside it. clientWidth
+           excludes the border + reserved scrollbar gutter, so it is the true fill width. -->
       <div
-        class="tv-seqzoom relative overflow-auto rounded-md border border-hairline"
-        style:max-height="{SEQ_VIEWPORT_H}px"
+        class="tv-seqzoom relative rounded-md border border-hairline"
+        style:max-height="{frameH}px"
         bind:this={seqScroller}
         bind:clientWidth={seqContainerW}
       >
         <div style:zoom={seqZoom}>
+          <!-- Feature flags come from SEQ_TRACK_OPTS so they stay in lock-step with the fit predictor. -->
           <SequenceViewer
             data={seqData}
-            width={baseSeqWidth}
+            width={svgWidth}
             height={SEQ_RENDER_ALL_H}
-            showComplement={false}
-            showNumbers
+            charsPerRow={n}
+            charWidth={CHAR_CELL_PX}
+            showComplement={SEQ_TRACK_OPTS.showComplement}
+            showNumbers={SEQ_TRACK_OPTS.showNumbers}
+            showTranslations={SEQ_TRACK_OPTS.showTranslations}
             colorBases={false}
           />
         </div>
@@ -221,8 +280,12 @@
      its own box back to the content and silence its internal scroll so the single outer `.tv-seqzoom`
      scroller owns scrolling and CSS `zoom` can scale the whole laid-out track uniformly. */
   .tv-seqzoom {
+    /* The fixed window: vertical scroll for overflow, NEVER horizontal — a row is CSS-zoomed to
+       exactly the frame width, so overflow-x is hidden to guarantee no phantom h-scroll/whitespace. */
+    overflow-x: hidden;
+    overflow-y: auto;
     /* Reserve the vertical-scrollbar gutter so the measured content width — and therefore the
-       track's fit at zoom 1 — stays stable whether or not the locus is tall enough to scroll. */
+       fill width — stays stable whether or not the locus is tall enough to scroll. */
     scrollbar-gutter: stable;
   }
   .tv-seqzoom :global(.hatch-sequence-viewer) {
