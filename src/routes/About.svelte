@@ -138,11 +138,6 @@
       </p>
       <ol class="list-decimal space-y-2 pl-5 marker:font-medium marker:text-muted">
         <li>
-          <strong class="font-medium text-ink">Drop contamination.</strong> 24 non-bacterial rows
-          (phylum ∈ {@render code('Arthropoda, Ascomycota, Nematoda, Streptophyta')}) are removed
-          before anything else, so they never reach a locus.
-        </li>
-        <li>
           <strong class="font-medium text-ink">Orient each T-box.</strong> Strand comes from the
           coordinate order; each element's genomic 5′ anchor (the {@render code('core5')} position) is
           then computed, so elements can be ordered along the transcript.
