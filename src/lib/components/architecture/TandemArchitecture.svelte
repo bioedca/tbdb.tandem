@@ -48,8 +48,10 @@
     funcClass: FuncClass
     funcSource?: FuncSource
     downstreamGene?: string | null
-    /** NCBI genomic context (downstream gene + interval sequence). Present → the gene is drawn to
-     *  scale and the sequence viewer shows the whole locus; null → schematic ORF + per-element view. */
+    /** NCBI genomic context (downstream gene + interval sequence). Resolved → the gene is drawn to
+     *  scale and the sequence viewer shows the whole locus; present-but-unresolved → no gene is
+     *  drawn (the elements alone + the "gene could not be found" banner); null → still fetching, so
+     *  no gene and no banner (the per-element leader view), never a schematic stand-in. */
     context?: LocusContext | null
   } = $props()
 

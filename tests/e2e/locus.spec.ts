@@ -258,7 +258,9 @@ test.describe('LocusDetail (/locus/T0043 — unresolved downstream gene)', () =>
     // Once the NCBI context loads, the figure settles into the no-gene state and surfaces the banner.
     await expect(arch).toHaveAttribute('data-arch-scale', 'no-gene', { timeout: 30_000 })
     await expect(arch.locator('.tv-arch-no-gene')).toContainText('could not be found')
-    // The T-box elements still render (two for this pair).
+    // The T-box elements still render (two for this pair)…
     await expect(arch.locator('g.tv-arch-element')).toHaveCount(2)
+    // …and NO gene arrow is drawn: one LinearMap feature per part = the two elements only.
+    await expect(arch.locator('.linear-feature')).toHaveCount(2)
   })
 })
