@@ -120,11 +120,14 @@
   // back to BASE_WIDTH only until the container is first measured (jsdom / first paint).
   const frameW = $derived(Math.round(seqContainerW || BASE_WIDTH))
 
+  // The track-feature flags that drive row heights, kept in ONE place so the content-height predictor
+  // (fit math) and the SequenceViewer props below cannot drift — if they disagree, the "whole locus
+  // fits" bound would be wrong. Numbers + the specifier-codon translation on, no complement strand.
+  const SEQ_TRACK_OPTS = { showNumbers: true, showComplement: false, showTranslations: true } as const
+
   // [max-zoom, fit-whole] bases-per-row range for this locus in this frame (recomputes on resize).
   const bounds: BasesPerRowBounds = $derived(
-    seqData
-      ? basesPerRowBounds(seqData, frameW, frameH, { showNumbers: true, showComplement: false })
-      : { lo: 20, hi: 20 },
+    seqData ? basesPerRowBounds(seqData, frameW, frameH, SEQ_TRACK_OPTS) : { lo: 20, hi: 20 },
   )
   // The zoom value: bases per row. `null` until the user moves the slider → tracks the default, which
   // itself follows the locus (a short leader opens already whole). Kept inside [lo, hi] on resize.
@@ -254,14 +257,16 @@
         bind:clientWidth={seqContainerW}
       >
         <div style:zoom={seqZoom}>
+          <!-- Feature flags come from SEQ_TRACK_OPTS so they stay in lock-step with the fit predictor. -->
           <SequenceViewer
             data={seqData}
             width={svgWidth}
             height={SEQ_RENDER_ALL_H}
             charsPerRow={n}
             charWidth={CHAR_CELL_PX}
-            showComplement={false}
-            showNumbers
+            showComplement={SEQ_TRACK_OPTS.showComplement}
+            showNumbers={SEQ_TRACK_OPTS.showNumbers}
+            showTranslations={SEQ_TRACK_OPTS.showTranslations}
             colorBases={false}
           />
         </div>

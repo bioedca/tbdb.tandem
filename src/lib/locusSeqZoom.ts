@@ -122,6 +122,10 @@ export function renderedHeightPx(data: SeqGeometryInput, n: number, frameW: numb
  * window height with no scroll. Rendered height shrinks monotonically as `n` grows (fewer, smaller
  * rows), so we scan up from MIN_BASES_PER_ROW and return the first `n` that fits; capped at the full
  * sequence length (one row). A small `safety` margin biases toward a guaranteed fit.
+ *
+ * Best-effort fallback: if even one row (`n === seqLen`) exceeds the budget — only when the window is
+ * extremely short — we still return `seqLen`. That is the densest, smallest the track can be, so the
+ * window simply scrolls; there is no smaller-text option, so this is the correct degenerate answer.
  */
 export function fitBasesPerRow(
   data: SeqGeometryInput,

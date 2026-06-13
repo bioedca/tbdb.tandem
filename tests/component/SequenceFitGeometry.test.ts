@@ -33,7 +33,15 @@ describe('SequenceViewer rendered height == locusSeqZoom predictor', () => {
   for (const n of [20, 40, 200]) {
     test(`numbers on, charsPerRow=${n}`, () => {
       const { container } = render(SequenceViewer, {
-        props: { data, charsPerRow: n, charWidth: CHAR_CELL_PX, showComplement: false, showNumbers: true, height: 50000 },
+        props: {
+          data,
+          charsPerRow: n,
+          charWidth: CHAR_CELL_PX,
+          showComplement: false,
+          showNumbers: true,
+          showTranslations: true, // explicit: don't rely on the library default the predictor assumes
+          height: 50000,
+        },
       })
       const svg = container.querySelector('svg.hatch-sequence-svg')!
       const rendered = Number(svg.getAttribute('height'))
@@ -46,7 +54,15 @@ describe('SequenceViewer rendered height == locusSeqZoom predictor', () => {
   test('numbers off drops the ruler band (locks the PR2 / no-numbers state too)', () => {
     const n = 40
     const { container } = render(SequenceViewer, {
-      props: { data, charsPerRow: n, charWidth: CHAR_CELL_PX, showComplement: false, showNumbers: false, height: 50000 },
+      props: {
+        data,
+        charsPerRow: n,
+        charWidth: CHAR_CELL_PX,
+        showComplement: false,
+        showNumbers: false,
+        showTranslations: true, // explicit: don't rely on the library default the predictor assumes
+        height: 50000,
+      },
     })
     const svg = container.querySelector('svg.hatch-sequence-svg')!
     expect(Number(svg.getAttribute('height'))).toBe(
